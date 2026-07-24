@@ -522,3 +522,166 @@ button, input { font: inherit; }
 .checkbox-row span small{color:var(--muted);font-weight:500;margin-top:3px}
 .payment-fields{margin-top:13px}
 @media(max-width:560px){.span-2{grid-column:span 1}.prospects-layout,.clients-layout{display:block}}
+
+
+/* ============================================================
+   FASE 4.4 — PROSPECTOS AMIGABLES
+   ============================================================ */
+.prospects-header{margin-bottom:16px}
+.filter-bar{
+  display:grid;
+  grid-template-columns:minmax(230px,1.4fr) repeat(3,minmax(150px,.7fr)) auto;
+  gap:10px;
+  align-items:end;
+  padding:15px;
+  margin-bottom:14px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+}
+.filter-bar label{display:grid;gap:5px}
+.filter-bar label>span{font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.filter-bar input,.filter-bar select{
+  width:100%;
+  min-height:42px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 11px;
+  background:#fff;
+  color:var(--text);
+}
+.filter-actions{display:flex;gap:7px}
+.filter-actions button{min-height:42px}
+.prospect-summary{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  margin-bottom:12px;
+  padding:0 3px;
+}
+.prospect-summary div{display:flex;align-items:baseline;gap:6px}
+.prospect-summary strong{font-size:1.5rem}
+.prospect-summary span,.prospect-summary p{color:var(--muted);font-size:.82rem}
+.prospect-summary p{margin:0}
+.prospect-cards{display:grid;gap:11px}
+.prospect-card{
+  display:grid;
+  grid-template-columns:minmax(280px,1.25fr) minmax(360px,1fr) auto;
+  gap:18px;
+  align-items:center;
+  padding:17px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 5px 18px rgba(20,49,91,.035);
+}
+.prospect-card-main{display:flex;align-items:center;gap:12px;min-width:0}
+.prospect-avatar{
+  flex:0 0 auto;
+  width:46px;height:46px;border-radius:14px;
+  display:grid;place-items:center;
+  background:linear-gradient(145deg,#dce9ff,#eef4ff);
+  color:#214f8c;font-weight:950
+}
+.prospect-primary{min-width:0;flex:1}
+.prospect-title-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.prospect-title-row strong,.prospect-title-row small{display:block}
+.prospect-title-row strong{font-size:.98rem}
+.prospect-title-row small{margin-top:4px;color:var(--muted);font-size:.76rem}
+.prospect-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.prospect-tags span{
+  padding:4px 7px;border-radius:999px;
+  background:#edf3fb;color:#355679;
+  font-size:.66rem;font-weight:800
+}
+.prospect-details{
+  display:grid;
+  grid-template-columns:.7fr 1fr .85fr;
+  gap:14px;
+}
+.prospect-details div{min-width:0}
+.prospect-details span,.prospect-details strong{display:block}
+.prospect-details span{color:var(--muted);font-size:.65rem;text-transform:uppercase;letter-spacing:.04em}
+.prospect-details strong{font-size:.78rem;margin-top:5px;line-height:1.4}
+.prospect-actions{display:flex;gap:7px;align-items:center;justify-content:flex-end}
+.prospect-actions .primary-button,.prospect-actions .secondary-button{padding:9px 11px;font-size:.72rem;white-space:nowrap;text-decoration:none}
+.converted-label{font-size:.72rem;color:#247345;font-weight:850}
+.prospect-empty{display:grid;gap:5px}
+.prospect-empty strong{color:var(--text)}
+
+.drawer-backdrop{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(5,18,43,.48);
+  backdrop-filter:blur(2px);
+  display:flex;justify-content:flex-end
+}
+.form-drawer{
+  width:min(560px,100%);
+  height:100%;
+  overflow-y:auto;
+  padding:22px;
+  background:#fff;
+  box-shadow:-24px 0 70px rgba(3,15,35,.22);
+  animation:drawer-in .2s ease-out
+}
+@keyframes drawer-in{from{transform:translateX(35px);opacity:.4}to{transform:translateX(0);opacity:1}}
+.drawer-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
+.drawer-header h2{margin:5px 0 0;font-size:1.7rem}
+.icon-button{
+  width:38px;height:38px;border:1px solid var(--line);
+  border-radius:10px;background:#fff;font-size:1.4rem
+}
+.drawer-form label{display:grid;gap:6px;font-size:.78rem;font-weight:800;margin-bottom:12px}
+.drawer-form input,.drawer-form select,.drawer-form textarea{
+  width:100%;padding:11px 12px;border:1px solid var(--line);
+  border-radius:10px;background:#fff;outline:none
+}
+.drawer-actions{
+  position:sticky;bottom:-22px;
+  display:flex;justify-content:flex-end;gap:8px;
+  margin:18px -22px -22px;
+  padding:15px 22px;
+  background:rgba(255,255,255,.96);
+  border-top:1px solid var(--line);
+  backdrop-filter:blur(8px)
+}
+
+/* Oculta los controles visuales del input numérico. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
+input[type="number"]{
+  -moz-appearance:textfield;
+  appearance:textfield;
+}
+
+@media(max-width:1250px){
+  .filter-bar{grid-template-columns:1fr 1fr 1fr}
+  .search-field{grid-column:span 2}
+  .filter-actions{justify-content:flex-end}
+  .prospect-card{grid-template-columns:1fr auto}
+  .prospect-details{grid-column:1/2}
+  .prospect-actions{grid-column:2;grid-row:1/3;flex-direction:column;align-items:stretch}
+}
+@media(max-width:850px){
+  .filter-bar{grid-template-columns:1fr 1fr}
+  .search-field{grid-column:span 2}
+  .prospect-summary p{display:none}
+  .prospect-card{display:block}
+  .prospect-details{margin:15px 0}
+  .prospect-actions{display:flex;flex-direction:row;justify-content:flex-start;flex-wrap:wrap}
+}
+@media(max-width:560px){
+  .filter-bar{grid-template-columns:1fr}
+  .search-field{grid-column:span 1}
+  .filter-actions{justify-content:stretch}
+  .filter-actions button{flex:1}
+  .prospect-title-row{display:block}
+  .prospect-title-row .status-pill{margin-top:7px}
+  .prospect-details{grid-template-columns:1fr}
+  .form-drawer{padding:17px}
+  .drawer-actions{margin-left:-17px;margin-right:-17px;margin-bottom:-17px;padding-left:17px;padding-right:17px}
+}

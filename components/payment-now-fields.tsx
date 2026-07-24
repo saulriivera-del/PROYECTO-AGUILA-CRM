@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import NumberInput from '@/components/number-input'
 
 export default function PaymentNowFields() {
   const [enabled, setEnabled] = useState(false)
@@ -23,7 +24,7 @@ export default function PaymentNowFields() {
       {enabled ? (
         <div className="form-grid payment-fields">
           <label>Monto recibido
-            <input name="paid_amount" type="number" min="0.01" step="0.01" required />
+            <NumberInput name="paid_amount" min="0.01" step="0.01" inputMode="decimal" required />
           </label>
           <label>Método
             <select name="payment_method" defaultValue="Efectivo">

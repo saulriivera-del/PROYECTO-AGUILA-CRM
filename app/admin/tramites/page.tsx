@@ -3,6 +3,7 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
 import SubmitButton from '@/components/submit-button'
 import PaymentNowFields from '@/components/payment-now-fields'
+import NumberInput from '@/components/number-input'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -54,7 +55,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
             <label>Prioridad
               <select name="priority" defaultValue="Media"><option>Alta</option><option>Media</option><option>Baja</option></select>
             </label>
-            <label>Total acordado<input name="agreed_amount" type="number" min="0" step="0.01" /></label>
+            <label>Total acordado<NumberInput name="agreed_amount" min="0" step="0.01" inputMode="decimal" /></label>
             <label>Compromiso de pago<input name="payment_commitment_date" type="date" /></label>
             <label>Cita gubernamental<input name="government_appointment_at" type="datetime-local" /></label>
           </div>
