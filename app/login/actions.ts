@@ -1,0 +1,35 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+
+export type LoginState = {
+  error?: string
+}
+
+export async function login(
+  _previousState: LoginState,
+  formData: FormData,
+): Promise<LoginState> {
+  const email = String(formData.get('email') ?? '').trim()
+  const password = String(formData.get('password') ?? '')
+
+  if (!email || !password) {
+    return { error: 'Escribe tu correo y contraseña.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+  if (error) {
+    return { error: 'Correo o contraseña incorrectos.' }
+  }
+
+  redirect('/admin')
+}
+
+export async function logout() {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/login')
+}
