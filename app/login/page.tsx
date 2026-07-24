@@ -21,8 +21,8 @@ export default function LoginPage() {
       <section className="login-panel">
         <div className="login-card">
           <span className="eyebrow">Acceso privado</span>
-          <h2>Bienvenido, Ángel</h2>
-          <p>Utiliza el usuario que creaste en Supabase Authentication.</p>
+          <h2>Acceso al centro de control</h2>
+          <p>Ingresa tus credenciales autorizadas. El correo no se muestra ni se completa automáticamente.</p>
           <LoginForm />
         </div>
       </section>
