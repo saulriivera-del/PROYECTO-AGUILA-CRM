@@ -8,14 +8,31 @@ function value(formData: FormData, name: string) {
   return String(formData.get(name) ?? '').trim()
 }
 
+function normalizedPhone(raw: string) {
+  return raw.replace(/\D/g, '')
+}
+
 export async function createProspect(formData: FormData) {
   const context = await requireAuthContext()
   const fullName = value(formData, 'full_name')
-  const phone = value(formData, 'phone')
+  const phone = normalizedPhone(value(formData, 'phone'))
   const serviceInterest = value(formData, 'service_interest')
 
   if (!fullName || !phone || !serviceInterest) {
     redirect('/admin/prospectos?error=Completa%20nombre%2C%20teléfono%20y%20servicio')
+  }
+
+  const { data: existing } = await context.supabase
+    .from('prospects')
+    .select('id')
+    .eq('organization_id', context.organizationId)
+    .eq('phone', phone)
+    .eq('service_interest', serviceInterest)
+    .in('status', ['Activo', 'Pausado'])
+    .limit(1)
+
+  if (existing?.length) {
+    redirect('/admin/prospectos?error=Ya%20existe%20un%20prospecto%20activo%20con%20ese%20teléfono%20y%20servicio')
   }
 
   const { data, error } = await context.supabase
@@ -24,13 +41,13 @@ export async function createProspect(formData: FormData) {
       organization_id: context.organizationId,
       full_name: fullName,
       phone,
-      whatsapp: value(formData, 'whatsapp') || phone,
+      whatsapp: phone,
       email: value(formData, 'email') || null,
       city: value(formData, 'city') || 'Hermosillo',
       state: value(formData, 'state') || 'Sonora',
       country: 'México',
       service_interest: serviceInterest,
-      origin: value(formData, 'origin') || 'Oficina',
+      origin: value(formData, 'origin') || 'WhatsApp',
       temperature: value(formData, 'temperature') || 'Seguimiento',
       quoted_amount: Number(value(formData, 'quoted_amount') || 0),
       internal_appointment_at: value(formData, 'internal_appointment_at') || null,
@@ -79,34 +96,47 @@ export async function convertProspect(formData: FormData) {
     redirect('/admin/prospectos?error=Este%20prospecto%20ya%20fue%20convertido')
   }
 
-  const { data: client, error: clientError } = await context.supabase
+  const { data: existingClients } = await context.supabase
     .from('clients')
-    .insert({
-      organization_id: context.organizationId,
-      full_name: prospect.full_name,
-      phone: prospect.phone,
-      whatsapp: prospect.whatsapp,
-      email: prospect.email,
-      city: prospect.city,
-      state: prospect.state,
-      country: prospect.country,
-      origin: prospect.origin,
-      notes: prospect.notes,
-      assigned_to: prospect.assigned_to ?? context.userId,
-      created_by: context.userId,
-    })
     .select('id')
-    .single()
+    .eq('organization_id', context.organizationId)
+    .eq('phone', prospect.phone)
+    .limit(1)
 
-  if (clientError) {
-    redirect(`/admin/prospectos?error=${encodeURIComponent(clientError.message)}`)
+  let clientId = existingClients?.[0]?.id
+
+  if (!clientId) {
+    const { data: client, error: clientError } = await context.supabase
+      .from('clients')
+      .insert({
+        organization_id: context.organizationId,
+        full_name: prospect.full_name,
+        phone: prospect.phone,
+        whatsapp: prospect.phone,
+        email: prospect.email,
+        city: prospect.city,
+        state: prospect.state,
+        country: prospect.country,
+        origin: prospect.origin,
+        notes: prospect.notes,
+        assigned_to: prospect.assigned_to ?? context.userId,
+        created_by: context.userId,
+      })
+      .select('id')
+      .single()
+
+    if (clientError) {
+      redirect(`/admin/prospectos?error=${encodeURIComponent(clientError.message)}`)
+    }
+
+    clientId = client.id
   }
 
   await context.supabase
     .from('prospects')
     .update({
       status: 'Convertido',
-      converted_client_id: client.id,
+      converted_client_id: clientId,
     })
     .eq('id', prospect.id)
 
@@ -114,7 +144,7 @@ export async function convertProspect(formData: FormData) {
     organization_id: context.organizationId,
     actor_id: context.userId,
     entity_type: 'client',
-    entity_id: client.id,
+    entity_id: clientId,
     action: 'prospect_converted',
     description: `${prospect.full_name} fue convertido en cliente`,
     metadata: { prospect_id: prospect.id },

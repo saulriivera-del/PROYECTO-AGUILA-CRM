@@ -1,6 +1,8 @@
 import { createProcess } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
+import SubmitButton from '@/components/submit-button'
+import PaymentNowFields from '@/components/payment-now-fields'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -56,8 +58,9 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
             <label>Compromiso de pago<input name="payment_commitment_date" type="date" /></label>
             <label>Cita gubernamental<input name="government_appointment_at" type="datetime-local" /></label>
           </div>
-          <label>Observaciones<textarea name="notes" rows={4} /></label>
-          <button className="primary-button" disabled={!clients?.length}>Crear trámite</button>
+          <PaymentNowFields />
+          <label>Observaciones<textarea name="notes" rows={3} /></label>
+          <SubmitButton pendingText="Creando trámite…" disabled={!clients?.length}>Crear trámite</SubmitButton>
         </form>
 
         <section className="table-card">

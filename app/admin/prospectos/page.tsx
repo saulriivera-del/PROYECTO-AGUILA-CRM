@@ -1,6 +1,8 @@
 import { createProspect, convertProspect } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
+import SubmitButton from '@/components/submit-button'
+import MexicoStates from '@/components/mexico-states'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -31,16 +33,15 @@ export default async function ProspectosPage({
       {params.created ? <div className="notice success">Prospecto guardado correctamente.</div> : null}
       {params.error ? <div className="notice error">{String(params.error)}</div> : null}
 
-      <section className="data-layout">
-        <form action={createProspect} className="form-card" id="nuevo">
+      <section className="data-layout prospects-layout">
+        <form action={createProspect} className="form-card compact-form" id="nuevo">
           <div className="panel-heading">
             <div><span className="eyebrow">Nuevo registro</span><h3>Agregar prospecto</h3></div>
           </div>
 
           <div className="form-grid">
-            <label>Nombre completo<input name="full_name" required /></label>
-            <label>Teléfono<input name="phone" inputMode="tel" required /></label>
-            <label>WhatsApp<input name="whatsapp" inputMode="tel" /></label>
+            <label className="span-2">Nombre completo<input name="full_name" required /></label>
+            <label>Teléfono / WhatsApp<input name="phone" inputMode="tel" required /></label>
             <label>Correo<input name="email" type="email" /></label>
             <label>Servicio
               <select name="service_interest" required defaultValue="">
@@ -73,11 +74,11 @@ export default async function ProspectosPage({
             <label>Cita para llenar formato<input name="internal_appointment_at" type="datetime-local" /></label>
             <label>Próximo seguimiento<input name="next_followup_at" type="datetime-local" /></label>
             <label>Ciudad<input name="city" defaultValue="Hermosillo" /></label>
-            <label>Estado<input name="state" defaultValue="Sonora" /></label>
+            <label>Estado<MexicoStates /></label>
           </div>
 
-          <label>Observaciones<textarea name="notes" rows={4} /></label>
-          <button className="primary-button">Guardar prospecto</button>
+          <label>Observaciones<textarea name="notes" rows={3} /></label>
+          <SubmitButton pendingText="Guardando prospecto…">Guardar prospecto</SubmitButton>
         </form>
 
         <section className="table-card">
@@ -92,7 +93,7 @@ export default async function ProspectosPage({
               <tbody>
                 {(prospects ?? []).map((prospect) => (
                   <tr key={prospect.id}>
-                    <td><strong>{prospect.full_name}</strong><small>{prospect.whatsapp || prospect.phone}<br />{prospect.origin}</small></td>
+                    <td><strong>{prospect.full_name}</strong><small>{prospect.phone}<br />{prospect.origin}</small></td>
                     <td>{prospect.service_interest}<small>{prospect.temperature}</small></td>
                     <td>{dateTime(prospect.next_followup_at || prospect.internal_appointment_at)}</td>
                     <td>{money(prospect.quoted_amount)}</td>
@@ -101,7 +102,9 @@ export default async function ProspectosPage({
                       {prospect.status !== 'Convertido' ? (
                         <form action={convertProspect}>
                           <input type="hidden" name="prospect_id" value={prospect.id} />
-                          <button className="mini-button">Convertir en cliente</button>
+                          <SubmitButton className="mini-button" pendingText="Convirtiendo…">
+                            Convertir en cliente
+                          </SubmitButton>
                         </form>
                       ) : <span className="muted">Convertido</span>}
                     </td>

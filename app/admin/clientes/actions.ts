@@ -8,13 +8,28 @@ function value(formData: FormData, name: string) {
   return String(formData.get(name) ?? '').trim()
 }
 
+function normalizedPhone(raw: string) {
+  return raw.replace(/\D/g, '')
+}
+
 export async function createClient(formData: FormData) {
   const context = await requireAuthContext()
   const fullName = value(formData, 'full_name')
-  const phone = value(formData, 'phone')
+  const phone = normalizedPhone(value(formData, 'phone'))
 
   if (!fullName || !phone) {
     redirect('/admin/clientes?error=Completa%20nombre%20y%20teléfono')
+  }
+
+  const { data: existing } = await context.supabase
+    .from('clients')
+    .select('id')
+    .eq('organization_id', context.organizationId)
+    .eq('phone', phone)
+    .limit(1)
+
+  if (existing?.length) {
+    redirect('/admin/clientes?error=Ya%20existe%20un%20cliente%20con%20ese%20teléfono')
   }
 
   const { data, error } = await context.supabase
@@ -25,9 +40,9 @@ export async function createClient(formData: FormData) {
       paternal_surname: value(formData, 'paternal_surname') || null,
       maternal_surname: value(formData, 'maternal_surname') || null,
       birth_date: value(formData, 'birth_date') || null,
-      curp: value(formData, 'curp') || null,
+      curp: null,
       phone,
-      whatsapp: value(formData, 'whatsapp') || phone,
+      whatsapp: phone,
       email: value(formData, 'email') || null,
       city: value(formData, 'city') || 'Hermosillo',
       state: value(formData, 'state') || 'Sonora',

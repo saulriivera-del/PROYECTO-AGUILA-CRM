@@ -13,6 +13,11 @@ export async function createProcess(formData: FormData) {
   const clientId = value(formData, 'client_id')
   const serviceFlowId = value(formData, 'service_flow_id')
   const agreedAmount = Number(value(formData, 'agreed_amount') || 0)
+  const paidNow = formData.get('paid_now') === 'on'
+  const paidAmount = paidNow
+    ? Number(value(formData, 'paid_amount') || agreedAmount)
+    : 0
+  const paymentMethod = value(formData, 'payment_method') || 'Efectivo'
 
   const { data: flow } = await context.supabase
     .from('service_flows')
@@ -55,6 +60,18 @@ export async function createProcess(formData: FormData) {
     })
   }
 
+  if (paidNow && paidAmount > 0) {
+    await context.supabase.from('payments').insert({
+      organization_id: context.organizationId,
+      process_id: process.id,
+      amount: paidAmount,
+      payment_method: paymentMethod,
+      reference: value(formData, 'payment_reference') || null,
+      notes: 'Pago registrado al crear el trámite',
+      recorded_by: context.userId,
+    })
+  }
+
   await context.supabase.from('activity_log').insert({
     organization_id: context.organizationId,
     actor_id: context.userId,
@@ -62,6 +79,7 @@ export async function createProcess(formData: FormData) {
     entity_id: process.id,
     action: 'created',
     description: `Trámite creado: ${flow.service_name}`,
+    metadata: paidNow ? { payment_registered: true, paid_amount: paidAmount } : {},
   })
 
   revalidatePath('/admin')

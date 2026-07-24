@@ -509,3 +509,16 @@ button, input { font: inherit; }
 @media(max-width:1150px){.metric-grid{grid-template-columns:repeat(3,1fr)}.data-layout{grid-template-columns:1fr}.form-card{position:static}.dashboard-grid{grid-template-columns:1fr}}
 @media(max-width:850px){.crm-sidebar{position:static;width:auto;min-height:auto}.crm-main{margin-left:0;padding:18px 13px 40px}.crm-nav{display:flex;overflow-x:auto}.crm-nav a,.nav-disabled{white-space:nowrap}.sidebar-user{margin-top:15px}.page-header{align-items:flex-start}.operation-banner{display:block}.operation-banner>strong{display:inline-block;margin-top:16px}.metric-grid{display:flex;overflow-x:auto}.metric-card{min-width:180px}.data-layout{display:block}.table-card{margin-top:14px}}
 @media(max-width:560px){.form-grid{grid-template-columns:1fr}.page-header{display:block}.header-actions{margin-top:13px;flex-wrap:wrap}.operation-banner h2{font-size:1.55rem}}
+
+/* FASE 4.3.1 */
+.span-2{grid-column:span 2}
+.compact-form{padding:18px}
+.prospects-layout,.clients-layout{grid-template-columns:minmax(340px,390px) 1fr}
+.primary-button:disabled,.mini-button:disabled{opacity:.55;cursor:not-allowed}
+.payment-box{border:1px solid var(--line);border-radius:13px;padding:13px;margin:4px 0 13px;background:#f8faff}
+.checkbox-row{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:10px!important;margin:0!important;cursor:pointer}
+.checkbox-row input{width:18px!important;height:18px;margin-top:2px}
+.checkbox-row span strong,.checkbox-row span small{display:block}
+.checkbox-row span small{color:var(--muted);font-weight:500;margin-top:3px}
+.payment-fields{margin-top:13px}
+@media(max-width:560px){.span-2{grid-column:span 1}.prospects-layout,.clients-layout{display:block}}
