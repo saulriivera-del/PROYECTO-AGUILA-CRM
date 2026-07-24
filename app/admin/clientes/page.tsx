@@ -1,6 +1,7 @@
 import { createClient } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime } from '@/lib/format'
+import Link from 'next/link'
 import SubmitButton from '@/components/submit-button'
 import MexicoStates from '@/components/mexico-states'
 
@@ -64,7 +65,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Sea
 
           <div className="client-cards">
             {(clients ?? []).map((client) => (
-              <article className="client-card" key={client.id}>
+              <Link className="client-card client-card-link" href={`/admin/clientes/${client.id}`} key={client.id}>
                 <div className="client-card-head">
                   <div><strong>{client.full_name}</strong><small>{client.phone}</small></div>
                   <span>{client.processes?.length ?? 0} trámite(s)</span>
@@ -77,7 +78,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Sea
                   {!client.processes?.length ? <span className="muted">Sin trámites todavía</span> : null}
                 </div>
                 <small>Registrado {dateTime(client.created_at)} · Origen: {client.origin}</small>
-              </article>
+              </Link>
             ))}
             {!clients?.length ? <div className="empty-state">No hay clientes todavía.</div> : null}
           </div>

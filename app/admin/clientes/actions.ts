@@ -70,3 +70,42 @@ export async function createClient(formData: FormData) {
   revalidatePath('/admin/clientes')
   redirect('/admin/clientes?created=1')
 }
+
+
+export async function createFollowup(formData: FormData) {
+  const context = await requireAuthContext()
+  const clientId = value(formData, 'client_id')
+  const summary = value(formData, 'summary')
+  const method = value(formData, 'contact_method') || 'WhatsApp'
+
+  if (!clientId || !summary) {
+    redirect(`/admin/clientes/${clientId}?error=Escribe%20un%20resumen`)
+  }
+
+  const { error } = await context.supabase.from('followups').insert({
+    organization_id: context.organizationId,
+    client_id: clientId,
+    contact_method: method,
+    summary,
+    next_action: value(formData, 'next_action') || null,
+    next_followup_at: value(formData, 'next_followup_at') || null,
+    handled_by: context.userId,
+  })
+
+  if (error) {
+    redirect(`/admin/clientes/${clientId}?error=${encodeURIComponent(error.message)}`)
+  }
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'client',
+    entity_id: clientId,
+    action: 'followup_created',
+    description: `Seguimiento registrado por ${method}`,
+  })
+
+  revalidatePath(`/admin/clientes/${clientId}`)
+  revalidatePath('/admin')
+  redirect(`/admin/clientes/${clientId}?followup=1`)
+}

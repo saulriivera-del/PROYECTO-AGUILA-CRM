@@ -1,11 +1,17 @@
-import { convertProspect } from './actions'
+import { convertProspect, reactivateProspect } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
 import SubmitButton from '@/components/submit-button'
 import ProspectFormDrawer from '@/components/prospect-form-drawer'
 import ProspectFilters from '@/components/prospect-filters'
+import CloseProspectForm from '@/components/close-prospect-form'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+function daysSince(value: string | null) {
+  if (!value) return null
+  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000))
+}
 
 export default async function ProspectosPage({
   searchParams,
@@ -38,30 +44,51 @@ export default async function ProspectosPage({
 
   const { data: prospects } = await prospectQuery
 
+  const { count: activeCount } = await context.supabase
+    .from('prospects')
+    .select('*', { count: 'exact', head: true })
+    .eq('organization_id', context.organizationId)
+    .eq('status', 'Activo')
+
+  const { count: lostCount } = await context.supabase
+    .from('prospects')
+    .select('*', { count: 'exact', head: true })
+    .eq('organization_id', context.organizationId)
+    .eq('status', 'Perdido')
+
+  const { count: convertedCount } = await context.supabase
+    .from('prospects')
+    .select('*', { count: 'exact', head: true })
+    .eq('organization_id', context.organizationId)
+    .eq('status', 'Convertido')
+
   return (
     <>
       <header className="page-header prospects-header">
         <div>
-          <span className="eyebrow">Primera etapa comercial</span>
+          <span className="eyebrow">Embudo comercial</span>
           <h1>Prospectos</h1>
-          <p>Consulta, filtra y convierte personas sin saturar la pantalla.</p>
+          <p>Activos, convertidos y perdidos en un solo flujo.</p>
         </div>
         <ProspectFormDrawer />
       </header>
 
       {params.created ? <div className="notice success">Prospecto guardado correctamente.</div> : null}
+      {params.closed ? <div className="notice success">Prospecto cerrado y conservado para futuras campañas.</div> : null}
+      {params.reactivated ? <div className="notice success">Prospecto reactivado.</div> : null}
       {params.error ? <div className="notice error">{String(params.error)}</div> : null}
+
+      <section className="pipeline-summary">
+        <div><strong>{activeCount ?? 0}</strong><span>Activos</span></div>
+        <div><strong>{convertedCount ?? 0}</strong><span>Convertidos</span></div>
+        <div><strong>{lostCount ?? 0}</strong><span>Perdidos</span></div>
+      </section>
 
       <ProspectFilters />
 
       <section className="prospect-summary">
-        <div>
-          <strong>{prospects?.length ?? 0}</strong>
-          <span>resultados</span>
-        </div>
-        <p>
-          El formulario ahora se abre únicamente cuando necesitas registrar a alguien.
-        </p>
+        <div><strong>{prospects?.length ?? 0}</strong><span>resultados</span></div>
+        <p>Prioriza a quienes llevan más días sin seguimiento.</p>
       </section>
 
       <section className="prospect-cards">
@@ -72,6 +99,11 @@ export default async function ProspectosPage({
                 `Hola ${prospect.full_name}, te escribimos de Visa Master para dar seguimiento a tu trámite.`,
               )}`
             : '#'
+
+          const referenceDate =
+            prospect.next_followup_at ?? prospect.internal_appointment_at ?? prospect.updated_at
+          const days = daysSince(referenceDate)
+          const agingClass = days === null ? 'neutral' : days <= 3 ? 'fresh' : days <= 7 ? 'warning' : 'late'
 
           return (
             <article className="prospect-card" key={prospect.id}>
@@ -114,8 +146,10 @@ export default async function ProspectosPage({
                   <strong>{dateTime(prospect.next_followup_at || prospect.internal_appointment_at)}</strong>
                 </div>
                 <div>
-                  <span>Registro</span>
-                  <strong>{dateTime(prospect.created_at)}</strong>
+                  <span>Antigüedad</span>
+                  <strong className={`aging ${agingClass}`}>
+                    {days === null ? 'Sin seguimiento' : `${days} día(s)`}
+                  </strong>
                 </div>
               </div>
 
@@ -125,13 +159,23 @@ export default async function ProspectosPage({
                   WhatsApp
                 </a>
 
-                {prospect.status !== 'Convertido' ? (
-                  <form action={convertProspect}>
+                {prospect.status === 'Perdido' ? (
+                  <form action={reactivateProspect}>
                     <input type="hidden" name="prospect_id" value={prospect.id} />
-                    <SubmitButton className="primary-button" pendingText="Convirtiendo…">
-                      Convertir en cliente
+                    <SubmitButton className="primary-button" pendingText="Reactivando…">
+                      Reactivar
                     </SubmitButton>
                   </form>
+                ) : prospect.status !== 'Convertido' ? (
+                  <>
+                    <form action={convertProspect}>
+                      <input type="hidden" name="prospect_id" value={prospect.id} />
+                      <SubmitButton className="primary-button" pendingText="Convirtiendo…">
+                        Convertir
+                      </SubmitButton>
+                    </form>
+                    <CloseProspectForm prospectId={prospect.id} />
+                  </>
                 ) : (
                   <span className="converted-label">Cliente creado</span>
                 )}

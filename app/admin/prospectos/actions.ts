@@ -155,3 +155,72 @@ export async function convertProspect(formData: FormData) {
   revalidatePath('/admin/clientes')
   redirect('/admin/clientes?converted=1')
 }
+
+
+export async function closeProspect(formData: FormData) {
+  const context = await requireAuthContext()
+  const prospectId = value(formData, 'prospect_id')
+  const reason = value(formData, 'loss_reason')
+
+  if (!prospectId || !reason) {
+    redirect('/admin/prospectos?error=Selecciona%20un%20motivo')
+  }
+
+  const { error } = await context.supabase
+    .from('prospects')
+    .update({
+      status: 'Perdido',
+      notes: `Motivo de cierre: ${reason}`,
+    })
+    .eq('id', prospectId)
+    .eq('organization_id', context.organizationId)
+
+  if (error) {
+    redirect(`/admin/prospectos?error=${encodeURIComponent(error.message)}`)
+  }
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'prospect',
+    entity_id: prospectId,
+    action: 'closed',
+    description: `Prospecto cerrado: ${reason}`,
+    metadata: { reason },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/prospectos')
+  redirect('/admin/prospectos?closed=1')
+}
+
+export async function reactivateProspect(formData: FormData) {
+  const context = await requireAuthContext()
+  const prospectId = value(formData, 'prospect_id')
+
+  const { error } = await context.supabase
+    .from('prospects')
+    .update({
+      status: 'Activo',
+      next_followup_at: new Date().toISOString(),
+    })
+    .eq('id', prospectId)
+    .eq('organization_id', context.organizationId)
+
+  if (error) {
+    redirect(`/admin/prospectos?error=${encodeURIComponent(error.message)}`)
+  }
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'prospect',
+    entity_id: prospectId,
+    action: 'reactivated',
+    description: 'Prospecto reactivado',
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/prospectos')
+  redirect('/admin/prospectos?reactivated=1')
+}

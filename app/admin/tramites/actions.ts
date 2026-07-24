@@ -87,3 +87,59 @@ export async function createProcess(formData: FormData) {
   revalidatePath('/admin/tramites')
   redirect('/admin/tramites?created=1')
 }
+
+
+export async function updateProcessStep(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const stepId = value(formData, 'step_id')
+  const nextStatus = value(formData, 'next_status')
+
+  const { data: step, error } = await context.supabase
+    .from('process_steps')
+    .update({
+      status: nextStatus,
+      completed_at: nextStatus === 'Completado' ? new Date().toISOString() : null,
+      completed_by: nextStatus === 'Completado' ? context.userId : null,
+    })
+    .eq('id', stepId)
+    .eq('process_id', processId)
+    .select('step_name')
+    .single()
+
+  if (error) {
+    redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+  }
+
+  const { data: allSteps } = await context.supabase
+    .from('process_steps')
+    .select('step_order, step_name, status')
+    .eq('process_id', processId)
+    .order('step_order')
+
+  const nextPending = allSteps?.find((item) => item.status !== 'Completado')
+  const allCompleted = allSteps?.length && allSteps.every((item) => item.status === 'Completado')
+
+  await context.supabase
+    .from('processes')
+    .update({
+      current_stage: allCompleted ? 'Concluido' : nextPending?.step_name ?? 'Inicio',
+      status: allCompleted ? 'Concluido' : 'Activo',
+      closed_at: allCompleted ? new Date().toISOString() : null,
+    })
+    .eq('id', processId)
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'process',
+    entity_id: processId,
+    action: nextStatus === 'Completado' ? 'step_completed' : 'step_reopened',
+    description: `${step.step_name}: ${nextStatus}`,
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/tramites')
+  revalidatePath(`/admin/tramites/${processId}`)
+  redirect(`/admin/tramites/${processId}?updated=1`)
+}

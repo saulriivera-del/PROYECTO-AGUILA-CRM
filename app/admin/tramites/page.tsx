@@ -4,15 +4,17 @@ import { dateTime, money } from '@/lib/format'
 import SubmitButton from '@/components/submit-button'
 import PaymentNowFields from '@/components/payment-now-fields'
 import NumberInput from '@/components/number-input'
+import ClientSearchSelect from '@/components/client-search-select'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
 export default async function TramitesPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
+  const defaultClientId = typeof params.client === 'string' ? params.client : ''
   const context = await requireAuthContext()
 
   const [{ data: clients }, { data: flows }, { data: processes }] = await Promise.all([
-    context.supabase.from('clients').select('id, full_name').eq('organization_id', context.organizationId).order('full_name'),
+    context.supabase.from('clients').select('id, full_name, phone, city, state, processes(id)').eq('organization_id', context.organizationId).order('full_name'),
     context.supabase.from('service_flows').select('id, service_name').eq('is_active', true).order('service_name'),
     context.supabase
       .from('processes')
@@ -40,11 +42,18 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
           {!clients?.length ? <div className="notice error">Primero registra o convierte al menos un cliente.</div> : null}
 
           <div className="form-grid">
-            <label>Cliente
-              <select name="client_id" required defaultValue="">
-                <option value="" disabled>Selecciona</option>
-                {(clients ?? []).map((client) => <option value={client.id} key={client.id}>{client.full_name}</option>)}
-              </select>
+            <label className="span-2">Cliente
+              <ClientSearchSelect
+                defaultClientId={defaultClientId}
+                clients={(clients ?? []).map((client) => ({
+                  id: client.id,
+                  full_name: client.full_name,
+                  phone: client.phone,
+                  city: client.city,
+                  state: client.state,
+                  process_count: client.processes?.length ?? 0,
+                }))}
+              />
             </label>
             <label>Tipo de trámite
               <select name="service_flow_id" required defaultValue="">
