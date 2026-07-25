@@ -11,7 +11,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Sea
   const params = await searchParams
   const context = await requireAuthContext()
 
-  const { data: clients } = await context.supabase
+  const { data: clients, error: clientsError } = await context.supabase
     .from('clients')
     .select('id, full_name, phone, email, origin, city, state, created_at, processes(id, service_name, status)')
     .eq('organization_id', context.organizationId)
@@ -30,6 +30,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Sea
       {params.created ? <div className="notice success">Cliente guardado correctamente.</div> : null}
       {params.converted ? <div className="notice success">Prospecto convertido en cliente.</div> : null}
       {params.error ? <div className="notice error">{String(params.error)}</div> : null}
+      {clientsError ? <div className="notice error">No se pudieron cargar los clientes: {clientsError.message}</div> : null}
 
       <section className="data-layout clients-layout">
         <form action={createClient} className="form-card compact-form" id="nuevo">

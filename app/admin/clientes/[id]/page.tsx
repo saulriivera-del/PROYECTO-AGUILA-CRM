@@ -83,6 +83,7 @@ export default async function ClientDetailPage({
         </div>
       </header>
 
+      {query.converted ? <div className="notice success">Prospecto convertido correctamente. Este es su expediente de cliente.</div> : null}
       {query.followup ? <div className="notice success">Seguimiento guardado.</div> : null}
       {query.error ? <div className="notice error">{String(query.error)}</div> : null}
 

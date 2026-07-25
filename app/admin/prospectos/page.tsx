@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { convertProspect, reactivateProspect } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
@@ -177,7 +178,16 @@ export default async function ProspectosPage({
                     <CloseProspectForm prospectId={prospect.id} />
                   </>
                 ) : (
-                  <span className="converted-label">Cliente creado</span>
+                  prospect.converted_client_id ? (
+                    <Link
+                      className="secondary-button"
+                      href={`/admin/clientes/${prospect.converted_client_id}`}
+                    >
+                      Abrir cliente
+                    </Link>
+                  ) : (
+                    <span className="converted-label">Conversión incompleta</span>
+                  )
                 )}
               </div>
             </article>
