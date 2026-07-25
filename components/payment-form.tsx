@@ -1,0 +1,7 @@
+'use client'
+import {useState} from 'react'
+import {registerPayment} from '@/app/admin/cobranza/actions'
+import NumberInput from '@/components/number-input'
+import SubmitButton from '@/components/submit-button'
+type P={id:string;service_name:string;client_name:string;balance:number}
+export default function PaymentForm({processes}:{processes:P[]}){const[id,setId]=useState('');const s=processes.find(p=>p.id===id);return <form action={registerPayment} className="form-card"><div className="panel-heading"><div><span className="eyebrow">Nuevo movimiento</span><h3>Registrar pago</h3></div></div><label>Trámite<select name="process_id" value={id} onChange={e=>setId(e.target.value)} required><option value="" disabled>Selecciona</option>{processes.map(p=><option key={p.id} value={p.id}>{p.client_name} · {p.service_name}</option>)}</select></label>{s?<div className="payment-balance-note">Saldo actual: <strong>${s.balance.toLocaleString('es-MX',{minimumFractionDigits:2})}</strong></div>:null}<div className="form-grid"><label>Monto<NumberInput name="amount" min="0.01" step="0.01" inputMode="decimal" required/></label><label>Método<select name="payment_method" defaultValue="Efectivo"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Otro</option></select></label><label className="span-2">Referencia<input name="reference"/></label></div><label>Notas<textarea name="notes" rows={3}/></label><SubmitButton pendingText="Registrando…">Registrar pago</SubmitButton></form>}

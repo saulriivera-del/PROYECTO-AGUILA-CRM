@@ -29,8 +29,8 @@ export default async function AdminLayout({
           <Link href="/admin/prospectos">◎ Prospectos</Link>
           <Link href="/admin/clientes">👥 Personas</Link>
           <Link href="/admin/tramites">▤ Trámites</Link>
-          <span className="nav-disabled">$ Cobranza · Próximamente</span>
-          <span className="nav-disabled">▣ Agenda · Próximamente</span>
+          <Link href="/admin/cobranza">$ Cobranza</Link>
+          <Link href="/admin/agenda">▣ Agenda</Link>
         </nav>
 
         <div className="sidebar-user">
