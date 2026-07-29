@@ -117,9 +117,15 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
         </div>
         {recommended ? (
           <div className="recommendation-actions">
-            {recommended.processes?.id || recommended.processes?.[0]?.id ? (
-              <Link className="secondary-button" href={`/admin/tramites/${recommended.processes?.id || recommended.processes?.[0]?.id}`}>Abrir trámite</Link>
-            ) : null}
+            {(() => {
+              const recommendedProcess = Array.isArray(recommended.processes)
+                ? recommended.processes[0]
+                : recommended.processes
+
+              return recommendedProcess?.id ? (
+                <Link className="secondary-button" href={`/admin/tramites/${recommendedProcess.id}`}>Abrir trámite</Link>
+              ) : null
+            })()}
             <form action={completeAgendaEvent}>
               <input type="hidden" name="event_id" value={recommended.id} />
               <input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`} />
