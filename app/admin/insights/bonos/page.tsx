@@ -19,11 +19,13 @@ export default async function BonusesPage({searchParams}:{searchParams:SearchPar
 
   return <>
     <header className="insights-hero compact">
-      <div><span className="eyebrow">Águila Insights · Fase 5.2.3</span><h1>Bonos del equipo</h1><p>Cálculo, cierre e historial basados únicamente en dinero efectivamente cobrado.</p></div>
+      <div><span className="eyebrow">Águila Insights · Fase 5.2 Final</span><h1>Bonos del equipo</h1><p>Cálculo, cierre e historial basados únicamente en dinero efectivamente cobrado.</p></div>
       <div className="header-actions"><Link className="secondary-button" href="/admin/insights">Volver a Insights</Link></div>
     </header>
     {params.saved ? <div className="notice success">Regla de bono guardada.</div> : null}
     {params.closed ? <div className="notice success">Semana cerrada y guardada en el historial.</div> : null}
+    {params.already_closed ? <div className="notice error">Esta semana ya fue cerrada. El historial quedó protegido contra duplicados.</div> : null}
+    {params.already_paid ? <div className="notice success">Este bono ya estaba marcado como pagado.</div> : null}
     {params.paid ? <div className="notice success">Bono marcado como pagado.</div> : null}
     {params.error ? <div className="notice error">{String(params.error)}</div> : null}
     {data.errors.length ? <div className="notice error">No fue posible consultar todos los datos. {data.errors[0]}</div> : null}
@@ -46,6 +48,7 @@ export default async function BonusesPage({searchParams}:{searchParams:SearchPar
           const extra = Math.max(0, data.weekRevenue - threshold)
           const completedSteps = Math.floor(extra / Number(rule.step_amount))
           const nextStepRemaining = data.weekRevenue < threshold ? remaining : Number(rule.step_amount) - (extra % Number(rule.step_amount) || Number(rule.step_amount))
+          const alreadyClosed = data.bonusHistory.some((item:any) => item.bonus_rule_id === rule.id && item.period_start === isoDate(data.weekStart))
           return <article className="panel-card bonus-employee-card" key={rule.id}>
             <div className="panel-heading"><div><span className="eyebrow">Semana actual</span><h3>{profile?.full_name ?? 'Usuario'}</h3><p>{rule.name}</p></div><strong>{money(bonus)}</strong></div>
             <div className="bonus-big-progress"><div className="progress-track"><span style={{width:`${progress}%`}} /></div><div className="goal-numbers"><span>{money(data.weekRevenue)} cobrados</span><strong>{money(threshold)}</strong></div></div>
@@ -57,7 +60,7 @@ export default async function BonusesPage({searchParams}:{searchParams:SearchPar
             </div>
             <form action={closeCurrentBonusWeek} className="bonus-close-form">
               <input type="hidden" name="rule_id" value={rule.id}/><input type="hidden" name="user_id" value={rule.user_id}/><input type="hidden" name="period_start" value={isoDate(data.weekStart)}/><input type="hidden" name="period_end" value={isoDate(weekEnd)}/><input type="hidden" name="collected_revenue" value={data.weekRevenue}/><input type="hidden" name="calculated_bonus" value={bonus}/>
-              <button className="primary-button">Cerrar semana y guardar</button>
+              <button className="primary-button" disabled={alreadyClosed}>{alreadyClosed ? 'Semana ya cerrada' : 'Cerrar semana y guardar'}</button>
             </form>
           </article>
         })}

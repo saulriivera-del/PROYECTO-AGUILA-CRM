@@ -16,7 +16,7 @@ export default async function TrendsPage(){
   const context=await requireAuthContext(); requireAdministrator(context)
   const data=await getInsightsData(context.supabase,context.organizationId)
   return <>
-    <header className="insights-hero compact"><div><span className="eyebrow">Águila Insights · Fase 5.2.4</span><h1>Tendencias del negocio</h1><p>Compara el desempeño reciente e identifica cambios que requieren atención.</p></div><Link className="secondary-button" href="/admin/insights">Volver a Insights</Link></header>
+    <header className="insights-hero compact"><div><span className="eyebrow">Águila Insights · Fase 5.2 Final</span><h1>Tendencias del negocio</h1><p>Compara el desempeño reciente e identifica cambios que requieren atención.</p></div><Link className="secondary-button" href="/admin/insights">Volver a Insights</Link></header>
     {data.errors.length?<div className="notice error">No fue posible consultar todos los datos. {data.errors[0]}</div>:null}
     <section className="executive-kpis">
       <Trend label="Ingresos semana" current={data.weekRevenue} previous={data.previousWeekRevenue} format={money}/>

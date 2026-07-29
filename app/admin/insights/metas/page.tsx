@@ -16,7 +16,7 @@ export default async function GoalsPage({searchParams}:{searchParams:SearchParam
   const editing=data.goals.find((goal:any)=>goal.id===editingId)
 
   return <>
-    <header className="insights-hero compact"><div><span className="eyebrow">Águila Insights · Fase 5.2.3</span><h1>Centro de Metas</h1><p>Define objetivos medibles para Visa Master y para cada integrante del equipo.</p></div></header>
+    <header className="insights-hero compact"><div><span className="eyebrow">Águila Insights · Fase 5.2 Final</span><h1>Centro de Metas</h1><p>Define objetivos medibles para Visa Master y para cada integrante del equipo.</p></div></header>
     {params.saved?<div className="notice success">Meta guardada correctamente.</div>:null}{params.disabled?<div className="notice success">Meta archivada.</div>:null}{params.error?<div className="notice error">{String(params.error)}</div>:null}
 
     <section className="goals-overview">
