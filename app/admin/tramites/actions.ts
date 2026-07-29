@@ -193,9 +193,13 @@ async function createAppointmentAutomations(
   },
 ) {
   const service = String(process.service_name)
-  const processClient = Array.isArray(process.clients)
-    ? process.clients[0]
-    : process.clients
+  const processClientRelation = (process as any).clients as
+    | { full_name?: string | null; phone?: string | null }
+    | { full_name?: string | null; phone?: string | null }[]
+    | null
+  const processClient = Array.isArray(processClientRelation)
+    ? processClientRelation[0]
+    : processClientRelation
   const clientName = processClient?.full_name ?? 'cliente'
   const processId = process.id
   const clientId = process.client_id
@@ -435,9 +439,13 @@ export async function updateProcessStep(formData: FormData) {
     })
 
     if (process.service_name === 'eTA Canadá' && normalizedStep === 'pagar eta') {
-      const clientName = Array.isArray(process.clients)
-        ? process.clients[0]?.full_name
-        : process.clients?.full_name
+      const clientRelation = (process as any).clients as
+        | { full_name?: string | null }
+        | { full_name?: string | null }[]
+        | null
+      const clientName = Array.isArray(clientRelation)
+        ? clientRelation[0]?.full_name
+        : clientRelation?.full_name
 
       await upsertAutomatedAgendaEvent(context, {
         processId,
@@ -506,7 +514,11 @@ export async function createVisaFollowup(formData: FormData) {
     redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20el%20trámite`)
   }
 
-  const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+  const clientRelation = (process as any).clients as
+    | { full_name?: string | null }
+    | { full_name?: string | null }[]
+    | null
+  const client = Array.isArray(clientRelation) ? clientRelation[0] : clientRelation
 
   await upsertAutomatedAgendaEvent(context, {
     processId,
