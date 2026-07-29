@@ -7,7 +7,7 @@ import { requireAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const text = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
-const allowedRoles = new Set(['administrador', 'recepcionista'])
+const allowedRoles = new Set(['admin', 'reception'])
 
 async function audit(
   context: Awaited<ReturnType<typeof requireAuthContext>>,
@@ -79,7 +79,7 @@ export async function updateTeamUser(form: FormData) {
   if (!id || !fullName || !allowedRoles.has(role)) {
     redirect('/admin/configuracion/usuarios?error=' + encodeURIComponent('Datos de usuario no válidos.'))
   }
-  if (id === context.userId && role !== 'administrador') {
+  if (id === context.userId && role !== 'admin') {
     redirect('/admin/configuracion/usuarios?error=' + encodeURIComponent('No puedes quitarte tu propio acceso de administrador.'))
   }
 

@@ -23,7 +23,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
   ]
 
   return <>
-    <header className="page-header"><div><span className="eyebrow">Configuración · Fase 5.3</span><h1>Usuarios y roles</h1><p>Crea cuentas del equipo sin entrar a la base de datos.</p></div></header>
+    <header className="page-header"><div><span className="eyebrow">Configuración · Fase 5.3.1</span><h1>Usuarios y roles</h1><p>Crea cuentas del equipo sin entrar a la base de datos.</p></div></header>
     {notices.map(([key, message]) => params[key] ? <div className="notice success" key={key}>{message}</div> : null)}
     {params.error ? <div className="notice error">{String(params.error)}</div> : null}
     {error ? <div className="notice error">{error.message}</div> : null}
@@ -34,7 +34,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
         <label>Nombre completo<input name="full_name" placeholder="Mariana Apellido" required /></label>
         <label>Correo<input name="email" type="email" placeholder="mariana@visamaster.com.mx" required /></label>
         <label>Contraseña temporal<input name="password" type="password" minLength={8} placeholder="Mínimo 8 caracteres" required /></label>
-        <label>Rol<select name="role" defaultValue="recepcionista"><option value="recepcionista">Recepcionista</option><option value="administrador">Administrador</option></select></label>
+        <label>Rol<select name="role" defaultValue="reception"><option value="reception">Recepcionista</option><option value="admin">Administrador</option></select></label>
         <button className="primary-button">Crear usuario</button>
         <p className="helper-text">La cuenta queda confirmada y lista para iniciar sesión. Comparte la contraseña por un canal privado.</p>
       </form>
@@ -44,11 +44,11 @@ export default async function UsersPage({ searchParams }: { searchParams: Search
 
     <section className="users-list">
       {(profiles ?? []).map((profile: any) => <article className="panel-card user-admin-card" key={profile.id}>
-        <div className="panel-heading"><div><span className={`status-pill ${profile.is_active ? 'success' : 'muted'}`}>{profile.is_active ? 'Activo' : 'Desactivado'}</span><h3>{profile.full_name}</h3><p>{profile.role}</p></div></div>
+        <div className="panel-heading"><div><span className={`status-pill ${profile.is_active ? 'success' : 'muted'}`}>{profile.is_active ? 'Activo' : 'Desactivado'}</span><h3>{profile.full_name}</h3><p>{String(profile.role).toLowerCase() === 'admin' ? 'Administrador' : String(profile.role).toLowerCase() === 'reception' ? 'Recepcionista' : profile.role}</p></div></div>
         <form action={updateTeamUser} className="inline-admin-form">
           <input type="hidden" name="id" value={profile.id} />
           <label>Nombre<input name="full_name" defaultValue={profile.full_name ?? ''} required /></label>
-          <label>Rol<select name="role" defaultValue={String(profile.role).toLowerCase()}><option value="recepcionista">Recepcionista</option><option value="administrador">Administrador</option></select></label>
+          <label>Rol<select name="role" defaultValue={String(profile.role).toLowerCase()}><option value="reception">Recepcionista</option><option value="admin">Administrador</option></select></label>
           <button className="secondary-button">Guardar cambios</button>
         </form>
         <form action={resetTeamPassword} className="inline-admin-form">
