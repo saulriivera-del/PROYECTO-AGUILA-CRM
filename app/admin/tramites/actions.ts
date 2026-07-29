@@ -143,3 +143,75 @@ export async function updateProcessStep(formData: FormData) {
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`/admin/tramites/${processId}?updated=1`)
 }
+
+
+export async function updateProcessStatus(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const nextStatus = value(formData, 'next_status')
+
+  const allowedStatuses = ['Activo', 'En espera', 'Concluido', 'Cancelado']
+
+  if (!processId || !allowedStatuses.includes(nextStatus)) {
+    redirect(`/admin/tramites/${processId}?error=Estado%20no%20válido`)
+  }
+
+  const { data: currentProcess, error: processLookupError } = await context.supabase
+    .from('processes')
+    .select('service_name, client_id, current_stage')
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+    .single()
+
+  if (processLookupError || !currentProcess) {
+    redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20el%20trámite`)
+  }
+
+  const { data: steps } = await context.supabase
+    .from('process_steps')
+    .select('step_order, step_name, status')
+    .eq('process_id', processId)
+    .order('step_order')
+
+  const nextPendingStep = steps?.find((step) => step.status !== 'Completado')
+  const isClosed = nextStatus === 'Concluido' || nextStatus === 'Cancelado'
+
+  const currentStage =
+    nextStatus === 'Concluido'
+      ? 'Concluido'
+      : nextStatus === 'Cancelado'
+        ? 'Cancelado'
+        : nextPendingStep?.step_name || currentProcess.current_stage || 'Inicio'
+
+  const { error } = await context.supabase
+    .from('processes')
+    .update({
+      status: nextStatus,
+      current_stage: currentStage,
+      closed_at: isClosed ? new Date().toISOString() : null,
+    })
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+
+  if (error) {
+    redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+  }
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'process',
+    entity_id: processId,
+    action: 'status_changed',
+    description: `${currentProcess.service_name}: estado cambiado a ${nextStatus}`,
+    metadata: { status: nextStatus },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/tramites')
+  revalidatePath(`/admin/tramites/${processId}`)
+  revalidatePath(`/admin/clientes/${currentProcess.client_id}`)
+  revalidatePath('/admin/cobranza')
+
+  redirect(`/admin/tramites/${processId}?status_updated=1`)
+}

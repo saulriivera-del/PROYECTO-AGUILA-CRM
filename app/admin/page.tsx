@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
 import { money, dateTime } from '@/lib/format'
+import { getFinancialSummary } from '@/lib/financial-summary'
 
 async function countRows(
   supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>,
@@ -38,7 +39,7 @@ export default async function AdminPage() {
       q.eq('organization_id', context.organizationId),
     ),
     countRows(context.supabase, 'processes', (q) =>
-      q.eq('organization_id', context.organizationId).neq('status', 'Concluido'),
+      q.eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado)'),
     ),
     countRows(context.supabase, 'prospects', (q) =>
       q.eq('organization_id', context.organizationId).eq('status', 'Perdido'),
@@ -51,23 +52,16 @@ export default async function AdminPage() {
     ),
   ])
 
-  const { data: payments } = await context.supabase
-    .from('payments')
-    .select('amount, payment_date')
-    .eq('organization_id', context.organizationId)
+  const financial = await getFinancialSummary(
+    context.supabase,
+    context.organizationId,
+  )
 
-  const collectedToday = (payments ?? [])
+  const collectedToday = financial.payments
     .filter((payment) => new Date(payment.payment_date) >= startOfDay)
     .reduce((sum, payment) => sum + Number(payment.amount), 0)
 
-  const { data: charges } = await context.supabase
-    .from('process_charges')
-    .select('agreed_amount, process_id')
-    .eq('organization_id', context.organizationId)
-
-  const totalAgreed = (charges ?? []).reduce((sum, charge) => sum + Number(charge.agreed_amount), 0)
-  const totalPaid = (payments ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0)
-  const outstanding = Math.max(0, totalAgreed - totalPaid)
+  const outstanding = financial.totalBalance
 
   const { data: dueFollowups } = await context.supabase
     .from('prospects')

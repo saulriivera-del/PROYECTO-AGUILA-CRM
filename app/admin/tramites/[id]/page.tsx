@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
 import ProgressStepButton from '@/components/progress-step-button'
+import SubmitButton from '@/components/submit-button'
+import { updateProcessStatus } from '../actions'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -61,6 +63,7 @@ export default async function ProcessDetailPage({
       </header>
 
       {query.updated ? <div className="notice success">Etapa actualizada correctamente.</div> : null}
+      {query.status_updated ? <div className="notice success">Estado del trámite actualizado.</div> : null}
       {query.error ? <div className="notice error">{String(query.error)}</div> : null}
 
       <section className="client-kpis">
@@ -68,6 +71,59 @@ export default async function ProcessDetailPage({
         <article><span>Total</span><strong>{money(agreed)}</strong></article>
         <article><span>Pagado</span><strong>{money(paid)}</strong></article>
         <article><span>Saldo</span><strong>{money(balance)}</strong></article>
+      </section>
+
+      <section className="process-status-panel">
+        <div>
+          <span className="eyebrow">Estado general</span>
+          <h3>{process.status}</h3>
+          <p>
+            Puedes pausar, reactivar, concluir o cancelar el trámite sin esperar
+            a completar todas las etapas.
+          </p>
+        </div>
+
+        <div className="process-status-actions">
+          {process.status !== 'Activo' ? (
+            <form action={updateProcessStatus}>
+              <input type="hidden" name="process_id" value={process.id} />
+              <input type="hidden" name="next_status" value="Activo" />
+              <SubmitButton className="secondary-button" pendingText="Reactivando…">
+                Reactivar
+              </SubmitButton>
+            </form>
+          ) : null}
+
+          {process.status !== 'En espera' ? (
+            <form action={updateProcessStatus}>
+              <input type="hidden" name="process_id" value={process.id} />
+              <input type="hidden" name="next_status" value="En espera" />
+              <SubmitButton className="secondary-button" pendingText="Pausando…">
+                Poner en espera
+              </SubmitButton>
+            </form>
+          ) : null}
+
+          {process.status !== 'Concluido' ? (
+            <form action={updateProcessStatus}>
+              <input type="hidden" name="process_id" value={process.id} />
+              <input type="hidden" name="next_status" value="Concluido" />
+              <SubmitButton className="primary-button" pendingText="Concluyendo…">
+                Dar por concluido
+              </SubmitButton>
+            </form>
+          ) : null}
+
+          {process.status !== 'Cancelado' ? (
+            <form action={updateProcessStatus}>
+              <input type="hidden" name="process_id" value={process.id} />
+              <input type="hidden" name="next_status" value="Cancelado" />
+              <SubmitButton className="danger-outline-button" pendingText="Cancelando…">
+                Cancelar trámite
+              </SubmitButton>
+            </form>
+          ) : null}
+        </div>
       </section>
 
       <section className="process-detail-grid">

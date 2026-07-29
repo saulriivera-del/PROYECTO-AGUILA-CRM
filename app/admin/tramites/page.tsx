@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createProcess } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
@@ -13,7 +14,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
   const defaultClientId = typeof params.client === 'string' ? params.client : ''
   const context = await requireAuthContext()
 
-  const [{ data: clients }, { data: flows }, { data: processes }] = await Promise.all([
+  const [{ data: clients }, { data: rawFlows }, { data: processes }] = await Promise.all([
     context.supabase.from('clients').select('id, full_name, phone, city, state, processes(id)').eq('organization_id', context.organizationId).order('full_name'),
     context.supabase.from('service_flows').select('id, service_name').eq('is_active', true).order('service_name'),
     context.supabase
@@ -22,6 +23,32 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
       .eq('organization_id', context.organizationId)
       .order('created_at', { ascending: false }),
   ])
+
+  const flowOrder = [
+    'Visa americana',
+    'Renovación Visa Americana',
+    'Pasaporte mexicano',
+    'Visa + Pasaporte',
+    'Adelanto de cita',
+    'Visa TN',
+    'Visa TD',
+    'Visa tipo H',
+    'eTA Canadá',
+    'I-94',
+    'Reporte de extravío',
+  ]
+
+  const flows = [...(rawFlows ?? [])].sort((a, b) => {
+    const aIndex = flowOrder.indexOf(a.service_name)
+    const bIndex = flowOrder.indexOf(b.service_name)
+
+    if (aIndex === -1 && bIndex === -1) {
+      return a.service_name.localeCompare(b.service_name, 'es')
+    }
+    if (aIndex === -1) return 1
+    if (bIndex === -1) return -1
+    return aIndex - bIndex
+  })
 
   return (
     <>
@@ -88,7 +115,11 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
               const percent = totalSteps ? Math.round((completed / totalSteps) * 100) : 0
 
               return (
-                <article className="process-card" key={process.id}>
+                <Link
+                  className="process-card process-card-link"
+                  href={`/admin/tramites/${process.id}`}
+                  key={process.id}
+                >
                   <div className="client-card-head">
                     <div><strong>{client?.full_name ?? 'Cliente'}</strong><small>{process.service_name}</small></div>
                     <span className={`priority ${process.priority.toLowerCase()}`}>{process.priority}</span>
@@ -100,7 +131,8 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
                   </div>
                   <div className="progress"><span style={{ width: `${percent}%` }} /></div>
                   <small>{completed} de {totalSteps} etapas · Cita: {dateTime(process.government_appointment_at)}</small>
-                </article>
+                  <span className="open-process-label">Abrir trámite →</span>
+                </Link>
               )
             })}
             {!processes?.length ? <div className="empty-state">No hay trámites todavía.</div> : null}

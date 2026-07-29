@@ -1,5 +1,185 @@
-import {requireAuthContext} from '@/lib/auth-context'
-import {dateTime,money} from '@/lib/format'
+import { requireAuthContext } from '@/lib/auth-context'
+import { dateTime, money } from '@/lib/format'
+import { getFinancialSummary } from '@/lib/financial-summary'
 import PaymentForm from '@/components/payment-form'
-type SP=Promise<Record<string,string|string[]|undefined>>
-export default async function Cobranza({searchParams}:{searchParams:SP}){const p=await searchParams,c=await requireAuthContext();const[{data:processes},{data:payments}]=await Promise.all([c.supabase.from('processes').select('id,service_name,status,clients(full_name,phone),process_charges(agreed_amount,payment_commitment_date)').eq('organization_id',c.organizationId).neq('status','Cancelado').order('created_at',{ascending:false}),c.supabase.from('payments').select('id,amount,payment_date,payment_method,reference,process_id').eq('organization_id',c.organizationId).order('payment_date',{ascending:false})]);const paid=new Map<string,number>();for(const x of payments??[])paid.set(x.process_id,(paid.get(x.process_id)??0)+Number(x.amount));const rows=(processes??[]).map(x=>{const ch=Array.isArray(x.process_charges)?x.process_charges[0]:x.process_charges;const cl=Array.isArray(x.clients)?x.clients[0]:x.clients;const agreed=Number(ch?.agreed_amount??0),received=paid.get(x.id)??0,balance=Math.max(0,agreed-received),commitment=ch?.payment_commitment_date||null,overdue=Boolean(commitment&&balance>0&&new Date(commitment)<new Date());return {...x,client:cl,agreed,received,balance,commitment,overdue}});const ta=rows.reduce((s,r)=>s+r.agreed,0),tp=rows.reduce((s,r)=>s+r.received,0),tb=rows.reduce((s,r)=>s+r.balance,0),tv=rows.filter(r=>r.overdue).reduce((s,r)=>s+r.balance,0);return <><header className="page-header"><div><span className="eyebrow">Control financiero</span><h1>Cobranza</h1><p>Pagos, saldos y compromisos en tiempo real.</p></div></header>{p.created?<div className="notice success">Pago registrado correctamente.</div>:null}{p.error?<div className="notice error">{String(p.error)}</div>:null}<section className="client-kpis"><article><span>Total acordado</span><strong>{money(ta)}</strong></article><article><span>Cobrado</span><strong>{money(tp)}</strong></article><article><span>Por cobrar</span><strong>{money(tb)}</strong></article><article><span>Vencido</span><strong>{money(tv)}</strong></article></section><section className="collections-layout"><PaymentForm processes={rows.filter(r=>r.balance>0).map(r=>({id:r.id,service_name:r.service_name,client_name:r.client?.full_name||'Cliente',balance:r.balance}))}/><section className="table-card"><div className="panel-heading"><div><span className="eyebrow">Cuentas</span><h3>Estado de cobranza</h3></div><strong>{rows.length}</strong></div><div className="collection-cards">{rows.map(r=><article className={r.overdue?'collection-card overdue':'collection-card'} key={r.id}><div className="collection-card-head"><div><strong>{r.client?.full_name||'Cliente'}</strong><small>{r.service_name} · {r.client?.phone||''}</small></div><span className={r.balance<=0?'payment-status paid':r.received>0?'payment-status partial':'payment-status pending'}>{r.balance<=0?'Pagado':r.received>0?'Parcial':'Pendiente'}</span></div><div className="collection-amounts"><div><span>Total</span><strong>{money(r.agreed)}</strong></div><div><span>Pagado</span><strong>{money(r.received)}</strong></div><div><span>Saldo</span><strong>{money(r.balance)}</strong></div></div><small>Compromiso: {r.commitment||'Sin fecha'}{r.overdue?' · VENCIDO':''}</small></article>)}</div></section></section><section className="panel-card payment-history"><div className="panel-heading"><div><span className="eyebrow">Historial</span><h3>Últimos pagos</h3></div></div><div className="activity-list">{(payments??[]).slice(0,30).map(x=><div key={x.id}><strong>{money(x.amount)} · {x.payment_method}</strong><small>{dateTime(x.payment_date)}{x.reference?' · '+x.reference:''}</small></div>)}</div></section></>}
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+export default async function CobranzaPage({
+  searchParams,
+}: {
+  searchParams: SearchParams
+}) {
+  const params = await searchParams
+  const context = await requireAuthContext()
+  const financial = await getFinancialSummary(
+    context.supabase,
+    context.organizationId,
+  )
+
+  return (
+    <>
+      <header className="page-header">
+        <div>
+          <span className="eyebrow">Control financiero</span>
+          <h1>Cobranza</h1>
+          <p>Pagos, saldos y compromisos en tiempo real.</p>
+        </div>
+      </header>
+
+      {params.created ? (
+        <div className="notice success">Pago registrado correctamente.</div>
+      ) : null}
+      {params.error ? (
+        <div className="notice error">{String(params.error)}</div>
+      ) : null}
+      {financial.error ? (
+        <div className="notice error">
+          No fue posible calcular la cobranza: {financial.error}
+        </div>
+      ) : null}
+
+      <section className="client-kpis">
+        <article>
+          <span>Total acordado</span>
+          <strong>{money(financial.totalAgreed)}</strong>
+        </article>
+        <article>
+          <span>Cobrado</span>
+          <strong>{money(financial.totalPaid)}</strong>
+        </article>
+        <article>
+          <span>Por cobrar</span>
+          <strong>{money(financial.totalBalance)}</strong>
+        </article>
+        <article>
+          <span>Vencido</span>
+          <strong>{money(financial.overdueBalance)}</strong>
+        </article>
+      </section>
+
+      <section className="collections-layout">
+        <PaymentForm
+          processes={financial.rows
+            .filter((row) => row.balance > 0)
+            .map((row) => {
+              const client = Array.isArray(row.clients)
+                ? row.clients[0]
+                : row.clients
+
+              return {
+                id: row.id,
+                service_name: row.service_name,
+                client_name: client?.full_name || 'Cliente',
+                balance: row.balance,
+              }
+            })}
+        />
+
+        <section className="table-card">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Cuentas</span>
+              <h3>Estado de cobranza</h3>
+            </div>
+            <strong>{financial.rows.length}</strong>
+          </div>
+
+          <div className="collection-cards">
+            {financial.rows.map((row) => {
+              const client = Array.isArray(row.clients)
+                ? row.clients[0]
+                : row.clients
+
+              return (
+                <article
+                  className={
+                    row.overdue
+                      ? 'collection-card overdue'
+                      : 'collection-card'
+                  }
+                  key={row.id}
+                >
+                  <div className="collection-card-head">
+                    <div>
+                      <strong>{client?.full_name || 'Cliente'}</strong>
+                      <small>
+                        {row.service_name} · {client?.phone || ''}
+                      </small>
+                    </div>
+                    <span
+                      className={
+                        row.balance <= 0
+                          ? 'payment-status paid'
+                          : row.paid > 0
+                            ? 'payment-status partial'
+                            : 'payment-status pending'
+                      }
+                    >
+                      {row.balance <= 0
+                        ? 'Pagado'
+                        : row.paid > 0
+                          ? 'Parcial'
+                          : 'Pendiente'}
+                    </span>
+                  </div>
+
+                  <div className="collection-amounts">
+                    <div>
+                      <span>Total</span>
+                      <strong>{money(row.agreed)}</strong>
+                    </div>
+                    <div>
+                      <span>Pagado</span>
+                      <strong>{money(row.paid)}</strong>
+                    </div>
+                    <div>
+                      <span>Saldo</span>
+                      <strong>{money(row.balance)}</strong>
+                    </div>
+                  </div>
+
+                  <small>
+                    Compromiso: {row.commitment || 'Sin fecha'}
+                    {row.overdue ? ' · VENCIDO' : ''}
+                  </small>
+                </article>
+              )
+            })}
+
+            {!financial.rows.length ? (
+              <div className="empty-state">Sin cuentas registradas.</div>
+            ) : null}
+          </div>
+        </section>
+      </section>
+
+      <section className="panel-card payment-history">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Historial</span>
+            <h3>Últimos pagos</h3>
+          </div>
+        </div>
+
+        <div className="activity-list">
+          {financial.payments.slice(0, 30).map((payment) => (
+            <div key={payment.id}>
+              <strong>
+                {money(payment.amount)} · {payment.payment_method}
+              </strong>
+              <small>
+                {dateTime(payment.payment_date)}
+                {payment.reference ? ` · ${payment.reference}` : ''}
+              </small>
+            </div>
+          ))}
+
+          {!financial.payments.length ? (
+            <div className="empty-state">Sin pagos registrados.</div>
+          ) : null}
+        </div>
+      </section>
+    </>
+  )
+}
