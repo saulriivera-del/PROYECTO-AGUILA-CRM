@@ -6,6 +6,9 @@ import { agendaCategory, inactivityLevel, processOperationalState } from '@/lib/
 import SubmitButton from '@/components/submit-button'
 import ProcessQuickControl from '@/components/process-quick-control'
 import { completeAgendaEvent } from '@/app/admin/agenda/actions'
+import { isAdministrator } from '@/lib/admin-access'
+import { getPersonalGoalData } from '@/lib/personal-goal'
+import PersonalGoalCard from '@/components/personal-goal-card'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
@@ -20,6 +23,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
   const todayStart = dayStart(now)
   const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1)
   const selectedView = typeof params.view === 'string' ? params.view : 'mine'
+  const administrator = isAdministrator(context.role)
+  const personalGoal = administrator ? null : await getPersonalGoalData(context.supabase, context.organizationId, context.userId)
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
@@ -86,6 +91,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
           <Link className="primary-button" href="/admin/tramites">Trámites</Link>
         </div>
       </header>
+
+      {personalGoal ? <PersonalGoalCard data={personalGoal} compact /> : null}
 
       {params.quick_updated ? <div className="notice success">Control operativo actualizado.</div> : null}
       {params.updated ? <div className="notice success">Actividad realizada.</div> : null}

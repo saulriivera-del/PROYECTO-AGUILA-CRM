@@ -1295,3 +1295,16 @@ body.modal-open{overflow:hidden}
 .danger-zone { border-color: #efc5cb; max-width: 800px; }
 .danger-zone code { background: #fff0f2; padding: 2px 6px; border-radius: 6px; }
 @media (max-width: 850px) { .inline-admin-form { grid-template-columns: 1fr; } }
+
+/* Fase 5.4 — Centro de Desempeño */
+.personal-goal-card{display:grid;gap:18px;margin-bottom:18px;padding:24px;border-radius:22px;background:linear-gradient(135deg,#0d2e59,#1763a6);color:#fff;box-shadow:0 16px 40px rgba(10,46,89,.2)}
+.personal-goal-card.goal-complete{background:linear-gradient(135deg,#0b5137,#16855b)}
+.personal-goal-card .eyebrow,.personal-goal-card p,.personal-goal-card small{color:rgba(255,255,255,.76)}
+.personal-goal-card h2{margin:6px 0 5px;font-size:27px}.personal-goal-heading{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}.personal-goal-heading p{margin:0;max-width:760px}.personal-goal-percent{font-size:34px;line-height:1}
+.personal-progress-track{height:14px;border-radius:999px;background:rgba(255,255,255,.2);overflow:hidden}.personal-progress-track span{display:block;height:100%;border-radius:inherit;background:#fff;transition:width .3s ease}
+.personal-goal-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.personal-goal-kpis>div{padding:14px;border:1px solid rgba(255,255,255,.17);border-radius:14px;background:rgba(255,255,255,.09)}.personal-goal-kpis span,.personal-goal-kpis strong{display:block}.personal-goal-kpis span{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.68);font-weight:850}.personal-goal-kpis strong{margin-top:6px;font-size:18px}
+.personal-score-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.personal-score-grid article{display:grid;gap:5px;padding:17px;border-radius:15px;background:#fff;color:#14243c}.personal-score-grid span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:850}.personal-score-grid strong{font-size:22px}.personal-score-grid small{color:#718096}
+.next-goal-callout{display:flex;gap:12px;align-items:baseline;padding:15px 17px;border-radius:14px;background:rgba(255,255,255,.11)}.next-goal-callout span{font-size:12px;font-weight:850;text-transform:uppercase}.next-goal-callout strong{font-size:21px}.next-goal-callout small{margin-left:auto}
+.personal-goal-card.compact{padding:20px}.personal-goal-card.compact h2{font-size:23px}.personal-goal-card.compact .secondary-button{background:#fff;border-color:#fff;color:#173f72}.personal-goal-empty{background:linear-gradient(135deg,#475569,#64748b)}
+@media(max-width:900px){.personal-goal-kpis,.personal-score-grid{grid-template-columns:1fr 1fr}.next-goal-callout{align-items:flex-start;flex-direction:column}.next-goal-callout small{margin-left:0}}
+@media(max-width:560px){.personal-goal-heading{display:grid}.personal-goal-percent{font-size:28px}.personal-goal-kpis,.personal-score-grid{grid-template-columns:1fr}.personal-goal-card{padding:19px}}

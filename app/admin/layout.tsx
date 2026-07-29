@@ -32,6 +32,7 @@ export default async function AdminLayout({
           <Link href="/admin/tramites">▤ Trámites</Link>
           <Link href="/admin/cobranza">$ Cobranza</Link>
           <Link href="/admin/agenda">▣ Agenda</Link>
+          {!isAdministrator(context.role) ? <Link href="/admin/mi-meta">🎯 Desempeño</Link> : null}
           {isAdministrator(context.role) ? (
             <>
               <span className="nav-divider">Dirección</span>
