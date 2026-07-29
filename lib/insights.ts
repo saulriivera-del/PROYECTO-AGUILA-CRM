@@ -82,8 +82,10 @@ export async function getInsightsData(supabase: SupabaseClient, organizationId: 
   const clients = clientsResult.data ?? []
   const monthProspects = prospects.filter((p: any) => new Date(p.created_at) >= monthStart).length
   const weekProspects = prospects.filter((p: any) => new Date(p.created_at) >= weekStart).length
+  const previousWeekProspects = prospects.filter((p: any) => inRange(p.created_at, previousWeekStart, weekStart)).length
   const monthClients = clients.filter((c: any) => new Date(c.created_at) >= monthStart).length
   const weekClients = clients.filter((c: any) => new Date(c.created_at) >= weekStart).length
+  const previousWeekClients = clients.filter((c: any) => inRange(c.created_at, previousWeekStart, weekStart)).length
   const conversion = monthProspects ? Math.round((monthClients / monthProspects) * 100) : 0
   const weekConversion = weekProspects ? Math.round((weekClients / weekProspects) * 100) : 0
 
@@ -130,8 +132,10 @@ export async function getInsightsData(supabase: SupabaseClient, organizationId: 
     stalledProcesses,
     monthProspects,
     weekProspects,
+    previousWeekProspects,
     monthClients,
     weekClients,
+    previousWeekClients,
     conversion,
     weekConversion,
     ticketAverage: monthClients ? monthRevenue / monthClients : 0,

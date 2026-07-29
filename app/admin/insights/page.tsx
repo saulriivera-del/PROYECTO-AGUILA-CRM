@@ -13,7 +13,7 @@ export default async function InsightsPage() {
 
   return <>
     <header className="insights-hero">
-      <div><span className="eyebrow">Águila Insights · Fase 5.2.3</span><h1>Buenos días, {context.fullName.split(' ')[0]}.</h1><p>Una fotografía ejecutiva de Visa Master basada exclusivamente en movimientos registrados.</p></div>
+      <div><span className="eyebrow">Águila Insights · Fase 5.2.4</span><h1>Buenos días, {context.fullName.split(' ')[0]}.</h1><p>Una fotografía ejecutiva de Visa Master basada exclusivamente en movimientos registrados.</p></div>
       <div className="header-actions"><Link className="secondary-button" href="/admin/insights/metas">Configurar metas</Link><Link className="primary-button" href="/admin/insights/bonos">Bonos del equipo</Link></div>
     </header>
     {data.errors.length ? <div className="notice error">Ejecuta primero la migración de Fase 5.2.1. {data.errors[0]}</div> : null}
@@ -50,6 +50,9 @@ export default async function InsightsPage() {
       <Link href="/admin/insights/finanzas"><span>💰</span><strong>Centro Financiero</strong><small>Ingresos y servicios</small></Link>
       <Link href="/admin/insights/metas"><span>🎯</span><strong>Metas</strong><small>Objetivos editables</small></Link>
       <Link href="/admin/insights/bonos"><span>🏆</span><strong>Bonos</strong><small>Reglas por usuario</small></Link>
+      <Link href="/admin/insights/tendencias"><span>📈</span><strong>Tendencias</strong><small>Cambios y patrones</small></Link>
+      <Link href="/admin/insights/logros"><span>⭐</span><strong>Logros</strong><small>Reconocimiento del equipo</small></Link>
+      <Link href="/admin/insights/director"><span>🧠</span><strong>Director Águila</strong><small>Resumen accionable</small></Link>
     </section>
   </>
 }
