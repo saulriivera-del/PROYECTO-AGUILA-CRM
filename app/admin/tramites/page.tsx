@@ -14,14 +14,16 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
   const defaultClientId = typeof params.client === 'string' ? params.client : ''
   const context = await requireAuthContext()
 
-  const [{ data: clients }, { data: rawFlows }, { data: processes }] = await Promise.all([
+  const [{ data: clients }, { data: rawFlows }, { data: processes }, { data: profiles }] = await Promise.all([
     context.supabase.from('clients').select('id, full_name, phone, city, state, processes(id)').eq('organization_id', context.organizationId).order('full_name'),
     context.supabase.from('service_flows').select('id, service_name').eq('is_active', true).order('service_name'),
     context.supabase
       .from('processes')
-      .select('id, service_name, status, priority, current_stage, government_appointment_at, created_at, clients(full_name), process_charges(agreed_amount), process_steps(id, status)')
+      .select('id, service_name, status, priority, current_stage, government_appointment_at, priority_attention_at, assigned_to, created_at, clients(full_name), process_charges(agreed_amount), process_steps(id, status)')
       .eq('organization_id', context.organizationId)
+      .neq('status', 'Concluido')
       .order('created_at', { ascending: false }),
+    context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
   ])
 
   const flowOrder = [
@@ -88,9 +90,20 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
                 {(flows ?? []).map((flow) => <option value={flow.id} key={flow.id}>{flow.service_name}</option>)}
               </select>
             </label>
+            <label>Responsable
+              <select name="assigned_to" defaultValue="">
+                <option value="">General · visible para todos</option>
+                {(profiles ?? []).map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.full_name || 'Usuario'} · {profile.role}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>Prioridad
               <select name="priority" defaultValue="Media"><option>Alta</option><option>Media</option><option>Baja</option></select>
             </label>
+            <label>Fecha prioritaria de atención<input name="priority_attention_at" type="datetime-local" /></label>
             <label>Total acordado<NumberInput name="agreed_amount" min="0" step="0.01" inputMode="decimal" /></label>
             <label>Compromiso de pago<input name="payment_commitment_date" type="date" /></label>
             <label>Cita gubernamental<input name="government_appointment_at" type="datetime-local" /></label>
@@ -109,6 +122,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
           <div className="process-cards">
             {(processes ?? []).map((process) => {
               const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+              const assigned = (profiles ?? []).find((profile) => profile.id === process.assigned_to)
               const charge = Array.isArray(process.process_charges) ? process.process_charges[0] : process.process_charges
               const completed = (process.process_steps ?? []).filter((step) => step.status === 'Completado').length
               const totalSteps = process.process_steps?.length ?? 0
@@ -123,6 +137,10 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
                   <div className="client-card-head">
                     <div><strong>{client?.full_name ?? 'Cliente'}</strong><small>{process.service_name}</small></div>
                     <span className={`priority ${process.priority.toLowerCase()}`}>{process.priority}</span>
+                  </div>
+                  <div className="process-assignment-line">
+                    <span>{assigned?.full_name ? `Asignado a ${assigned.full_name}` : 'Disponible para todo el equipo'}</span>
+                    {process.priority_attention_at ? <strong>Atender: {dateTime(process.priority_attention_at)}</strong> : null}
                   </div>
                   <div className="process-meta">
                     <span>Estado: <strong>{process.status}</strong></span>

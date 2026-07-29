@@ -956,3 +956,29 @@ input[type="number"]{
   .step-row{align-items:stretch}
   .step-data-form{min-width:0;width:100%;margin-top:10px}
 }
+
+
+/* ============================================================
+   FASE 4.8.5 — ASIGNACIÓN, PRIORIDADES Y AGENDA DE ESCRITORIO
+   ============================================================ */
+.process-assignment-line{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:10px 0;padding:9px 10px;border-radius:10px;background:#f4f7fb;font-size:.74rem;color:#4a6079}
+.assignment-form{display:grid;gap:11px}
+.assignment-form label{display:grid;gap:6px;font-size:.73rem;font-weight:850;color:#48617e}
+.assignment-form select,.assignment-form input{width:100%;min-height:40px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.priority-assignment-card{border-top:4px solid #b52d42}
+.agenda-desktop-layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;align-items:start}
+.agenda-sidebar{position:sticky;top:18px}
+.agenda-workspace{min-width:0}
+.agenda-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.agenda-kpis article{padding:14px;border:1px solid var(--line);border-radius:13px;background:#fff}
+.agenda-kpis span,.agenda-kpis strong{display:block}.agenda-kpis span{font-size:.7rem;color:var(--muted);text-transform:uppercase;font-weight:850}.agenda-kpis strong{font-size:1.55rem;margin-top:5px}
+.agenda-columns{display:grid;grid-template-columns:repeat(4,minmax(240px,1fr));gap:12px;align-items:start;overflow-x:auto;padding-bottom:8px}
+.agenda-column{min-width:240px;border:1px solid var(--line);border-radius:15px;background:#f7f9fc;padding:10px}
+.agenda-column-heading{display:flex;justify-content:space-between;align-items:center;padding:5px 4px 10px}.agenda-column-heading h3{margin:0;font-size:.95rem}.agenda-column-heading strong{display:grid;place-items:center;min-width:26px;height:26px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:.72rem}
+.agenda-column.overdue{border-top:4px solid #b52d42}.agenda-column.today{border-top:4px solid #245fa4}.agenda-column.tomorrow{border-top:4px solid #c48618}.agenda-column.upcoming{border-top:4px solid #4e738f}
+.agenda-item.urgent{border:2px solid #c02c43;background:#fff5f6;box-shadow:0 8px 20px rgba(181,45,66,.09)}
+.urgent-pill{display:inline-flex;padding:5px 8px;border-radius:999px;background:#b52d42;color:#fff;font-size:.66rem;font-weight:900}
+.agenda-history-panel{margin-top:14px}.agenda-history-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+@media(max-width:1250px){.agenda-columns{grid-template-columns:repeat(2,minmax(260px,1fr))}.agenda-history-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.agenda-desktop-layout{grid-template-columns:1fr}.agenda-sidebar{position:static}.agenda-kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:620px){.agenda-columns,.agenda-history-grid{grid-template-columns:1fr}.agenda-kpis{grid-template-columns:repeat(2,1fr)}}

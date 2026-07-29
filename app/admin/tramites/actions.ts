@@ -18,6 +18,8 @@ export async function createProcess(formData: FormData) {
     ? Number(value(formData, 'paid_amount') || agreedAmount)
     : 0
   const paymentMethod = value(formData, 'payment_method') || 'Efectivo'
+  const assignedTo = value(formData, 'assigned_to') || null
+  const priorityAttentionAt = value(formData, 'priority_attention_at') || null
 
   const { data: flow } = await context.supabase
     .from('service_flows')
@@ -41,7 +43,8 @@ export async function createProcess(formData: FormData) {
       current_stage: 'Inicio',
       government_appointment_at: value(formData, 'government_appointment_at') || null,
       notes: value(formData, 'notes') || null,
-      assigned_to: context.userId,
+      assigned_to: assignedTo,
+      priority_attention_at: priorityAttentionAt || null,
       created_by: context.userId,
     })
     .select('id')
@@ -82,6 +85,20 @@ export async function createProcess(formData: FormData) {
     metadata: paidNow ? { payment_registered: true, paid_amount: paidAmount } : {},
   })
 
+  if (assignedTo && priorityAttentionAt) {
+    await upsertAutomatedAgendaEvent(context, {
+      processId: process.id,
+      clientId,
+      title: `Prioridad asignada · ${flow.service_name}`,
+      description: 'Trámite asignado para atención prioritaria en esta fecha.',
+      startsAt: new Date(priorityAttentionAt),
+      automationKey: `${process.id}:assigned-priority`,
+      eventType: 'Tarea prioritaria',
+      assignedTo,
+      priority: 'Urgente',
+    })
+  }
+
   revalidatePath('/admin')
   revalidatePath('/admin/clientes')
   revalidatePath('/admin/tramites')
@@ -105,9 +122,9 @@ function atLocalTime(base: Date, hour: number, minute = 0) {
   return result
 }
 
-function reminderBeforeAppointment(appointment: Date, mondayOnSaturday: boolean) {
+function reminderBeforeAppointment(appointment: Date) {
   const result = new Date(appointment)
-  if (mondayOnSaturday && appointment.getDay() === 1) {
+  if (appointment.getDay() === 1) {
     result.setDate(result.getDate() - 2)
   } else {
     result.setDate(result.getDate() - 1)
@@ -147,6 +164,8 @@ async function upsertAutomatedAgendaEvent(
     automationKey: string
     whatsappMessage?: string | null
     eventType?: string
+    assignedTo?: string | null
+    priority?: string
   },
 ) {
   const payload = {
@@ -157,7 +176,9 @@ async function upsertAutomatedAgendaEvent(
     event_type: input.eventType ?? 'Seguimiento',
     description: input.description,
     starts_at: input.startsAt.toISOString(),
-    assignment_scope: 'General',
+    assignment_scope: input.assignedTo ? 'Específico' : 'General',
+    assigned_to: input.assignedTo ?? null,
+    priority: input.priority ?? 'Normal',
     status: 'Pendiente',
     created_by: context.userId,
     whatsapp_message: input.whatsappMessage ?? null,
@@ -203,7 +224,6 @@ async function createAppointmentAutomations(
   const clientName = processClient?.full_name ?? 'cliente'
   const processId = process.id
   const clientId = process.client_id
-  const mondayOnSaturday = ['Visa americana', 'Visa TN', 'Visa TD'].includes(service)
 
   if (dates.cas) {
     await upsertAutomatedAgendaEvent(context, {
@@ -211,7 +231,7 @@ async function createAppointmentAutomations(
       clientId,
       title: `Recordar cita CAS · ${clientName}`,
       description: `Enviar recordatorio de la cita CAS de ${clientName}.`,
-      startsAt: reminderBeforeAppointment(dates.cas, mondayOnSaturday),
+      startsAt: reminderBeforeAppointment(dates.cas),
       automationKey: `${processId}:cas-reminder`,
       whatsappMessage: whatsappReminder(clientName, 'CAS', dates.cas),
       eventType: 'Cita gubernamental',
@@ -224,7 +244,7 @@ async function createAppointmentAutomations(
       clientId,
       title: `Recordar cita Consulado · ${clientName}`,
       description: `Enviar recordatorio de la cita consular de ${clientName}.`,
-      startsAt: reminderBeforeAppointment(dates.consulate, mondayOnSaturday),
+      startsAt: reminderBeforeAppointment(dates.consulate),
       automationKey: `${processId}:consulate-reminder`,
       whatsappMessage: whatsappReminder(clientName, 'Consulado', dates.consulate),
       eventType: 'Cita gubernamental',
@@ -296,11 +316,11 @@ async function createAppointmentAutomations(
     await upsertAutomatedAgendaEvent(context, {
       processId,
       clientId,
-      title: `Recordar cita de pasaporte · ${clientName}`,
-      description: 'Recordar al cliente que mañana tiene su cita de pasaporte.',
-      startsAt: reminderBeforeAppointment(dates.cas, false),
+      title: `Recordar cita en Relaciones Exteriores · ${clientName}`,
+      description: 'Recordar al cliente su cita ante la Secretaría de Relaciones Exteriores.',
+      startsAt: reminderBeforeAppointment(dates.cas),
       automationKey: `${processId}:passport-reminder`,
-      whatsappMessage: whatsappReminder(clientName, 'Pasaporte', dates.cas),
+      whatsappMessage: whatsappReminder(clientName, 'Relaciones Exteriores', dates.cas),
       eventType: 'Cita gubernamental',
     })
     await upsertAutomatedAgendaEvent(context, {
@@ -533,6 +553,80 @@ export async function createVisaFollowup(formData: FormData) {
   revalidatePath('/admin/agenda')
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`/admin/tramites/${processId}?visa_followup=1`)
+}
+
+
+export async function updateProcessAssignment(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const assignedTo = value(formData, 'assigned_to') || null
+  const priority = value(formData, 'priority') || 'Media'
+  const priorityAttentionAt = value(formData, 'priority_attention_at') || null
+
+  const { data: process, error } = await context.supabase
+    .from('processes')
+    .update({
+      assigned_to: assignedTo,
+      priority,
+      priority_attention_at: priorityAttentionAt || null,
+    })
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+    .select('id, client_id, service_name')
+    .single()
+
+  if (error || !process) {
+    redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error?.message ?? 'No se pudo guardar la asignación')}`)
+  }
+
+  const { data: existingEvent } = await context.supabase
+    .from('agenda_events')
+    .select('id')
+    .eq('organization_id', context.organizationId)
+    .eq('automation_key', `${processId}:assigned-priority`)
+    .maybeSingle()
+
+  if (assignedTo && priorityAttentionAt) {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId: process.client_id,
+      title: `Prioridad asignada · ${process.service_name}`,
+      description: 'Trámite asignado para atención prioritaria en esta fecha.',
+      startsAt: new Date(priorityAttentionAt),
+      automationKey: `${processId}:assigned-priority`,
+      eventType: 'Tarea prioritaria',
+      assignedTo,
+      priority: 'Urgente',
+    })
+  } else if (existingEvent?.id) {
+    await context.supabase
+      .from('agenda_events')
+      .delete()
+      .eq('id', existingEvent.id)
+      .eq('organization_id', context.organizationId)
+  }
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'process',
+    entity_id: processId,
+    action: 'assignment_updated',
+    description: assignedTo
+      ? `Trámite asignado con prioridad ${priority}`
+      : 'Trámite disponible para todo el equipo',
+    metadata: {
+      assigned_to: assignedTo,
+      priority,
+      priority_attention_at: priorityAttentionAt,
+    },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/agenda')
+  revalidatePath('/admin/tramites')
+  revalidatePath(`/admin/tramites/${processId}`)
+  redirect(`/admin/tramites/${processId}?assignment_updated=1`)
 }
 
 
