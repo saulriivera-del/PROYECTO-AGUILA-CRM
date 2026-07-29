@@ -21,11 +21,11 @@ export async function requireAuthContext(): Promise<AuthContext> {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('full_name, role, organization_id, organizations(name)')
+    .select('full_name, role, organization_id, is_active, organizations(name)')
     .eq('id', user.id)
     .single()
 
-  if (error || !profile?.organization_id) {
+  if (error || !profile?.organization_id || profile.is_active === false) {
     redirect('/login?error=profile')
   }
 

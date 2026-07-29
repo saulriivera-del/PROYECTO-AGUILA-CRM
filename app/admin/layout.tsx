@@ -36,6 +36,8 @@ export default async function AdminLayout({
             <>
               <span className="nav-divider">Dirección</span>
               <Link href="/admin/insights">📊 Águila Insights</Link>
+              <Link href="/admin/configuracion/usuarios">⚙ Usuarios y roles</Link>
+              <Link href="/admin/configuracion/herramientas">🛠 Herramientas</Link>
             </>
           ) : null}
         </nav>
