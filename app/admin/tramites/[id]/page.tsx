@@ -171,6 +171,7 @@ export default async function ProcessDetailPage({
               assignedTo={process.assigned_to}
               priority={process.priority}
               priorityAttentionAt={process.priority_attention_at}
+              operationalStatus={process.operational_status}
               profiles={profiles ?? []}
             />
           </section>
@@ -181,6 +182,7 @@ export default async function ProcessDetailPage({
             </div>
             <p><strong>Etapa actual:</strong> {process.current_stage || 'Inicio'}</p>
             <p><strong>Prioridad:</strong> {process.priority}</p>
+            <p><strong>Situación operativa:</strong> {process.operational_status || 'Automático'}</p>
             <p><strong>{process.service_name === 'Pasaporte mexicano' ? 'Cita Relaciones Exteriores' : 'Cita CAS'}:</strong> {dateTime(process.cas_appointment_at || process.government_appointment_at)}</p>
             <p><strong>Cita Consulado:</strong> {dateTime(process.consulate_appointment_at)}</p>
             <p><strong>Preparación entrevista:</strong> {dateTime(process.interview_preparation_at)}</p>

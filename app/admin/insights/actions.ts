@@ -1,0 +1,57 @@
+'use server'
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { requireAuthContext } from '@/lib/auth-context'
+import { requireAdministrator } from '@/lib/admin-access'
+
+const text = (form: FormData, name: string) => String(form.get(name) ?? '').trim()
+const number = (form: FormData, name: string) => Number(text(form, name) || 0)
+
+export async function saveGoal(form: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const id = text(form, 'id')
+  const payload = {
+    organization_id: context.organizationId,
+    name: text(form, 'name'),
+    metric: text(form, 'metric'),
+    period: text(form, 'period'),
+    target_value: number(form, 'target_value'),
+    assigned_to: text(form, 'assigned_to') || null,
+    is_active: true,
+    updated_by: context.userId,
+  }
+  if (!payload.name || payload.target_value <= 0) redirect('/admin/insights/metas?error=Captura%20una%20meta%20válida')
+  const query = id
+    ? context.supabase.from('insight_goals').update(payload).eq('id', id).eq('organization_id', context.organizationId)
+    : context.supabase.from('insight_goals').insert(payload)
+  const { error } = await query
+  if (error) redirect('/admin/insights/metas?error=' + encodeURIComponent(error.message))
+  revalidatePath('/admin/insights'); revalidatePath('/admin/insights/metas')
+  redirect('/admin/insights/metas?saved=1')
+}
+
+export async function saveBonusRule(form: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const id = text(form, 'id')
+  const payload = {
+    organization_id: context.organizationId,
+    user_id: text(form, 'user_id'),
+    name: text(form, 'name') || 'Bono semanal',
+    period: 'Semanal',
+    revenue_source: 'Dinero cobrado',
+    threshold_amount: number(form, 'threshold_amount'),
+    base_bonus: number(form, 'base_bonus'),
+    step_amount: number(form, 'step_amount'),
+    step_bonus: number(form, 'step_bonus'),
+    is_active: true,
+    updated_by: context.userId,
+  }
+  if (!payload.user_id || payload.threshold_amount <= 0 || payload.step_amount <= 0) redirect('/admin/insights/bonos?error=Revisa%20la%20configuración%20del%20bono')
+  const query = id
+    ? context.supabase.from('bonus_rules').update(payload).eq('id', id).eq('organization_id', context.organizationId)
+    : context.supabase.from('bonus_rules').insert(payload)
+  const { error } = await query
+  if (error) redirect('/admin/insights/bonos?error=' + encodeURIComponent(error.message))
+  revalidatePath('/admin/insights'); revalidatePath('/admin/insights/bonos')
+  redirect('/admin/insights/bonos?saved=1')
+}

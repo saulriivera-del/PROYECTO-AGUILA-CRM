@@ -46,6 +46,8 @@ export async function createProcess(formData: FormData) {
       assigned_to: assignedTo,
       priority_attention_at: priorityAttentionAt || null,
       created_by: context.userId,
+      operational_status: 'Automático',
+      last_movement_at: new Date().toISOString(),
     })
     .select('id')
     .single()
@@ -496,6 +498,8 @@ export async function updateProcessStep(formData: FormData) {
       current_stage: allCompleted ? 'Concluido' : nextPending?.step_name ?? 'Inicio',
       status: allCompleted ? 'Concluido' : 'Activo',
       closed_at: allCompleted ? now : null,
+      last_movement_at: now,
+      operational_status: allCompleted ? 'En orden' : 'Automático',
     })
     .eq('id', processId)
 
@@ -562,6 +566,7 @@ export async function updateProcessAssignment(formData: FormData) {
   const assignedTo = value(formData, 'assigned_to') || null
   const priority = value(formData, 'priority') || 'Media'
   const priorityAttentionAt = value(formData, 'priority_attention_at') || null
+  const operationalStatus = value(formData, 'operational_status') || 'Automático'
 
   const { data: process, error } = await context.supabase
     .from('processes')
@@ -569,6 +574,8 @@ export async function updateProcessAssignment(formData: FormData) {
       assigned_to: assignedTo,
       priority,
       priority_attention_at: priorityAttentionAt || null,
+      operational_status: operationalStatus,
+      last_movement_at: new Date().toISOString(),
     })
     .eq('id', processId)
     .eq('organization_id', context.organizationId)
@@ -674,6 +681,8 @@ export async function updateProcessStatus(formData: FormData) {
       status: nextStatus,
       current_stage: currentStage,
       closed_at: isClosed ? new Date().toISOString() : null,
+      last_movement_at: new Date().toISOString(),
+      operational_status: isClosed ? 'En orden' : 'Automático',
     })
     .eq('id', processId)
     .eq('organization_id', context.organizationId)
@@ -699,4 +708,49 @@ export async function updateProcessStatus(formData: FormData) {
   revalidatePath('/admin/cobranza')
 
   redirect(`/admin/tramites/${processId}?status_updated=1`)
+}
+
+
+export async function quickUpdateProcess(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const returnTo = value(formData, 'return_to') || '/admin'
+  const assignedTo = value(formData, 'assigned_to') || null
+  const priority = value(formData, 'priority') || 'Media'
+  const operationalStatus = value(formData, 'operational_status') || 'Automático'
+  const allowedOperational = [
+    'Automático', 'Atender hoy', 'Esperando al cliente', 'Esperando cita',
+    'Esperando pago', 'Seguimiento pendiente', 'En orden',
+  ]
+  if (!processId || !allowedOperational.includes(operationalStatus)) {
+    redirect(`${returnTo}?error=Actualización%20no%20válida`)
+  }
+
+  const { error } = await context.supabase
+    .from('processes')
+    .update({
+      assigned_to: assignedTo,
+      priority,
+      operational_status: operationalStatus,
+      last_movement_at: new Date().toISOString(),
+    })
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+
+  if (error) redirect(`${returnTo}?error=${encodeURIComponent(error.message)}`)
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'process',
+    entity_id: processId,
+    action: 'quick_operational_update',
+    description: `Control rápido: ${operationalStatus} · prioridad ${priority}`,
+    metadata: { assigned_to: assignedTo, priority, operational_status: operationalStatus },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/tramites')
+  revalidatePath(`/admin/tramites/${processId}`)
+  redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}quick_updated=1`)
 }

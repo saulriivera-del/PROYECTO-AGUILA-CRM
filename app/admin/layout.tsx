@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { logout } from '@/app/login/actions'
 import { requireAuthContext } from '@/lib/auth-context'
+import { isAdministrator } from '@/lib/admin-access'
 
 export default async function AdminLayout({
   children,
@@ -31,6 +32,12 @@ export default async function AdminLayout({
           <Link href="/admin/tramites">▤ Trámites</Link>
           <Link href="/admin/cobranza">$ Cobranza</Link>
           <Link href="/admin/agenda">▣ Agenda</Link>
+          {isAdministrator(context.role) ? (
+            <>
+              <span className="nav-divider">Dirección</span>
+              <Link href="/admin/insights">📊 Águila Insights</Link>
+            </>
+          ) : null}
         </nav>
 
         <div className="sidebar-user">
