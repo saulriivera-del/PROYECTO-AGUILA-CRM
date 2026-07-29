@@ -1,6 +1,6 @@
 import 'server-only'
 import { createClient } from '@supabase/supabase-js'
-import { getSupabasePublicKey, getSupabaseUrl } from '@/lib/supabase/env'
+import { getSupabaseUrl } from '@/lib/supabase/env'
 
 export function createAdminClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
