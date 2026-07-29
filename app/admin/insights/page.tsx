@@ -13,7 +13,7 @@ export default async function InsightsPage() {
 
   return <>
     <header className="insights-hero">
-      <div><span className="eyebrow">Águila Insights · Fase 5.2.1</span><h1>Buenos días, {context.fullName.split(' ')[0]}.</h1><p>Una fotografía ejecutiva de Visa Master basada exclusivamente en movimientos registrados.</p></div>
+      <div><span className="eyebrow">Águila Insights · Fase 5.2.2</span><h1>Buenos días, {context.fullName.split(' ')[0]}.</h1><p>Una fotografía ejecutiva de Visa Master basada exclusivamente en movimientos registrados.</p></div>
       <div className="header-actions"><Link className="secondary-button" href="/admin/insights/metas">Configurar metas</Link><Link className="primary-button" href="/admin/insights/bonos">Bonos del equipo</Link></div>
     </header>
     {data.errors.length ? <div className="notice error">Ejecuta primero la migración de Fase 5.2.1. {data.errors[0]}</div> : null}

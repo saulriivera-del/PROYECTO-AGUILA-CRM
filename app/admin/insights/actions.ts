@@ -55,3 +55,14 @@ export async function saveBonusRule(form: FormData) {
   revalidatePath('/admin/insights'); revalidatePath('/admin/insights/bonos')
   redirect('/admin/insights/bonos?saved=1')
 }
+
+
+export async function toggleGoal(form: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const id = text(form, 'id')
+  if (!id) redirect('/admin/insights/metas?error=Meta%20no%20válida')
+  const { error } = await context.supabase.from('insight_goals').update({is_active:false, updated_by:context.userId}).eq('id',id).eq('organization_id',context.organizationId)
+  if (error) redirect('/admin/insights/metas?error='+encodeURIComponent(error.message))
+  revalidatePath('/admin/insights'); revalidatePath('/admin/insights/metas')
+  redirect('/admin/insights/metas?disabled=1')
+}
