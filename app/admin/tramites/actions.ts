@@ -89,26 +89,366 @@ export async function createProcess(formData: FormData) {
 }
 
 
+function localDateParts(value: string) {
+  const date = new Date(value)
+  return {
+    date,
+    year: date.getFullYear(),
+    month: date.getMonth(),
+    day: date.getDate(),
+  }
+}
+
+function atLocalTime(base: Date, hour: number, minute = 0) {
+  const result = new Date(base)
+  result.setHours(hour, minute, 0, 0)
+  return result
+}
+
+function reminderBeforeAppointment(appointment: Date, mondayOnSaturday: boolean) {
+  const result = new Date(appointment)
+  if (mondayOnSaturday && appointment.getDay() === 1) {
+    result.setDate(result.getDate() - 2)
+  } else {
+    result.setDate(result.getDate() - 1)
+  }
+  return atLocalTime(result, 10, 0)
+}
+
+function addDaysAt(base: Date, days: number, hour = 10, minute = 0) {
+  const result = new Date(base)
+  result.setDate(result.getDate() + days)
+  return atLocalTime(result, hour, minute)
+}
+
+function etaFollowupDate() {
+  const now = new Date()
+  const hours = [5, 6, 0].includes(now.getDay()) ? 72 : 24
+  return new Date(now.getTime() + hours * 60 * 60 * 1000)
+}
+
+function whatsappReminder(clientName: string, appointmentType: string, appointment: Date) {
+  const formatted = new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  }).format(appointment)
+
+  return `Hola ${clientName}, Visa Master te recuerda que tu cita de ${appointmentType} es ${formatted}. Estamos a la orden para cualquier duda.`
+}
+
+async function upsertAutomatedAgendaEvent(
+  context: Awaited<ReturnType<typeof requireAuthContext>>,
+  input: {
+    processId: string
+    clientId: string
+    title: string
+    description: string
+    startsAt: Date
+    automationKey: string
+    whatsappMessage?: string | null
+    eventType?: string
+  },
+) {
+  const payload = {
+    organization_id: context.organizationId,
+    process_id: input.processId,
+    client_id: input.clientId,
+    title: input.title,
+    event_type: input.eventType ?? 'Seguimiento',
+    description: input.description,
+    starts_at: input.startsAt.toISOString(),
+    assignment_scope: 'General',
+    status: 'Pendiente',
+    created_by: context.userId,
+    whatsapp_message: input.whatsappMessage ?? null,
+    automation_key: input.automationKey,
+  }
+
+  const { data: existing } = await context.supabase
+    .from('agenda_events')
+    .select('id')
+    .eq('organization_id', context.organizationId)
+    .eq('automation_key', input.automationKey)
+    .maybeSingle()
+
+  if (existing?.id) {
+    await context.supabase
+      .from('agenda_events')
+      .update(payload)
+      .eq('id', existing.id)
+      .eq('organization_id', context.organizationId)
+  } else {
+    await context.supabase.from('agenda_events').insert(payload)
+  }
+}
+
+async function createAppointmentAutomations(
+  context: Awaited<ReturnType<typeof requireAuthContext>>,
+  process: any,
+  stepName: string,
+  dates: {
+    cas?: Date | null
+    consulate?: Date | null
+    interview?: Date | null
+  },
+) {
+  const service = String(process.service_name)
+  const processClient = Array.isArray(process.clients)
+    ? process.clients[0]
+    : process.clients
+  const clientName = processClient?.full_name ?? 'cliente'
+  const processId = process.id
+  const clientId = process.client_id
+  const mondayOnSaturday = ['Visa americana', 'Visa TN', 'Visa TD'].includes(service)
+
+  if (dates.cas) {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Recordar cita CAS · ${clientName}`,
+      description: `Enviar recordatorio de la cita CAS de ${clientName}.`,
+      startsAt: reminderBeforeAppointment(dates.cas, mondayOnSaturday),
+      automationKey: `${processId}:cas-reminder`,
+      whatsappMessage: whatsappReminder(clientName, 'CAS', dates.cas),
+      eventType: 'Cita gubernamental',
+    })
+  }
+
+  if (dates.consulate) {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Recordar cita Consulado · ${clientName}`,
+      description: `Enviar recordatorio de la cita consular de ${clientName}.`,
+      startsAt: reminderBeforeAppointment(dates.consulate, mondayOnSaturday),
+      automationKey: `${processId}:consulate-reminder`,
+      whatsappMessage: whatsappReminder(clientName, 'Consulado', dates.consulate),
+      eventType: 'Cita gubernamental',
+    })
+
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Verificar resultado consular · ${clientName}`,
+      description: 'Verificar si el trámite fue aprobado o rechazado.',
+      startsAt: atLocalTime(dates.consulate, 17, 0),
+      automationKey: `${processId}:consulate-status`,
+      eventType: 'Seguimiento',
+    })
+  }
+
+  if (dates.interview) {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Preparación de entrevista · ${clientName}`,
+      description: 'Revisar documentación y preparar al cliente para su entrevista.',
+      startsAt: dates.interview,
+      automationKey: `${processId}:interview-preparation`,
+      eventType: 'Cita con cliente',
+    })
+  }
+
+  if (dates.cas && service === 'Renovación Visa Americana') {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Verificar estatus de renovación · ${clientName}`,
+      description: 'Han transcurrido 20 días desde la cita CAS. Verificar el estatus.',
+      startsAt: addDaysAt(dates.cas, 20),
+      automationKey: `${processId}:renewal-status-20`,
+    })
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Verificar llegada de visa · ${clientName}`,
+      description: 'Han transcurrido 40 días desde la cita CAS. Verificar si la visa está lista para recolección.',
+      startsAt: addDaysAt(dates.cas, 40),
+      automationKey: `${processId}:renewal-status-40`,
+    })
+  }
+
+  if (dates.cas && service === 'Visa tipo H') {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Verificar estatus Visa H · ${clientName}`,
+      description: 'Verificar el estatus del trámite dos días después de la cita CAS.',
+      startsAt: addDaysAt(dates.cas, 2),
+      automationKey: `${processId}:h-status-2`,
+    })
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Seguimiento Visa H · ${clientName}`,
+      description: 'Confirmar con el tramitante que todo haya salido bien.',
+      startsAt: addDaysAt(dates.cas, 10),
+      automationKey: `${processId}:h-status-10`,
+      whatsappMessage: `Hola ${clientName}, te escribimos de Visa Master para confirmar que todo haya salido bien con tu trámite de Visa H. Estamos a la orden.`,
+    })
+  }
+
+  if (dates.cas && service === 'Pasaporte mexicano') {
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Recordar cita de pasaporte · ${clientName}`,
+      description: 'Recordar al cliente que mañana tiene su cita de pasaporte.',
+      startsAt: reminderBeforeAppointment(dates.cas, false),
+      automationKey: `${processId}:passport-reminder`,
+      whatsappMessage: whatsappReminder(clientName, 'Pasaporte', dates.cas),
+      eventType: 'Cita gubernamental',
+    })
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId,
+      title: `Ofrecer seguimiento de Visa Americana · ${clientName}`,
+      description: 'Contactar al cliente después de su cita de pasaporte para ofrecer seguimiento de visa.',
+      startsAt: atLocalTime(dates.cas, 15, 30),
+      automationKey: `${processId}:passport-visa-followup`,
+      whatsappMessage: `Hola ${clientName}, esperamos que todo haya salido bien en tu cita de pasaporte. En Visa Master estamos a la orden para ayudarte con tu trámite de Visa Americana cuando lo desees.`,
+    })
+  }
+}
+
 export async function updateProcessStep(formData: FormData) {
   const context = await requireAuthContext()
   const processId = value(formData, 'process_id')
   const stepId = value(formData, 'step_id')
   const nextStatus = value(formData, 'next_status')
 
-  const { data: step, error } = await context.supabase
+  const { data: step, error: stepError } = await context.supabase
     .from('process_steps')
-    .update({
-      status: nextStatus,
-      completed_at: nextStatus === 'Completado' ? new Date().toISOString() : null,
-      completed_by: nextStatus === 'Completado' ? context.userId : null,
-    })
+    .select('id, step_order, step_name')
     .eq('id', stepId)
     .eq('process_id', processId)
-    .select('step_name')
     .single()
 
-  if (error) {
-    redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+  if (stepError || !step) {
+    redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20la%20etapa`)
+  }
+
+  const { data: process, error: processError } = await context.supabase
+    .from('processes')
+    .select('id, client_id, service_name, clients(full_name, phone)')
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+    .single()
+
+  if (processError || !process) {
+    redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20el%20trámite`)
+  }
+
+  const casValue = value(formData, 'cas_appointment_at')
+  const consulateValue = value(formData, 'consulate_appointment_at')
+  const interviewValue = value(formData, 'interview_preparation_at')
+  const resultStatus = value(formData, 'result_status')
+
+  const normalizedStep = step.step_name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+
+  if (
+    nextStatus === 'Completado' &&
+    (normalizedStep.includes('cita encontrada') || normalizedStep === 'cita agendada') &&
+    (!casValue || !consulateValue)
+  ) {
+    redirect(`/admin/tramites/${processId}?error=Captura%20las%20dos%20citas`)
+  }
+
+  if (
+    nextStatus === 'Completado' &&
+    (normalizedStep.includes('cita ante el cas') || normalizedStep.includes('programacion de cita')) &&
+    !casValue
+  ) {
+    redirect(`/admin/tramites/${processId}?error=Captura%20la%20fecha%20de%20la%20cita`)
+  }
+
+  if (
+    nextStatus === 'Completado' &&
+    normalizedStep.includes('preparacion entrevista') &&
+    !interviewValue
+  ) {
+    redirect(`/admin/tramites/${processId}?error=Captura%20la%20fecha%20de%20preparación`)
+  }
+
+  if (
+    nextStatus === 'Completado' &&
+    normalizedStep.includes('aprobada o rechazada') &&
+    !resultStatus
+  ) {
+    redirect(`/admin/tramites/${processId}?error=Selecciona%20el%20resultado`)
+  }
+
+  const now = new Date().toISOString()
+
+  if (nextStatus === 'Completado') {
+    const { error } = await context.supabase
+      .from('process_steps')
+      .update({
+        status: 'Completado',
+        completed_at: now,
+        completed_by: context.userId,
+      })
+      .eq('process_id', processId)
+      .lte('step_order', step.step_order)
+
+    if (error) {
+      redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+    }
+  } else {
+    const { error } = await context.supabase
+      .from('process_steps')
+      .update({
+        status: 'Pendiente',
+        completed_at: null,
+        completed_by: null,
+      })
+      .eq('process_id', processId)
+      .gte('step_order', step.step_order)
+
+    if (error) {
+      redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+    }
+  }
+
+  const processUpdates: Record<string, string | null> = {}
+  if (casValue) processUpdates.cas_appointment_at = new Date(casValue).toISOString()
+  if (consulateValue) processUpdates.consulate_appointment_at = new Date(consulateValue).toISOString()
+  if (interviewValue) processUpdates.interview_preparation_at = new Date(interviewValue).toISOString()
+  if (resultStatus) processUpdates.result_status = resultStatus
+
+  if (Object.keys(processUpdates).length) {
+    await context.supabase
+      .from('processes')
+      .update(processUpdates)
+      .eq('id', processId)
+      .eq('organization_id', context.organizationId)
+  }
+
+  if (nextStatus === 'Completado') {
+    await createAppointmentAutomations(context, process, step.step_name, {
+      cas: casValue ? new Date(casValue) : null,
+      consulate: consulateValue ? new Date(consulateValue) : null,
+      interview: interviewValue ? new Date(interviewValue) : null,
+    })
+
+    if (process.service_name === 'eTA Canadá' && normalizedStep === 'pagar eta') {
+      const clientName = Array.isArray(process.clients)
+        ? process.clients[0]?.full_name
+        : process.clients?.full_name
+
+      await upsertAutomatedAgendaEvent(context, {
+        processId,
+        clientId: process.client_id,
+        title: `Verificar recepción de eTA · ${clientName ?? 'Cliente'}`,
+        description: 'Confirmar con el cliente que la eTA llegó correctamente a su correo.',
+        startsAt: etaFollowupDate(),
+        automationKey: `${processId}:eta-followup`,
+        whatsappMessage: `Hola ${clientName ?? ''}, te escribimos de Visa Master para confirmar que tu eTA haya llegado correctamente a tu correo electrónico.`,
+      })
+    }
   }
 
   const { data: allSteps } = await context.supabase
@@ -118,14 +458,16 @@ export async function updateProcessStep(formData: FormData) {
     .order('step_order')
 
   const nextPending = allSteps?.find((item) => item.status !== 'Completado')
-  const allCompleted = allSteps?.length && allSteps.every((item) => item.status === 'Completado')
+  const allCompleted = Boolean(
+    allSteps?.length && allSteps.every((item) => item.status === 'Completado'),
+  )
 
   await context.supabase
     .from('processes')
     .update({
       current_stage: allCompleted ? 'Concluido' : nextPending?.step_name ?? 'Inicio',
       status: allCompleted ? 'Concluido' : 'Activo',
-      closed_at: allCompleted ? new Date().toISOString() : null,
+      closed_at: allCompleted ? now : null,
     })
     .eq('id', processId)
 
@@ -135,13 +477,50 @@ export async function updateProcessStep(formData: FormData) {
     entity_type: 'process',
     entity_id: processId,
     action: nextStatus === 'Completado' ? 'step_completed' : 'step_reopened',
-    description: `${step.step_name}: ${nextStatus}`,
+    description:
+      nextStatus === 'Completado'
+        ? `${step.step_name} y etapas anteriores: Completado`
+        : `${step.step_name} y etapas posteriores: Pendiente`,
+    metadata: resultStatus ? { result_status: resultStatus } : {},
   })
 
   revalidatePath('/admin')
+  revalidatePath('/admin/agenda')
   revalidatePath('/admin/tramites')
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`/admin/tramites/${processId}?updated=1`)
+}
+
+export async function createVisaFollowup(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+
+  const { data: process } = await context.supabase
+    .from('processes')
+    .select('id, client_id, clients(full_name)')
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+    .single()
+
+  if (!process) {
+    redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20el%20trámite`)
+  }
+
+  const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+
+  await upsertAutomatedAgendaEvent(context, {
+    processId,
+    clientId: process.client_id,
+    title: `Seguimiento para Visa Americana · ${client?.full_name ?? 'Cliente'}`,
+    description: 'Contactar al cliente para iniciar o cotizar su trámite de Visa Americana.',
+    startsAt: new Date(),
+    automationKey: `${processId}:manual-visa-followup`,
+    whatsappMessage: `Hola ${client?.full_name ?? ''}, en Visa Master estamos a la orden para ayudarte a iniciar tu trámite de Visa Americana.`,
+  })
+
+  revalidatePath('/admin/agenda')
+  revalidatePath(`/admin/tramites/${processId}`)
+  redirect(`/admin/tramites/${processId}?visa_followup=1`)
 }
 
 

@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
-import ProgressStepButton from '@/components/progress-step-button'
+import ProcessStepAction from '@/components/process-step-action'
 import SubmitButton from '@/components/submit-button'
-import { updateProcessStatus } from '../actions'
+import { createVisaFollowup, updateProcessStatus } from '../actions'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -64,6 +64,7 @@ export default async function ProcessDetailPage({
 
       {query.updated ? <div className="notice success">Etapa actualizada correctamente.</div> : null}
       {query.status_updated ? <div className="notice success">Estado del trámite actualizado.</div> : null}
+      {query.visa_followup ? <div className="notice success">Seguimiento para Visa Americana agregado a la agenda.</div> : null}
       {query.error ? <div className="notice error">{String(query.error)}</div> : null}
 
       <section className="client-kpis">
@@ -145,7 +146,7 @@ export default async function ProcessDetailPage({
                     <small>{step.is_optional ? 'Opcional' : 'Obligatoria'} · {step.status}</small>
                   </div>
                 </div>
-                <ProgressStepButton processId={process.id} stepId={step.id} status={step.status} />
+                <ProcessStepAction processId={process.id} serviceName={process.service_name} step={step} />
               </article>
             ))}
           </div>
@@ -158,10 +159,26 @@ export default async function ProcessDetailPage({
             </div>
             <p><strong>Etapa actual:</strong> {process.current_stage || 'Inicio'}</p>
             <p><strong>Prioridad:</strong> {process.priority}</p>
-            <p><strong>Cita:</strong> {dateTime(process.government_appointment_at)}</p>
+            <p><strong>Cita CAS:</strong> {dateTime(process.cas_appointment_at || process.government_appointment_at)}</p>
+            <p><strong>Cita Consulado:</strong> {dateTime(process.consulate_appointment_at)}</p>
+            <p><strong>Preparación entrevista:</strong> {dateTime(process.interview_preparation_at)}</p>
+            <p><strong>Resultado:</strong> {process.result_status || 'Pendiente'}</p>
             <p><strong>Compromiso de pago:</strong> {charge?.payment_commitment_date || 'Sin fecha'}</p>
             <p><strong>Notas:</strong> {process.notes || 'Sin notas'}</p>
           </section>
+
+          {process.service_name === 'Pasaporte mexicano' ? (
+            <section className="panel-card visa-followup-card">
+              <div className="panel-heading">
+                <div><span className="eyebrow">Siguiente oportunidad</span><h3>Visa Americana</h3></div>
+              </div>
+              <p>Agrega a la agenda un seguimiento directo para ofrecer el trámite de visa de turista.</p>
+              <form action={createVisaFollowup}>
+                <input type="hidden" name="process_id" value={process.id} />
+                <SubmitButton pendingText="Agregando…">Crear seguimiento de visa</SubmitButton>
+              </form>
+            </section>
+          ) : null}
 
           <section className="panel-card">
             <div className="panel-heading">

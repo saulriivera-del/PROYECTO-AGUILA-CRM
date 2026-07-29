@@ -897,3 +897,62 @@ input[type="number"]{
   .process-status-actions{display:grid}
   .process-status-actions button{width:100%}
 }
+
+
+/* ============================================================
+   FASE 4.8 — SEGUIMIENTO AUTOMÁTICO DE TRÁMITES
+   ============================================================ */
+.step-data-form{
+  min-width:280px;
+  display:grid;
+  gap:9px;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#f7f9fc
+}
+.step-data-form label{
+  display:grid;
+  gap:5px;
+  font-size:.72rem;
+  font-weight:850;
+  color:#49627f
+}
+.step-data-form input,.step-data-form select{
+  width:100%;
+  min-height:38px;
+  padding:8px 9px;
+  border:1px solid var(--line);
+  border-radius:9px;
+  background:#fff
+}
+.step-data-actions{display:flex;gap:7px;flex-wrap:wrap}
+.agenda-item-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:12px
+}
+.agenda-item-actions form{margin:0}
+.whatsapp-action{
+  display:inline-flex;
+  align-items:center;
+  min-height:35px;
+  padding:8px 11px;
+  border-radius:9px;
+  background:#e5f8eb;
+  color:#176d38;
+  text-decoration:none;
+  font-size:.72rem;
+  font-weight:900
+}
+.visa-followup-card p{
+  color:var(--muted);
+  font-size:.84rem;
+  line-height:1.5
+}
+@media(max-width:700px){
+  .step-row{align-items:stretch}
+  .step-data-form{min-width:0;width:100%;margin-top:10px}
+}
