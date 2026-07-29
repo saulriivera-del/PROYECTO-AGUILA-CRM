@@ -11,6 +11,6 @@ export async function createAgendaEvent(f:FormData){
  if(error) redirect('/admin/agenda?error='+encodeURIComponent(error.message)); revalidatePath('/admin'); revalidatePath('/admin/agenda'); redirect('/admin/agenda?created=1');
 }
 export async function completeAgendaEvent(f:FormData){
- const c=await requireAuthContext(); const id=v(f,'event_id'); const {error}=await c.supabase.from('agenda_events').update({status:'Realizado'}).eq('id',id).eq('organization_id',c.organizationId);
- if(error) redirect('/admin/agenda?error='+encodeURIComponent(error.message)); revalidatePath('/admin'); revalidatePath('/admin/agenda'); redirect('/admin/agenda?updated=1');
+ const c=await requireAuthContext(); const id=v(f,'event_id'); const returnTo=v(f,'return_to')||'/admin/agenda'; const {error}=await c.supabase.from('agenda_events').update({status:'Realizado'}).eq('id',id).eq('organization_id',c.organizationId);
+ if(error) redirect('/admin/agenda?error='+encodeURIComponent(error.message)); revalidatePath('/admin'); revalidatePath('/admin/agenda'); redirect(returnTo+(returnTo.includes('?')?'&':'?')+'updated=1');
 }

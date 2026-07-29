@@ -2,180 +2,323 @@ import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
 import { money, dateTime } from '@/lib/format'
 import { getFinancialSummary } from '@/lib/financial-summary'
+import SubmitButton from '@/components/submit-button'
+import { completeAgendaEvent } from '@/app/admin/agenda/actions'
 
-async function countRows(
-  supabase: Awaited<ReturnType<typeof import('@/lib/supabase/server').createClient>>,
-  table: string,
-  filters?: (query: any) => any,
-) {
-  let query = supabase.from(table).select('*', { count: 'exact', head: true })
-  if (filters) query = filters(query)
-  const { count } = await query
-  return count ?? 0
+function atStartOfDay(value: Date) {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
 }
 
 export default async function AdminPage() {
   const context = await requireAuthContext()
   const firstName = context.fullName.split(' ')[0]
   const now = new Date()
-  const startOfDay = new Date(now)
-  startOfDay.setHours(0, 0, 0, 0)
+  const todayStart = atStartOfDay(now)
+  const tomorrowStart = new Date(todayStart)
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+  const afterTomorrow = new Date(tomorrowStart)
+  afterTomorrow.setDate(afterTomorrow.getDate() + 1)
+  const weekEnd = new Date(todayStart)
+  weekEnd.setDate(weekEnd.getDate() + 7)
 
-  const sevenDaysAgo = new Date(now)
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-  const [
-    activeProspects,
-    clients,
-    activeProcesses,
-    lostProspects,
-    convertedProspects,
-    pendingTasks,
-  ] = await Promise.all([
-    countRows(context.supabase, 'prospects', (q) =>
-      q.eq('organization_id', context.organizationId).eq('status', 'Activo'),
-    ),
-    countRows(context.supabase, 'clients', (q) =>
-      q.eq('organization_id', context.organizationId),
-    ),
-    countRows(context.supabase, 'processes', (q) =>
-      q.eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado)'),
-    ),
-    countRows(context.supabase, 'prospects', (q) =>
-      q.eq('organization_id', context.organizationId).eq('status', 'Perdido'),
-    ),
-    countRows(context.supabase, 'prospects', (q) =>
-      q.eq('organization_id', context.organizationId).eq('status', 'Convertido'),
-    ),
-    countRows(context.supabase, 'tasks', (q) =>
-      q.eq('organization_id', context.organizationId).in('status', ['Pendiente', 'En proceso']),
-    ),
+  const [{ data: agenda }, { data: processes }, financial] = await Promise.all([
+    context.supabase
+      .from('agenda_events')
+      .select(
+        'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, clients(full_name, phone), processes(id, service_name)',
+      )
+      .eq('organization_id', context.organizationId)
+      .eq('status', 'Pendiente')
+      .order('starts_at'),
+    context.supabase
+      .from('processes')
+      .select(
+        'id, service_name, priority, priority_attention_at, assigned_to, current_stage, clients(full_name)',
+      )
+      .eq('organization_id', context.organizationId)
+      .not('status', 'in', '(Concluido,Cancelado)')
+      .order('priority_attention_at', { ascending: true, nullsFirst: false }),
+    getFinancialSummary(context.supabase, context.organizationId),
   ])
 
-  const financial = await getFinancialSummary(
-    context.supabase,
-    context.organizationId,
+  const pendingAgenda = agenda ?? []
+  const visibleToMe = pendingAgenda.filter(
+    (event) =>
+      event.assignment_scope === 'General' ||
+      !event.assigned_to ||
+      event.assigned_to === context.userId,
+  )
+  const myAgenda = pendingAgenda.filter(
+    (event) => event.assigned_to === context.userId,
+  )
+  const overdue = visibleToMe.filter(
+    (event) => new Date(event.starts_at) < todayStart,
+  )
+  const today = visibleToMe.filter((event) => {
+    const date = new Date(event.starts_at)
+    return date >= todayStart && date < tomorrowStart
+  })
+  const tomorrow = visibleToMe.filter((event) => {
+    const date = new Date(event.starts_at)
+    return date >= tomorrowStart && date < afterTomorrow
+  })
+  const thisWeek = visibleToMe.filter((event) => {
+    const date = new Date(event.starts_at)
+    return date >= afterTomorrow && date < weekEnd
+  })
+
+  const personalPriorityProcesses = (processes ?? []).filter(
+    (process) =>
+      process.assigned_to === context.userId &&
+      (process.priority === 'Alta' ||
+        (process.priority_attention_at &&
+          new Date(process.priority_attention_at) < afterTomorrow)),
   )
 
   const collectedToday = financial.payments
-    .filter((payment) => new Date(payment.payment_date) >= startOfDay)
+    .filter((payment) => new Date(payment.payment_date) >= todayStart)
     .reduce((sum, payment) => sum + Number(payment.amount), 0)
 
-  const outstanding = financial.totalBalance
+  const workQueue = [...overdue, ...today]
+    .sort((a, b) => {
+      const aPersonal = a.assigned_to === context.userId ? 0 : 1
+      const bPersonal = b.assigned_to === context.userId ? 0 : 1
+      if (aPersonal !== bPersonal) return aPersonal - bPersonal
+      const aUrgent =
+        a.priority === 'Urgente' || a.event_type === 'Tarea prioritaria' ? 0 : 1
+      const bUrgent =
+        b.priority === 'Urgente' || b.event_type === 'Tarea prioritaria' ? 0 : 1
+      if (aUrgent !== bUrgent) return aUrgent - bUrgent
+      return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+    })
+    .slice(0, 12)
 
-  const { data: dueFollowups } = await context.supabase
-    .from('prospects')
-    .select('id, full_name, phone, service_interest, next_followup_at')
-    .eq('organization_id', context.organizationId)
-    .eq('status', 'Activo')
-    .or(`next_followup_at.lte.${now.toISOString()},next_followup_at.is.null`)
-    .order('next_followup_at', { ascending: true })
-    .limit(8)
-
-  const { data: upcomingAgenda } = await context.supabase
-    .from('agenda_events')
-    .select('id, title, starts_at, assignment_scope, assigned_to')
-    .eq('organization_id', context.organizationId)
-    .gte('starts_at', now.toISOString())
-    .order('starts_at')
-    .limit(6)
-
-  const conversionBase = activeProspects + convertedProspects + lostProspects
-  const conversionRate = conversionBase
-    ? Math.round((convertedProspects / conversionBase) * 100)
-    : 0
+  const formatter = new Intl.DateTimeFormat('es-MX', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
 
   return (
     <>
-      <header className="page-header">
+      <header className="daily-control-header">
         <div>
-          <span className="eyebrow">Centro de Control</span>
+          <span className="eyebrow">Centro de Operaciones Diario</span>
           <h1>Buenos días, {firstName}</h1>
-          <p>Lo importante del negocio, sin buscar entre pantallas.</p>
+          <p className="daily-date">{formatter.format(now)}</p>
         </div>
         <div className="header-actions">
-          <Link className="secondary-button" href="/admin/prospectos">Prospectos</Link>
-          <Link className="primary-button" href="/admin/clientes">+ Cliente</Link>
+          <Link className="secondary-button" href="/admin/agenda">
+            Abrir agenda
+          </Link>
+          <Link className="primary-button" href="/admin/tramites">
+            Operación activa
+          </Link>
         </div>
       </header>
 
-      <section className="operation-banner">
-        <div>
-          <span>ÁGUILA OS · OPERACIÓN REAL</span>
-          <h2>Hoy tienes {dueFollowups?.length ?? 0} seguimientos prioritarios</h2>
-          <p>La tasa de conversión registrada es de {conversionRate}% y hay {money(outstanding)} pendientes por cobrar.</p>
+      {financial.error ? (
+        <div className="notice error">
+          No fue posible calcular la cobranza: {financial.error}
         </div>
-        <strong>● Sistema activo</strong>
+      ) : null}
+
+      <section className="daily-summary-grid">
+        <article className={overdue.length ? 'summary-alert' : ''}>
+          <span>Atrasadas</span>
+          <strong>{overdue.length}</strong>
+          <small>Requieren atención inmediata</small>
+        </article>
+        <article>
+          <span>Mi día</span>
+          <strong>{myAgenda.filter((event) => new Date(event.starts_at) < tomorrowStart).length}</strong>
+          <small>Asignadas directamente a ti</small>
+        </article>
+        <article>
+          <span>Hoy</span>
+          <strong>{today.length}</strong>
+          <small>Actividades del equipo</small>
+        </article>
+        <article>
+          <span>Mañana</span>
+          <strong>{tomorrow.length}</strong>
+          <small>Próxima jornada</small>
+        </article>
+        <article>
+          <span>Prioridades propias</span>
+          <strong>{personalPriorityProcesses.length}</strong>
+          <small>Trámites que debes atender</small>
+        </article>
+        <article>
+          <span>Por cobrar</span>
+          <strong>{money(financial.totalBalance)}</strong>
+          <small>Cobrado hoy: {money(collectedToday)}</small>
+        </article>
       </section>
 
-      <section className="executive-metrics">
-        <article><span>Prospectos activos</span><strong>{activeProspects}</strong></article>
-        <article><span>Clientes</span><strong>{clients}</strong></article>
-        <article><span>Trámites activos</span><strong>{activeProcesses}</strong></article>
-        <article><span>Cobrado hoy</span><strong>{money(collectedToday)}</strong></article>
-        <article><span>Por cobrar</span><strong>{money(outstanding)}</strong></article>
-        <article><span>Conversión</span><strong>{conversionRate}%</strong></article>
-      </section>
-
-      <section className="control-grid">
-        <article className="panel-card control-main">
+      <section className="daily-operation-grid">
+        <article className="panel-card daily-queue-panel">
           <div className="panel-heading">
-            <div><span className="eyebrow">Prioridad de hoy</span><h3>Seguimientos pendientes</h3></div>
-            <Link href="/admin/prospectos">Abrir prospectos</Link>
+            <div>
+              <span className="eyebrow">Bandeja de trabajo</span>
+              <h3>Lo siguiente por atender</h3>
+            </div>
+            <Link href="/admin/agenda">Ver todo</Link>
           </div>
 
-          <div className="priority-list">
-            {(dueFollowups ?? []).map((prospect) => (
-              <div key={prospect.id}>
-                <div>
-                  <strong>{prospect.full_name}</strong>
-                  <small>{prospect.service_interest} · {prospect.phone}</small>
+          <div className="daily-work-list">
+            {workQueue.map((event) => {
+              const client = Array.isArray(event.clients)
+                ? event.clients[0]
+                : event.clients
+              const process = Array.isArray(event.processes)
+                ? event.processes[0]
+                : event.processes
+              const personal = event.assigned_to === context.userId
+              const urgent =
+                event.priority === 'Urgente' ||
+                event.event_type === 'Tarea prioritaria'
+              const phone = String(client?.phone ?? '').replace(/\D/g, '')
+              const normalizedPhone = phone.startsWith('52')
+                ? phone
+                : `52${phone}`
+              const whatsappUrl =
+                event.whatsapp_message && phone
+                  ? `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(
+                      event.whatsapp_message,
+                    )}`
+                  : null
+
+              return (
+                <div
+                  className={`daily-work-item ${urgent ? 'urgent' : ''}`}
+                  key={event.id}
+                >
+                  <time>{dateTime(event.starts_at)}</time>
+                  <div className="daily-work-copy">
+                    <div className="daily-work-badges">
+                      {personal ? <span className="personal-pill">Para mí</span> : null}
+                      {urgent ? <span className="urgent-pill">Prioridad</span> : null}
+                    </div>
+                    <strong>{event.title}</strong>
+                    <small>
+                      {client?.full_name || 'Actividad interna'}
+                      {process?.service_name ? ` · ${process.service_name}` : ''}
+                    </small>
+                  </div>
+                  <div className="daily-work-actions">
+                    {whatsappUrl ? (
+                      <a
+                        className="whatsapp-action"
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        WhatsApp
+                      </a>
+                    ) : null}
+                    {process?.id ? (
+                      <Link
+                        className="secondary-button mini-button"
+                        href={`/admin/tramites/${process.id}`}
+                      >
+                        Abrir
+                      </Link>
+                    ) : null}
+                    <form action={completeAgendaEvent}>
+                      <input type="hidden" name="event_id" value={event.id} />
+                      <input type="hidden" name="return_to" value="/admin" />
+                      <SubmitButton
+                        className="mini-button"
+                        pendingText="Actualizando…"
+                      >
+                        Realizada
+                      </SubmitButton>
+                    </form>
+                  </div>
                 </div>
-                <time>{dateTime(prospect.next_followup_at)}</time>
+              )
+            })}
+
+            {!workQueue.length ? (
+              <div className="empty-state">
+                No tienes actividades atrasadas ni programadas para hoy.
               </div>
-            ))}
-            {!dueFollowups?.length ? <div className="empty-state">No hay seguimientos vencidos.</div> : null}
+            ) : null}
           </div>
         </article>
 
-        <article className="panel-card">
-          <div className="panel-heading">
-            <div><span className="eyebrow">Agenda</span><h3>Próximos eventos</h3></div>
-          </div>
-          <div className="priority-list compact">
-            {(upcomingAgenda ?? []).map((event) => (
-              <div key={event.id}>
-                <div>
-                  <strong>{event.title}</strong>
-                  <small>{event.assignment_scope}</small>
-                </div>
-                <time>{dateTime(event.starts_at)}</time>
+        <aside className="daily-side-column">
+          <article className="panel-card">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Mis prioridades</span>
+                <h3>Trámites asignados</h3>
               </div>
-            ))}
-            {!upcomingAgenda?.length ? <div className="empty-state">Sin eventos próximos.</div> : null}
-          </div>
-        </article>
+              <strong>{personalPriorityProcesses.length}</strong>
+            </div>
+            <div className="priority-list compact">
+              {personalPriorityProcesses.slice(0, 8).map((process) => {
+                const client = Array.isArray(process.clients)
+                  ? process.clients[0]
+                  : process.clients
+                return (
+                  <Link
+                    className="priority-process-link"
+                    href={`/admin/tramites/${process.id}`}
+                    key={process.id}
+                  >
+                    <div>
+                      <strong>{client?.full_name || 'Cliente'}</strong>
+                      <small>
+                        {process.service_name} · {process.current_stage || 'Inicio'}
+                      </small>
+                    </div>
+                    <time>{dateTime(process.priority_attention_at)}</time>
+                  </Link>
+                )
+              })}
+              {!personalPriorityProcesses.length ? (
+                <div className="empty-state">Sin prioridades personales.</div>
+              ) : null}
+            </div>
+          </article>
 
-        <article className="panel-card funnel-card">
-          <div className="panel-heading">
-            <div><span className="eyebrow">Embudo</span><h3>Comercial</h3></div>
-          </div>
-          <div className="funnel-bars">
-            <div><span>Activos</span><strong>{activeProspects}</strong><i style={{ width: '100%' }} /></div>
-            <div><span>Convertidos</span><strong>{convertedProspects}</strong><i style={{ width: `${conversionBase ? Math.max(8, (convertedProspects / conversionBase) * 100) : 8}%` }} /></div>
-            <div><span>Perdidos</span><strong>{lostProspects}</strong><i style={{ width: `${conversionBase ? Math.max(8, (lostProspects / conversionBase) * 100) : 8}%` }} /></div>
-          </div>
-        </article>
+          <article className="panel-card">
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">Siguiente horizonte</span>
+                <h3>Próximos días</h3>
+              </div>
+            </div>
+            <div className="daily-horizon">
+              <div>
+                <span>Mañana</span>
+                <strong>{tomorrow.length}</strong>
+              </div>
+              <div>
+                <span>Resto de la semana</span>
+                <strong>{thisWeek.length}</strong>
+              </div>
+              <div>
+                <span>Cuentas vencidas</span>
+                <strong>{money(financial.overdueBalance)}</strong>
+              </div>
+            </div>
+          </article>
 
-        <article className="panel-card assistant-panel">
-          <div className="panel-heading">
-            <div><span className="eyebrow">Águila recomienda</span><h3>Acciones inmediatas</h3></div>
-          </div>
-          <p>• Contactar primero a los prospectos sin fecha de seguimiento.</p>
-          <p>• Revisar {money(outstanding)} en saldos pendientes.</p>
-          <p>• Hay {pendingTasks} tareas abiertas.</p>
-          <p>• Mantener la conversión por encima de 40%.</p>
-        </article>
+          <article className="panel-card daily-recommendation">
+            <span className="eyebrow">Águila recomienda</span>
+            <h3>Orden de atención</h3>
+            <p>
+              Atiende primero las actividades atrasadas asignadas a ti, después
+              las prioridades urgentes del equipo y finalmente las actividades
+              generales del día.
+            </p>
+          </article>
+        </aside>
       </section>
     </>
   )

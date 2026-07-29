@@ -25,7 +25,7 @@ export default async function AdminLayout({
         </Link>
 
         <nav className="crm-nav">
-          <Link href="/admin">⌂ Centro de Control</Link>
+          <Link href="/admin">⌂ Operaciones de hoy</Link>
           <Link href="/admin/prospectos">◎ Prospectos</Link>
           <Link href="/admin/clientes">👥 Personas</Link>
           <Link href="/admin/tramites">▤ Trámites</Link>
