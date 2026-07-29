@@ -16,7 +16,7 @@ export default async function FinanceInsightsPage() {
 
   return <>
     <header className="insights-hero compact">
-      <div><span className="eyebrow">Águila Insights · Fase 5.2.2</span><h1>Centro Financiero</h1><p>Lectura ejecutiva basada únicamente en dinero efectivamente cobrado.</p></div>
+      <div><span className="eyebrow">Águila Insights · Fase 5.2.3</span><h1>Centro Financiero</h1><p>Lectura ejecutiva basada únicamente en dinero efectivamente cobrado.</p></div>
     </header>
     {data.errors.length ? <div className="notice error">No fue posible consultar todos los indicadores. {data.errors[0]}</div> : null}
 

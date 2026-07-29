@@ -13,7 +13,7 @@ export default async function InsightsPage() {
 
   return <>
     <header className="insights-hero">
-      <div><span className="eyebrow">Águila Insights · Fase 5.2.2</span><h1>Buenos días, {context.fullName.split(' ')[0]}.</h1><p>Una fotografía ejecutiva de Visa Master basada exclusivamente en movimientos registrados.</p></div>
+      <div><span className="eyebrow">Águila Insights · Fase 5.2.3</span><h1>Buenos días, {context.fullName.split(' ')[0]}.</h1><p>Una fotografía ejecutiva de Visa Master basada exclusivamente en movimientos registrados.</p></div>
       <div className="header-actions"><Link className="secondary-button" href="/admin/insights/metas">Configurar metas</Link><Link className="primary-button" href="/admin/insights/bonos">Bonos del equipo</Link></div>
     </header>
     {data.errors.length ? <div className="notice error">Ejecuta primero la migración de Fase 5.2.1. {data.errors[0]}</div> : null}
@@ -43,7 +43,7 @@ export default async function InsightsPage() {
 
     <section className="insights-grid">
       <article className="panel-card"><div className="panel-heading"><div><span className="eyebrow">Servicios</span><h3>Ingresos del mes</h3></div></div><div className="ranking-list">{data.serviceRevenue.slice(0, 6).map(([service, amount], index) => <div key={service}><span>{index + 1}. {service}</span><strong>{money(amount)}</strong></div>)}{!data.serviceRevenue.length ? <div className="empty-state">Sin pagos este mes.</div> : null}</div></article>
-      <article className="panel-card"><div className="panel-heading"><div><span className="eyebrow">Equipo</span><h3>Bonos semanales estimados</h3></div></div><div className="bonus-preview-list">{data.bonusRules.map((rule: any) => { const profile = Array.isArray(rule.profiles) ? rule.profiles[0] : rule.profiles; const estimated = bonusForRevenue(data.weekRevenue, Number(rule.threshold_amount), Number(rule.base_bonus), Number(rule.step_amount), Number(rule.step_bonus)); return <div key={rule.id}><span><strong>{profile?.full_name ?? 'Usuario'}</strong><small>{money(data.weekRevenue)} / {money(Number(rule.threshold_amount))}</small></span><strong>{money(estimated)}</strong></div>})}{!data.bonusRules.length ? <div className="empty-state">No hay reglas de bono configuradas.</div> : null}</div></article>
+      <article className="panel-card"><div className="panel-heading"><div><span className="eyebrow">Equipo</span><h3>Bonos semanales estimados</h3></div></div><div className="bonus-preview-list">{data.bonusRules.map((rule: any) => { const profile = Array.isArray(rule.user_profile) ? rule.user_profile[0] : rule.user_profile; const estimated = bonusForRevenue(data.weekRevenue, Number(rule.threshold_amount), Number(rule.base_bonus), Number(rule.step_amount), Number(rule.step_bonus)); return <div key={rule.id}><span><strong>{profile?.full_name ?? 'Usuario'}</strong><small>{money(data.weekRevenue)} / {money(Number(rule.threshold_amount))}</small></span><strong>{money(estimated)}</strong></div>})}{!data.bonusRules.length ? <div className="empty-state">No hay reglas de bono configuradas.</div> : null}</div></article>
     </section>
 
     <section className="insight-navigation">

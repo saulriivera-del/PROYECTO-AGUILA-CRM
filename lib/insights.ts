@@ -44,13 +44,14 @@ export async function getInsightsData(supabase: SupabaseClient, organizationId: 
   const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
   const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1)
 
-  const [paymentsResult, prospectsResult, clientsResult, processesResult, goalsResult, rulesResult, profilesResult] = await Promise.all([
+  const [paymentsResult, prospectsResult, clientsResult, processesResult, goalsResult, rulesResult, historyResult, profilesResult] = await Promise.all([
     supabase.from('payments').select('id, amount, payment_date, payment_method, reference, notes, process_id, recorded_by, processes(id, service_name, client_id, clients(full_name))').eq('organization_id', organizationId).gte('payment_date', previousMonthStart.toISOString()).order('payment_date'),
     supabase.from('prospects').select('id, status, created_at, assigned_to').eq('organization_id', organizationId).gte('created_at', previousMonthStart.toISOString()),
     supabase.from('clients').select('id, created_at, assigned_to').eq('organization_id', organizationId).gte('created_at', previousMonthStart.toISOString()),
     supabase.from('processes').select('id, status, service_name, created_at, assigned_to, operational_status, last_movement_at').eq('organization_id', organizationId),
-    supabase.from('insight_goals').select('*, profiles(full_name)').eq('organization_id', organizationId).eq('is_active', true).order('created_at'),
-    supabase.from('bonus_rules').select('*, profiles(full_name)').eq('organization_id', organizationId).eq('is_active', true).order('created_at'),
+    supabase.from('insight_goals').select('*, assigned_profile:profiles!insight_goals_assigned_to_fkey(full_name)').eq('organization_id', organizationId).eq('is_active', true).order('created_at'),
+    supabase.from('bonus_rules').select('*, user_profile:profiles!bonus_rules_user_id_fkey(full_name)').eq('organization_id', organizationId).eq('is_active', true).order('created_at'),
+    supabase.from('bonus_history').select('*, user_profile:profiles!bonus_history_user_id_fkey(full_name), rule:bonus_rules!bonus_history_bonus_rule_id_fkey(name)').eq('organization_id', organizationId).order('period_start', { ascending: false }).limit(52),
     supabase.from('profiles').select('id, full_name, role').eq('organization_id', organizationId).eq('is_active', true).order('full_name'),
   ])
 
@@ -110,10 +111,11 @@ export async function getInsightsData(supabase: SupabaseClient, organizationId: 
   const bestDay = [...dailyRevenue].sort((a, b) => b.amount - a.amount)[0] ?? null
 
   return {
-    errors: [paymentsResult.error, prospectsResult.error, clientsResult.error, processesResult.error, goalsResult.error, rulesResult.error, profilesResult.error].filter(Boolean).map((e: any) => e.message),
+    errors: [paymentsResult.error, prospectsResult.error, clientsResult.error, processesResult.error, goalsResult.error, rulesResult.error, historyResult.error, profilesResult.error].filter(Boolean).map((e: any) => e.message),
     payments,
     goals: goalsResult.data ?? [],
     bonusRules: rulesResult.data ?? [],
+    bonusHistory: historyResult.data ?? [],
     profiles: profilesResult.data ?? [],
     todayRevenue,
     weekRevenue,

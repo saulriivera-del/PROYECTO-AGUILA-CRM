@@ -66,3 +66,37 @@ export async function toggleGoal(form: FormData) {
   revalidatePath('/admin/insights'); revalidatePath('/admin/insights/metas')
   redirect('/admin/insights/metas?disabled=1')
 }
+
+export async function closeCurrentBonusWeek(form: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const ruleId = text(form, 'rule_id')
+  const revenue = number(form, 'collected_revenue')
+  const bonus = number(form, 'calculated_bonus')
+  const periodStart = text(form, 'period_start')
+  const periodEnd = text(form, 'period_end')
+  const userId = text(form, 'user_id')
+  if (!ruleId || !userId || !periodStart || !periodEnd) redirect('/admin/insights/bonos?error=No%20fue%20posible%20cerrar%20la%20semana')
+  const { error } = await context.supabase.from('bonus_history').upsert({
+    organization_id: context.organizationId,
+    bonus_rule_id: ruleId,
+    user_id: userId,
+    period_start: periodStart,
+    period_end: periodEnd,
+    collected_revenue: revenue,
+    calculated_bonus: bonus,
+    status: 'Pendiente',
+  }, { onConflict: 'bonus_rule_id,period_start' })
+  if (error) redirect('/admin/insights/bonos?error=' + encodeURIComponent(error.message))
+  revalidatePath('/admin/insights'); revalidatePath('/admin/insights/bonos')
+  redirect('/admin/insights/bonos?closed=1')
+}
+
+export async function markBonusPaid(form: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const id = text(form, 'id')
+  if (!id) redirect('/admin/insights/bonos?error=Bono%20no%20válido')
+  const { error } = await context.supabase.from('bonus_history').update({ status: 'Pagado', paid_at: new Date().toISOString() }).eq('id', id).eq('organization_id', context.organizationId)
+  if (error) redirect('/admin/insights/bonos?error=' + encodeURIComponent(error.message))
+  revalidatePath('/admin/insights'); revalidatePath('/admin/insights/bonos')
+  redirect('/admin/insights/bonos?paid=1')
+}
