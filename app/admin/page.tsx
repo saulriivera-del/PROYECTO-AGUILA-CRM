@@ -31,7 +31,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
       'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, clients(full_name, phone), processes(id, service_name, contact_phone)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
-      'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
+      'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
     ).eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado)').order('priority_attention_at', { ascending: true, nullsFirst: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
     getFinancialSummary(context.supabase, context.organizationId),
@@ -75,7 +75,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     state: processOperationalState(process, now),
     inactive: inactivityLevel(process, now),
   }))
-  const stalled = processStates.filter((item: any) => item.inactive.days >= 3)
+  const stalled = processStates.filter((item: any) => item.inactive.days >= 3 && item.state === 'Sin movimiento')
   const stateCount = (state: string) => processStates.filter((item: any) => item.state === state).length
 
   return (

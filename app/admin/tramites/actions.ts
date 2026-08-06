@@ -108,7 +108,7 @@ export async function createProcess(formData: FormData) {
   revalidatePath('/admin')
   revalidatePath('/admin/clientes')
   revalidatePath('/admin/tramites')
-  redirect('/admin/tramites?created=1')
+  redirect(`/admin/tramites/${process.id}?created=1`)
 }
 
 
