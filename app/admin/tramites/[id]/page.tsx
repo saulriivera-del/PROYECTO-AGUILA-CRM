@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
-import { dateTime, money } from '@/lib/format'
+import { dateOnly, dateTime, money } from '@/lib/format'
 import ProcessStepAction from '@/components/process-step-action'
 import SubmitButton from '@/components/submit-button'
 import ProcessAssignmentForm from '@/components/process-assignment-form'
@@ -23,7 +23,7 @@ export default async function ProcessDetailPage({
 
   const { data: process } = await context.supabase
     .from('processes')
-    .select('*, clients(id, full_name, phone), process_charges(agreed_amount, payment_commitment_date), process_steps(*)')
+    .select('*, clients(id, full_name, phone, email), process_charges(agreed_amount, payment_commitment_date), process_steps(*)')
     .eq('id', id)
     .eq('organization_id', context.organizationId)
     .single()
@@ -62,7 +62,8 @@ export default async function ProcessDetailPage({
         <div>
           <span className="eyebrow">Control del trámite</span>
           <h1>{process.service_name}</h1>
-          <p>{client?.full_name} · {client?.phone}</p>
+          <p>{client?.full_name}</p>
+          <p>Teléfono: {process.contact_phone || client?.phone || 'Sin teléfono'} · Correo: {client?.email || 'Sin correo'}</p>
         </div>
         <div className="header-actions">
           <Link className="secondary-button" href={`/admin/clientes/${client?.id}`}>Expediente</Link>
@@ -183,9 +184,9 @@ export default async function ProcessDetailPage({
             <p><strong>Etapa actual:</strong> {process.current_stage || 'Inicio'}</p>
             <p><strong>Prioridad:</strong> {process.priority}</p>
             <p><strong>Situación operativa:</strong> {process.operational_status || 'Automático'}</p>
-            <p><strong>{process.service_name === 'Pasaporte mexicano' ? 'Cita Relaciones Exteriores' : 'Cita CAS'}:</strong> {dateTime(process.cas_appointment_at || process.government_appointment_at)}</p>
-            <p><strong>Cita Consulado:</strong> {dateTime(process.consulate_appointment_at)}</p>
-            <p><strong>Preparación entrevista:</strong> {dateTime(process.interview_preparation_at)}</p>
+            <p><strong>{process.service_name === 'Pasaporte mexicano' ? 'Cita Relaciones Exteriores' : 'Cita CAS'}:</strong> {dateOnly(process.cas_appointment_at || process.government_appointment_at)}</p>
+            <p><strong>Cita Consulado:</strong> {dateOnly(process.consulate_appointment_at)}</p>
+            <p><strong>Preparación entrevista:</strong> {dateOnly(process.interview_preparation_at)}</p>
             <p><strong>Resultado:</strong> {process.result_status || 'Pendiente'}</p>
             <p><strong>Compromiso de pago:</strong> {charge?.payment_commitment_date || 'Sin fecha'}</p>
             <p><strong>Notas:</strong> {process.notes || 'Sin notas'}</p>

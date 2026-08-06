@@ -14,9 +14,11 @@ type ClientOption = {
 export default function ClientSearchSelect({
   clients,
   defaultClientId = '',
+  onClientChange,
 }: {
   clients: ClientOption[]
   defaultClientId?: string
+  onClientChange?: (client: ClientOption | null) => void
 }) {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(defaultClientId)
@@ -39,6 +41,7 @@ export default function ClientSearchSelect({
 
   useEffect(() => {
     if (selected) setQuery(selected.full_name)
+    onClientChange?.(selected ?? null)
   }, [selectedId])
 
   return (

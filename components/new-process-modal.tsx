@@ -39,7 +39,9 @@ export default function NewProcessModal({
   profiles: Profile[]
   defaultClientId?: string
 }) {
+  const defaultClient = clients.find((client) => client.id === defaultClientId)
   const [open, setOpen] = useState(Boolean(defaultClientId))
+  const [contactPhone, setContactPhone] = useState(defaultClient?.phone ?? '')
 
   return (
     <>
@@ -77,9 +79,21 @@ export default function NewProcessModal({
                 <ClientSearchSelect
                   defaultClientId={defaultClientId}
                   clients={clients}
+                  onClientChange={(client) => setContactPhone(client?.phone ?? '')}
                 />
               </label>
-              <label className="span-2">
+              <label>
+                Teléfono de contacto para este trámite
+                <input
+                  name="contact_phone"
+                  value={contactPhone}
+                  onChange={(event) => setContactPhone(event.target.value)}
+                  inputMode="tel"
+                  required
+                />
+                <small>Se carga el número del cliente, pero puedes cambiarlo solo para este trámite.</small>
+              </label>
+              <label>
                 Tipo de trámite
                 <select name="service_flow_id" required defaultValue="">
                   <option value="" disabled>Selecciona</option>
@@ -124,7 +138,7 @@ export default function NewProcessModal({
               </label>
               <label>
                 Cita gubernamental inicial
-                <input name="government_appointment_at" type="datetime-local" />
+                <input name="government_appointment_at" type="date" />
               </label>
             </div>
           </section>

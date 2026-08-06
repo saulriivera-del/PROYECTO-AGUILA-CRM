@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
-import { dateTime, money } from '@/lib/format'
+import { dateOnly, dateTime, money } from '@/lib/format'
 import NewProcessModal from '@/components/new-process-modal'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -33,7 +33,7 @@ export default async function TramitesPage({
     context.supabase
       .from('processes')
       .select(
-        'id, service_name, status, priority, current_stage, government_appointment_at, priority_attention_at, assigned_to, created_at, clients(full_name), process_charges(agreed_amount), process_steps(id, status)',
+        'id, service_name, status, priority, current_stage, government_appointment_at, contact_phone, priority_attention_at, assigned_to, created_at, clients(full_name), process_charges(agreed_amount), process_steps(id, status)',
       )
       .eq('organization_id', context.organizationId)
       .not('status', 'in', '(Concluido,Cancelado)')
@@ -197,7 +197,7 @@ export default async function TramitesPage({
                 </div>
                 <small>
                   {completed} de {totalSteps} etapas · Cita:{' '}
-                  {dateTime(process.government_appointment_at)}
+                  {dateOnly(process.government_appointment_at)}
                 </small>
                 <span className="open-process-label">Abrir trámite →</span>
               </Link>

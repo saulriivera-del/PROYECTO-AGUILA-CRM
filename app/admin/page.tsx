@@ -28,7 +28,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
-      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, clients(full_name, phone), processes(id, service_name)'
+      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, clients(full_name, phone), processes(id, service_name, contact_phone)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
       'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'

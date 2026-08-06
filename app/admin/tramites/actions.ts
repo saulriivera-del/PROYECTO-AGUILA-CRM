@@ -20,6 +20,7 @@ export async function createProcess(formData: FormData) {
   const paymentMethod = value(formData, 'payment_method') || 'Efectivo'
   const assignedTo = value(formData, 'assigned_to') || null
   const priorityAttentionAt = value(formData, 'priority_attention_at') || null
+  const contactPhone = value(formData, 'contact_phone')
 
   const { data: flow } = await context.supabase
     .from('service_flows')
@@ -38,10 +39,13 @@ export async function createProcess(formData: FormData) {
       client_id: clientId,
       service_flow_id: flow.id,
       service_name: flow.service_name,
+      contact_phone: contactPhone || null,
       status: 'Activo',
       priority: value(formData, 'priority') || 'Media',
       current_stage: 'Inicio',
-      government_appointment_at: value(formData, 'government_appointment_at') || null,
+      government_appointment_at: value(formData, 'government_appointment_at')
+        ? new Date(`${value(formData, 'government_appointment_at')}T12:00:00`).toISOString()
+        : null,
       notes: value(formData, 'notes') || null,
       assigned_to: assignedTo,
       priority_attention_at: priorityAttentionAt || null,
@@ -146,10 +150,14 @@ function etaFollowupDate() {
   return new Date(now.getTime() + hours * 60 * 60 * 1000)
 }
 
+function appointmentDate(value: string) {
+  return new Date(`${value}T12:00:00`)
+}
+
 function whatsappReminder(clientName: string, appointmentType: string, appointment: Date) {
   const formatted = new Intl.DateTimeFormat('es-MX', {
     dateStyle: 'full',
-    timeStyle: 'short',
+    timeZone: 'America/Hermosillo',
   }).format(appointment)
 
   return `Hola ${clientName}, Visa Master te recuerda que tu cita de ${appointmentType} es ${formatted}. Estamos a la orden para cualquier duda.`
@@ -227,7 +235,7 @@ async function createAppointmentAutomations(
   const processId = process.id
   const clientId = process.client_id
 
-  if (dates.cas) {
+  if (dates.cas && service !== 'Pasaporte mexicano') {
     await upsertAutomatedAgendaEvent(context, {
       processId,
       clientId,
@@ -356,7 +364,7 @@ export async function updateProcessStep(formData: FormData) {
 
   const { data: process, error: processError } = await context.supabase
     .from('processes')
-    .select('id, client_id, service_name, clients(full_name, phone)')
+    .select('id, client_id, service_name, contact_phone, clients(full_name, phone, email)')
     .eq('id', processId)
     .eq('organization_id', context.organizationId)
     .single()
@@ -440,9 +448,9 @@ export async function updateProcessStep(formData: FormData) {
   }
 
   const processUpdates: Record<string, string | null> = {}
-  if (casValue) processUpdates.cas_appointment_at = new Date(casValue).toISOString()
-  if (consulateValue) processUpdates.consulate_appointment_at = new Date(consulateValue).toISOString()
-  if (interviewValue) processUpdates.interview_preparation_at = new Date(interviewValue).toISOString()
+  if (casValue) processUpdates.cas_appointment_at = appointmentDate(casValue).toISOString()
+  if (consulateValue) processUpdates.consulate_appointment_at = appointmentDate(consulateValue).toISOString()
+  if (interviewValue) processUpdates.interview_preparation_at = appointmentDate(interviewValue).toISOString()
   if (resultStatus) processUpdates.result_status = resultStatus
 
   if (Object.keys(processUpdates).length) {
@@ -455,9 +463,9 @@ export async function updateProcessStep(formData: FormData) {
 
   if (nextStatus === 'Completado') {
     await createAppointmentAutomations(context, process, step.step_name, {
-      cas: casValue ? new Date(casValue) : null,
-      consulate: consulateValue ? new Date(consulateValue) : null,
-      interview: interviewValue ? new Date(interviewValue) : null,
+      cas: casValue ? appointmentDate(casValue) : null,
+      consulate: consulateValue ? appointmentDate(consulateValue) : null,
+      interview: interviewValue ? appointmentDate(interviewValue) : null,
     })
 
     if (process.service_name === 'eTA Canadá' && normalizedStep === 'pagar eta') {
@@ -566,6 +574,7 @@ export async function updateProcessAssignment(formData: FormData) {
   const assignedTo = value(formData, 'assigned_to') || null
   const priority = value(formData, 'priority') || 'Media'
   const priorityAttentionAt = value(formData, 'priority_attention_at') || null
+  const contactPhone = value(formData, 'contact_phone')
   const operationalStatus = value(formData, 'operational_status') || 'Automático'
 
   const { data: process, error } = await context.supabase

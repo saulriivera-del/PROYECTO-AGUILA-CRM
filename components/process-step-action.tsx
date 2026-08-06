@@ -79,27 +79,27 @@ export default function ProcessStepAction({
       {mode === 'two-appointments' ? (
         <>
           <label>
-            Cita CAS
-            <input name="cas_appointment_at" type="datetime-local" required />
+            Fecha de cita CAS
+            <input name="cas_appointment_at" type="date" required />
           </label>
           <label>
-            Cita Consulado
-            <input name="consulate_appointment_at" type="datetime-local" required />
+            Fecha de cita Consulado
+            <input name="consulate_appointment_at" type="date" required />
           </label>
         </>
       ) : null}
 
       {mode === 'cas-only' ? (
         <label>
-          Fecha de la cita
-          <input name="cas_appointment_at" type="datetime-local" required />
+          {serviceName === 'Pasaporte mexicano' ? 'Fecha de cita en Relaciones Exteriores' : 'Fecha de la cita'}
+          <input name="cas_appointment_at" type="date" required />
         </label>
       ) : null}
 
       {mode === 'interview' ? (
         <label>
           Revisión de documentación
-          <input name="interview_preparation_at" type="datetime-local" required />
+          <input name="interview_preparation_at" type="date" required />
         </label>
       ) : null}
 

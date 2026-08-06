@@ -25,7 +25,7 @@ export default async function AgendaPage({
     context.supabase
       .from('agenda_events')
       .select(
-        '*, profiles!agenda_events_assigned_to_fkey(full_name), clients(full_name, phone), processes(id, service_name)',
+        '*, profiles!agenda_events_assigned_to_fkey(full_name), clients(full_name, phone), processes(id, service_name, contact_phone)',
       )
       .eq('organization_id', context.organizationId)
       .order('starts_at'),
@@ -69,7 +69,7 @@ export default async function AgendaPage({
     const process = Array.isArray(event.processes)
       ? event.processes[0]
       : event.processes
-    const phone = String(client?.phone ?? '').replace(/\D/g, '')
+    const phone = String(process?.contact_phone || client?.phone || '').replace(/\D/g, '')
     const normalizedPhone = phone.startsWith('52') ? phone : `52${phone}`
     const whatsappUrl =
       event.whatsapp_message && phone
