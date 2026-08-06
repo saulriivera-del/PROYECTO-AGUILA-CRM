@@ -26,7 +26,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
   const administrator = isAdministrator(context.role)
   const personalGoal = administrator ? null : await getPersonalGoalData(context.supabase, context.organizationId, context.userId)
 
-  const [{ data: agenda }, { data: processes }, { data: profiles }, financial] = await Promise.all([
+  const [{ data: agenda }, { data: processes }, { data: profiles }, { data: prospects }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
       'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, clients(full_name, phone), processes(id, service_name, contact_phone)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
@@ -34,6 +34,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
       'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
     ).eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado)').order('priority_attention_at', { ascending: true, nullsFirst: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
+    context.supabase.from('prospects').select('id, full_name, phone, service_interest, status, assigned_to, next_followup_at, last_followup_at, updated_at, created_at').eq('organization_id', context.organizationId).eq('status','Activo'),
     getFinancialSummary(context.supabase, context.organizationId),
   ])
 
@@ -76,6 +77,12 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     inactive: inactivityLevel(process, now),
   }))
   const stalled = processStates.filter((item: any) => item.inactive.days >= 3 && item.state === 'Sin movimiento')
+  const prospectAlerts = (prospects ?? []).filter((prospect: any) => {
+    const next = prospect.next_followup_at ? new Date(prospect.next_followup_at) : null
+    if (next && next >= todayStart) return false
+    const reference = prospect.last_followup_at || prospect.updated_at || prospect.created_at
+    return reference && Math.floor((now.getTime() - new Date(reference).getTime()) / 86400000) >= 2
+  }).filter((prospect: any) => selectedView === 'team' || selectedView === 'unassigned' ? (selectedView === 'team' || !prospect.assigned_to) : selectedView.startsWith('user:') ? prospect.assigned_to === selectedView.slice(5) : prospect.assigned_to === context.userId)
   const stateCount = (state: string) => processStates.filter((item: any) => item.state === state).length
 
   return (
@@ -179,6 +186,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
                 return <Link href={`/admin/tramites/${process.id}`} key={process.id} className={`stalled-item level-${inactive.level.toLowerCase()}`}><div><strong>{client?.full_name || 'Cliente'}</strong><small>{process.service_name} · {process.current_stage || 'Inicio'}</small></div><span>{inactive.days} días · {inactive.level}</span></Link>
               })}
               {!stalled.length ? <div className="empty-state">No hay trámites detenidos.</div> : null}
+            </div>
+          </article>
+          <article className="panel-card">
+            <div className="panel-heading"><div><span className="eyebrow">Seguimiento comercial</span><h3>Prospectos por revisar</h3></div><strong>{prospectAlerts.length}</strong></div>
+            <div className="stalled-list">
+              {prospectAlerts.slice(0,8).map((prospect:any)=><Link href={`/admin/prospectos/${prospect.id}`} key={prospect.id} className="stalled-item level-atencion"><div><strong>{prospect.full_name}</strong><small>{prospect.service_interest} · Sin seguimiento reciente</small></div><span>Abrir →</span></Link>)}
+              {!prospectAlerts.length?<div className="empty-state">Prospectos al corriente.</div>:null}
             </div>
           </article>
           <article className="panel-card"><div className="panel-heading"><div><span className="eyebrow">Cobranza</span><h3>Resumen</h3></div></div><div className="daily-horizon"><div><span>Por cobrar</span><strong>{money(financial.totalBalance)}</strong></div><div><span>Vencido</span><strong>{money(financial.overdueBalance)}</strong></div></div></article>

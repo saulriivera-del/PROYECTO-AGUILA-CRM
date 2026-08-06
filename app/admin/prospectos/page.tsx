@@ -1,206 +1,75 @@
 import Link from 'next/link'
-import { convertProspect, reactivateProspect } from './actions'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
-import SubmitButton from '@/components/submit-button'
 import ProspectFormDrawer from '@/components/prospect-form-drawer'
 import ProspectFilters from '@/components/prospect-filters'
-import CloseProspectForm from '@/components/close-prospect-form'
+import ProspectCalendar from '@/components/prospect-calendar'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+const dayMs = 86400000
 
-function daysSince(value: string | null) {
-  if (!value) return null
-  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000))
-}
+function startOfDay(value = new Date()) { const d = new Date(value); d.setHours(0,0,0,0); return d }
+function daysSince(value: string | null) { return value ? Math.max(0, Math.floor((Date.now()-new Date(value).getTime())/dayMs)) : null }
 
-export default async function ProspectosPage({
-  searchParams,
-}: {
-  searchParams: SearchParams
-}) {
+export default async function ProspectosPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const context = await requireAuthContext()
-
   const query = typeof params.q === 'string' ? params.q.trim() : ''
+  const view = typeof params.view === 'string' ? params.view : 'agenda'
   const service = typeof params.service === 'string' ? params.service : ''
   const temperature = typeof params.temperature === 'string' ? params.temperature : ''
   const status = typeof params.status === 'string' ? params.status : 'Activo'
 
-  let prospectQuery = context.supabase
-    .from('prospects')
-    .select('*')
-    .eq('organization_id', context.organizationId)
-    .order('created_at', { ascending: false })
+  let prospectQuery = context.supabase.from('prospects').select('*').eq('organization_id', context.organizationId).order('next_followup_at',{ascending:true,nullsFirst:false}).order('created_at',{ascending:false})
+  if (service) prospectQuery=prospectQuery.eq('service_interest',service)
+  if (temperature) prospectQuery=prospectQuery.eq('temperature',temperature)
+  if (status) prospectQuery=prospectQuery.eq('status',status)
+  if (query) { const safe=query.replace(/[%_,]/g,''); prospectQuery=prospectQuery.or(`full_name.ilike.%${safe}%,phone.ilike.%${safe}%,email.ilike.%${safe}%`) }
+  const {data: prospects}=await prospectQuery
 
-  if (service) prospectQuery = prospectQuery.eq('service_interest', service)
-  if (temperature) prospectQuery = prospectQuery.eq('temperature', temperature)
-  if (status) prospectQuery = prospectQuery.eq('status', status)
-  if (query) {
-    const safeQuery = query.replace(/[%_,]/g, '')
-    prospectQuery = prospectQuery.or(
-      `full_name.ilike.%${safeQuery}%,phone.ilike.%${safeQuery}%`,
-    )
-  }
+  const today=startOfDay(); const tomorrow=new Date(today); tomorrow.setDate(tomorrow.getDate()+1); const afterTomorrow=new Date(tomorrow); afterTomorrow.setDate(afterTomorrow.getDate()+1)
+  const active=(prospects??[]).filter((p:any)=>p.status==='Activo')
+  const due=(p:any)=>p.next_followup_at?new Date(p.next_followup_at):null
+  const overdue=active.filter((p:any)=>{ const d=due(p); return Boolean(d && d < today) })
+  const todayItems=active.filter((p:any)=>{const d=due(p);return d&&d>=today&&d<tomorrow})
+  const tomorrowItems=active.filter((p:any)=>{const d=due(p);return d&&d>=tomorrow&&d<afterTomorrow})
+  const upcoming=active.filter((p:any)=>{const d=due(p);return d&&d>=afterTomorrow})
+  const noDate=active.filter((p:any)=>!p.next_followup_at)
+  const neglected=active.filter((p:any)=>{
+    const next=due(p); if(next&&next>=today) return false
+    const days = daysSince(p.last_followup_at||p.updated_at||p.created_at); return days !== null && days >= 2
+  })
 
-  const { data: prospects } = await prospectQuery
+  return <>
+    <header className="page-header prospects-header"><div><span className="eyebrow">Prospectos 2.0</span><h1>Agenda comercial</h1><p>Expedientes, anotaciones y próximos seguimientos en un solo flujo.</p></div><ProspectFormDrawer /></header>
+    {params.created?<div className="notice success">Prospecto guardado correctamente.</div>:null}
+    {params.error?<div className="notice error">{String(params.error)}</div>:null}
 
-  const { count: activeCount } = await context.supabase
-    .from('prospects')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', context.organizationId)
-    .eq('status', 'Activo')
+    <section className="pipeline-summary prospect-kpis">
+      <Link href="/admin/prospectos?view=overdue"><strong>{overdue.length}</strong><span>Atrasados</span></Link>
+      <Link href="/admin/prospectos?view=today"><strong>{todayItems.length}</strong><span>Hoy</span></Link>
+      <Link href="/admin/prospectos?view=tomorrow"><strong>{tomorrowItems.length}</strong><span>Mañana</span></Link>
+      <Link href="/admin/prospectos?view=upcoming"><strong>{upcoming.length}</strong><span>Próximos</span></Link>
+      <Link href="/admin/prospectos?view=nodate"><strong>{noDate.length}</strong><span>Sin fecha</span></Link>
+      <Link href="/admin/prospectos?view=neglected"><strong>{neglected.length}</strong><span>Sin seguimiento</span></Link>
+    </section>
 
-  const { count: lostCount } = await context.supabase
-    .from('prospects')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', context.organizationId)
-    .eq('status', 'Perdido')
+    <ProspectFilters />
+    <nav className="prospect-view-tabs"><Link className={view==='agenda'?'active':''} href="/admin/prospectos?view=agenda">Calendario</Link><Link className={view==='all'?'active':''} href="/admin/prospectos?view=all">Todos</Link></nav>
 
-  const { count: convertedCount } = await context.supabase
-    .from('prospects')
-    .select('*', { count: 'exact', head: true })
-    .eq('organization_id', context.organizationId)
-    .eq('status', 'Convertido')
+    {view==='agenda'?<ProspectCalendar prospects={active.map((p:any)=>({id:p.id,full_name:p.full_name,phone:p.phone,service_interest:p.service_interest,temperature:p.temperature,next_followup_at:p.next_followup_at,internal_appointment_at:p.internal_appointment_at,last_followup_at:p.last_followup_at}))}/>:null}
 
-  return (
-    <>
-      <header className="page-header prospects-header">
-        <div>
-          <span className="eyebrow">Embudo comercial</span>
-          <h1>Prospectos</h1>
-          <p>Activos, convertidos y perdidos en un solo flujo.</p>
-        </div>
-        <ProspectFormDrawer />
-      </header>
-
-      {params.created ? <div className="notice success">Prospecto guardado correctamente.</div> : null}
-      {params.closed ? <div className="notice success">Prospecto cerrado y conservado para futuras campañas.</div> : null}
-      {params.reactivated ? <div className="notice success">Prospecto reactivado.</div> : null}
-      {params.error ? <div className="notice error">{String(params.error)}</div> : null}
-
-      <section className="pipeline-summary">
-        <div><strong>{activeCount ?? 0}</strong><span>Activos</span></div>
-        <div><strong>{convertedCount ?? 0}</strong><span>Convertidos</span></div>
-        <div><strong>{lostCount ?? 0}</strong><span>Perdidos</span></div>
-      </section>
-
-      <ProspectFilters />
-
-      <section className="prospect-summary">
-        <div><strong>{prospects?.length ?? 0}</strong><span>resultados</span></div>
-        <p>Prioriza a quienes llevan más días sin seguimiento.</p>
-      </section>
-
-      <section className="prospect-cards">
-        {(prospects ?? []).map((prospect) => {
-          const phoneForLink = String(prospect.phone ?? '').replace(/\D/g, '')
-          const waUrl = phoneForLink
-            ? `https://wa.me/52${phoneForLink}?text=${encodeURIComponent(
-                `Hola ${prospect.full_name}, te escribimos de Visa Master para dar seguimiento a tu trámite.`,
-              )}`
-            : '#'
-
-          const referenceDate =
-            prospect.next_followup_at ?? prospect.internal_appointment_at ?? prospect.updated_at
-          const days = daysSince(referenceDate)
-          const agingClass = days === null ? 'neutral' : days <= 3 ? 'fresh' : days <= 7 ? 'warning' : 'late'
-
-          return (
-            <article className="prospect-card" key={prospect.id}>
-              <div className="prospect-card-main">
-                <div className="prospect-avatar">
-                  {prospect.full_name
-                    .split(' ')
-                    .slice(0, 2)
-                    .map((part: string) => part[0])
-                    .join('')
-                    .toUpperCase()}
-                </div>
-
-                <div className="prospect-primary">
-                  <div className="prospect-title-row">
-                    <div>
-                      <strong>{prospect.full_name}</strong>
-                      <small>{prospect.phone} · {prospect.origin}</small>
-                    </div>
-                    <span className={`status-pill ${prospect.status.toLowerCase()}`}>
-                      {prospect.status}
-                    </span>
-                  </div>
-
-                  <div className="prospect-tags">
-                    <span>{prospect.service_interest}</span>
-                    <span>{prospect.temperature}</span>
-                    <span>{prospect.city}, {prospect.state}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="prospect-details">
-                <div>
-                  <span>Cotización</span>
-                  <strong>{money(prospect.quoted_amount)}</strong>
-                </div>
-                <div>
-                  <span>Próximo movimiento</span>
-                  <strong>{dateTime(prospect.next_followup_at || prospect.internal_appointment_at)}</strong>
-                </div>
-                <div>
-                  <span>Antigüedad</span>
-                  <strong className={`aging ${agingClass}`}>
-                    {days === null ? 'Sin seguimiento' : `${days} día(s)`}
-                  </strong>
-                </div>
-              </div>
-
-              <div className="prospect-actions">
-                <a className="secondary-button" href={`tel:${prospect.phone}`}>Llamar</a>
-                <a className="secondary-button" href={waUrl} target="_blank" rel="noreferrer">
-                  WhatsApp
-                </a>
-
-                {prospect.status === 'Perdido' ? (
-                  <form action={reactivateProspect}>
-                    <input type="hidden" name="prospect_id" value={prospect.id} />
-                    <SubmitButton className="primary-button" pendingText="Reactivando…">
-                      Reactivar
-                    </SubmitButton>
-                  </form>
-                ) : prospect.status !== 'Convertido' ? (
-                  <>
-                    <form action={convertProspect}>
-                      <input type="hidden" name="prospect_id" value={prospect.id} />
-                      <SubmitButton className="primary-button" pendingText="Convirtiendo…">
-                        Convertir
-                      </SubmitButton>
-                    </form>
-                    <CloseProspectForm prospectId={prospect.id} />
-                  </>
-                ) : (
-                  prospect.converted_client_id ? (
-                    <Link
-                      className="secondary-button"
-                      href={`/admin/clientes/${prospect.converted_client_id}`}
-                    >
-                      Abrir cliente
-                    </Link>
-                  ) : (
-                    <span className="converted-label">Conversión incompleta</span>
-                  )
-                )}
-              </div>
-            </article>
-          )
-        })}
-
-        {!prospects?.length ? (
-          <div className="empty-state prospect-empty">
-            <strong>No encontramos prospectos con esos filtros.</strong>
-            <span>Prueba limpiar los filtros o registra uno nuevo.</span>
-          </div>
-        ) : null}
-      </section>
-    </>
-  )
+    {view!=='agenda'?<section className="prospect-cards prospect-cards-2">
+      {((view==='overdue'?overdue:view==='today'?todayItems:view==='tomorrow'?tomorrowItems:view==='upcoming'?upcoming:view==='nodate'?noDate:view==='neglected'?neglected:prospects)||[]).map((p:any)=>{
+        const phone=String(p.phone||'').replace(/\D/g,''); const wa=phone?`https://wa.me/${phone.startsWith('52')?phone:`52${phone}`}?text=${encodeURIComponent(`Hola ${p.full_name}, te escribimos de Visa Master para dar seguimiento a tu trámite.`)}`:'#'
+        const days=daysSince(p.last_followup_at||p.updated_at||p.created_at)
+        return <article className={`prospect-card ${days!==null&&days>=2?'prospect-needs-followup':''}`} key={p.id}>
+          <Link className="prospect-card-open" href={`/admin/prospectos/${p.id}`}><div><strong>{p.full_name}</strong><small>{p.phone}{p.email?` · ${p.email}`:''}</small></div><span className={`status-pill ${p.status.toLowerCase()}`}>{p.status}</span></Link>
+          <div className="prospect-tags"><span>{p.service_interest}</span><span>{p.temperature}</span><span>{p.origin}</span></div>
+          <div className="prospect-details"><div><span>Cotización</span><strong>{money(p.quoted_amount)}</strong></div><div><span>Próximo seguimiento</span><strong>{dateTime(p.next_followup_at)}</strong></div><div><span>Último movimiento</span><strong>{days===null?'Sin registro':`${days} día(s)`}</strong></div></div>
+          <div className="prospect-actions"><a className="secondary-button" href={`tel:${p.phone}`}>Llamar</a><a className="secondary-button" href={wa} target="_blank" rel="noreferrer">WhatsApp</a><Link className="primary-button" href={`/admin/prospectos/${p.id}`}>Abrir expediente</Link></div>
+        </article>
+      })}
+    </section>:null}
+  </>
 }

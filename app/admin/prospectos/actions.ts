@@ -53,6 +53,8 @@ export async function createProspect(formData: FormData) {
       internal_appointment_at: value(formData, 'internal_appointment_at') || null,
       next_followup_at: value(formData, 'next_followup_at') || null,
       notes: value(formData, 'notes') || null,
+      last_followup_at: new Date().toISOString(),
+      followup_status: 'Pendiente',
       assigned_to: context.userId,
       created_by: context.userId,
     })
@@ -173,4 +175,69 @@ export async function reactivateProspect(formData: FormData) {
   revalidatePath('/admin')
   revalidatePath('/admin/prospectos')
   redirect('/admin/prospectos?reactivated=1')
+}
+
+
+export async function addProspectFollowup(formData: FormData) {
+  const context = await requireAuthContext()
+  const prospectId = value(formData, 'prospect_id')
+  const note = value(formData, 'note')
+  const outcome = value(formData, 'outcome') || 'Seguimiento'
+  const nextFollowupAt = value(formData, 'next_followup_at') || null
+
+  if (!prospectId || !note) {
+    redirect(`/admin/prospectos/${prospectId}?error=Escribe%20la%20anotación`)
+  }
+
+  const now = new Date().toISOString()
+  const { error } = await context.supabase.from('prospect_followups').insert({
+    organization_id: context.organizationId,
+    prospect_id: prospectId,
+    note,
+    outcome,
+    next_followup_at: nextFollowupAt,
+    created_by: context.userId,
+  })
+  if (error) redirect(`/admin/prospectos/${prospectId}?error=${encodeURIComponent(error.message)}`)
+
+  const { error: updateError } = await context.supabase.from('prospects').update({
+    last_followup_at: now,
+    next_followup_at: nextFollowupAt,
+    followup_status: nextFollowupAt ? 'Programado' : 'Pendiente',
+    notes: note,
+  }).eq('id', prospectId).eq('organization_id', context.organizationId)
+  if (updateError) redirect(`/admin/prospectos/${prospectId}?error=${encodeURIComponent(updateError.message)}`)
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'prospect',
+    entity_id: prospectId,
+    action: 'followup_added',
+    description: `Seguimiento de prospecto: ${outcome}`,
+    metadata: { note, next_followup_at: nextFollowupAt },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/prospectos')
+  revalidatePath(`/admin/prospectos/${prospectId}`)
+  redirect(`/admin/prospectos/${prospectId}?followup=1`)
+}
+
+export async function rescheduleProspect(formData: FormData) {
+  const context = await requireAuthContext()
+  const prospectId = value(formData, 'prospect_id')
+  const nextFollowupAt = value(formData, 'next_followup_at')
+  if (!prospectId || !nextFollowupAt) redirect(`/admin/prospectos/${prospectId}?error=Selecciona%20una%20fecha`)
+
+  const { error } = await context.supabase.from('prospects').update({
+    next_followup_at: nextFollowupAt,
+    followup_status: 'Programado',
+  }).eq('id', prospectId).eq('organization_id', context.organizationId)
+  if (error) redirect(`/admin/prospectos/${prospectId}?error=${encodeURIComponent(error.message)}`)
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/prospectos')
+  revalidatePath(`/admin/prospectos/${prospectId}`)
+  redirect(`/admin/prospectos/${prospectId}?rescheduled=1`)
 }
