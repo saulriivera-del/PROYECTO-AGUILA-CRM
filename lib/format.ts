@@ -1,4 +1,10 @@
-export const HERMOSILLO_TIME_ZONE = 'America/Hermosillo'
+import {
+  HERMOSILLO_TIME_ZONE,
+  hermosilloDateKey,
+  hermosilloTodayKey,
+} from '@/lib/hermosillo'
+
+export { HERMOSILLO_TIME_ZONE, hermosilloDateKey, hermosilloTodayKey }
 
 export function money(value: number | string | null | undefined) {
   return new Intl.NumberFormat('es-MX', {
@@ -19,14 +25,3 @@ export function dateOnly(value: string | null | undefined) {
     dateStyle: 'medium', timeZone: HERMOSILLO_TIME_ZONE,
   }).format(new Date(value))
 }
-
-export function hermosilloDateKey(value: string | Date) {
-  const date = typeof value === 'string' ? new Date(value) : value
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: HERMOSILLO_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(date)
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? ''
-  return `${part('year')}-${part('month')}-${part('day')}`
-}
-
-export function hermosilloTodayKey() { return hermosilloDateKey(new Date()) }

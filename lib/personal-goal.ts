@@ -1,4 +1,5 @@
-import { bonusForRevenue, startOfWeek } from '@/lib/insights'
+import { bonusForRevenue } from '@/lib/insights'
+import { addDaysKey, daysBetweenKeys, hermosilloDateTime, hermosilloTodayKey, startOfWeekKey } from '@/lib/hermosillo'
 
 type SupabaseClient = any
 
@@ -23,20 +24,17 @@ export type PersonalGoalData = {
   message: string
 }
 
-function endOfWeek(from: Date) {
-  const result = new Date(from)
-  result.setDate(result.getDate() + 7)
-  return result
-}
-
 export async function getPersonalGoalData(
   supabase: SupabaseClient,
   organizationId: string,
   userId: string,
 ): Promise<PersonalGoalData> {
   const now = new Date()
-  const weekStart = startOfWeek(now)
-  const weekEnd = endOfWeek(weekStart)
+  const todayKey = hermosilloTodayKey()
+  const weekStartKey = startOfWeekKey(todayKey)
+  const weekEndKey = addDaysKey(weekStartKey, 7)
+  const weekStart = hermosilloDateTime(weekStartKey, 0)
+  const weekEnd = hermosilloDateTime(weekEndKey, 0)
 
   const [ruleResult, paymentsResult, clientsResult, processesResult] = await Promise.all([
     supabase
@@ -90,7 +88,7 @@ export async function getPersonalGoalData(
       remaining: 0,
       nextTarget: null,
       nextBonus: null,
-      daysRemaining: Math.max(0, Math.ceil((weekEnd.getTime() - now.getTime()) / 86400000)),
+      daysRemaining: Math.max(0, 6 - daysBetweenKeys(weekStartKey, todayKey)),
       paymentCount: payments.length,
       ticketAverage,
       clientsThisWeek: clientsResult.count ?? 0,
@@ -142,7 +140,7 @@ export async function getPersonalGoalData(
     remaining,
     nextTarget,
     nextBonus,
-    daysRemaining: Math.max(0, Math.ceil((weekEnd.getTime() - now.getTime()) / 86400000)),
+    daysRemaining: Math.max(0, 6 - daysBetweenKeys(weekStartKey, todayKey)),
     paymentCount: payments.length,
     ticketAverage,
     clientsThisWeek: clientsResult.count ?? 0,

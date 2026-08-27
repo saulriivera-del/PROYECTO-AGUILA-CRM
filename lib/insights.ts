@@ -1,20 +1,20 @@
+import { addDaysKey, hermosilloDateTime, hermosilloTodayKey, startOfMonthKey, startOfWeekKey, startOfYearKey } from '@/lib/hermosillo'
+
 type SupabaseClient = any
 
 export function startOfWeek(date = new Date()) {
-  const result = new Date(date)
-  const day = result.getDay()
-  const distance = day === 0 ? 6 : day - 1
-  result.setDate(result.getDate() - distance)
-  result.setHours(0, 0, 0, 0)
-  return result
+  const key = startOfWeekKey(new Intl.DateTimeFormat('en-CA',{timeZone:'America/Hermosillo'}).format(date))
+  return hermosilloDateTime(key, 0)
 }
 
 export function startOfMonth(date = new Date()) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
+  const key = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Hermosillo'}).format(date)
+  return hermosilloDateTime(startOfMonthKey(key), 0)
 }
 
 export function startOfYear(date = new Date()) {
-  return new Date(date.getFullYear(), 0, 1)
+  const key = new Intl.DateTimeFormat('en-CA',{timeZone:'America/Hermosillo'}).format(date)
+  return hermosilloDateTime(startOfYearKey(key), 0)
 }
 
 export function bonusForRevenue(revenue: number, threshold: number, base: number, stepAmount: number, stepBonus: number) {
@@ -35,14 +35,20 @@ function processRelation(value: any) {
 
 export async function getInsightsData(supabase: SupabaseClient, organizationId: string) {
   const now = new Date()
-  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(todayStart); tomorrow.setDate(tomorrow.getDate() + 1)
-  const weekStart = startOfWeek(now)
-  const monthStart = startOfMonth(now)
-  const yearStart = startOfYear(now)
-  const previousWeekStart = new Date(weekStart); previousWeekStart.setDate(previousWeekStart.getDate() - 7)
-  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const previousMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1)
+  const todayKey = hermosilloTodayKey()
+  const todayStart = hermosilloDateTime(todayKey, 0)
+  const tomorrow = hermosilloDateTime(addDaysKey(todayKey, 1), 0)
+  const weekStartKey = startOfWeekKey(todayKey)
+  const weekStart = hermosilloDateTime(weekStartKey, 0)
+  const monthStartKey = startOfMonthKey(todayKey)
+  const monthStart = hermosilloDateTime(monthStartKey, 0)
+  const yearStart = hermosilloDateTime(startOfYearKey(todayKey), 0)
+  const previousWeekStart = hermosilloDateTime(addDaysKey(weekStartKey, -7), 0)
+  const [yearNumber, monthNumber] = todayKey.split('-').map(Number)
+  const previousMonthAnchor = new Date(Date.UTC(yearNumber, monthNumber - 2, 15))
+  const previousMonthKey = `${previousMonthAnchor.getUTCFullYear()}-${String(previousMonthAnchor.getUTCMonth()+1).padStart(2,'0')}-01`
+  const previousMonthStart = hermosilloDateTime(previousMonthKey, 0)
+  const previousMonthEnd = monthStart
 
   const [paymentsResult, prospectsResult, clientsResult, processesResult, goalsResult, rulesResult, historyResult, profilesResult] = await Promise.all([
     supabase.from('payments').select('id, amount, payment_date, payment_method, reference, notes, process_id, recorded_by, processes(id, service_name, client_id, clients(full_name))').eq('organization_id', organizationId).gte('payment_date', previousMonthStart.toISOString()).order('payment_date'),
@@ -100,9 +106,10 @@ export async function getInsightsData(supabase: SupabaseClient, organizationId: 
   }
 
   const dailyRevenue = Array.from({length: 14}, (_, index) => {
-    const day = new Date(todayStart)
-    day.setDate(day.getDate() - (13 - index))
-    const next = new Date(day); next.setDate(next.getDate() + 1)
+    const dayKey = addDaysKey(todayKey, -(13 - index))
+    const nextKey = addDaysKey(dayKey, 1)
+    const day = hermosilloDateTime(dayKey, 0)
+    const next = hermosilloDateTime(nextKey, 0)
     return {date: day, amount: amountBetween(day, next)}
   })
   const maxDailyRevenue = Math.max(1, ...dailyRevenue.map((item) => item.amount))

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
+import { addDaysKey, hermosilloDateKey, hermosilloDateTime, hermosilloLocalInputToDate, hermosilloTodayKey, weekdayForKey } from '@/lib/hermosillo'
 
 function value(formData: FormData, name: string) {
   return String(formData.get(name) ?? '').trim()
@@ -10,7 +11,10 @@ function value(formData: FormData, name: string) {
 
 export async function createProcess(formData: FormData) {
   const context = await requireAuthContext()
-  const clientId = value(formData, 'client_id')
+  let clientId = value(formData, 'client_id')
+  const fullName = value(formData, 'client_full_name')
+  const phone = value(formData, 'client_phone').replace(/\D/g, '')
+  const email = value(formData, 'client_email') || null
   const serviceFlowId = value(formData, 'service_flow_id')
   const agreedAmount = Number(value(formData, 'agreed_amount') || 0)
   const paidNow = formData.get('paid_now') === 'on'
@@ -28,8 +32,53 @@ export async function createProcess(formData: FormData) {
     .eq('id', serviceFlowId)
     .single()
 
-  if (!clientId || !flow) {
-    redirect('/admin/tramites?error=Selecciona%20cliente%20y%20servicio')
+  if (!flow) {
+    redirect('/admin/tramites?error=Selecciona%20el%20tipo%20de%20trámite')
+  }
+
+  // Fase 5.4.4: el cliente se resuelve directamente desde Trámites.
+  // Si el teléfono ya existe reutilizamos el expediente; si no, lo creamos por detrás.
+  if (!clientId) {
+    if (!fullName || !phone) {
+      redirect('/admin/tramites?error=Captura%20nombre%20y%20teléfono%20del%20tramitante')
+    }
+
+    const { data: existingClients } = await context.supabase
+      .from('clients')
+      .select('id, email')
+      .eq('organization_id', context.organizationId)
+      .eq('phone', phone)
+      .limit(1)
+
+    if (existingClients?.length) {
+      clientId = existingClients[0].id
+      if (email && !existingClients[0].email) {
+        await context.supabase.from('clients').update({ email }).eq('id', clientId).eq('organization_id', context.organizationId)
+      }
+    } else {
+      const { data: newClient, error: clientError } = await context.supabase
+        .from('clients')
+        .insert({
+          organization_id: context.organizationId,
+          full_name: fullName,
+          phone,
+          whatsapp: phone,
+          email,
+          city: 'Hermosillo',
+          state: 'Sonora',
+          country: 'México',
+          origin: 'Oficina',
+          assigned_to: assignedTo ?? context.userId,
+          created_by: context.userId,
+        })
+        .select('id')
+        .single()
+
+      if (clientError || !newClient) {
+        redirect(`/admin/tramites?error=${encodeURIComponent(clientError?.message ?? 'No se pudo crear el cliente')}`)
+      }
+      clientId = newClient.id
+    }
   }
 
   const { data: process, error } = await context.supabase
@@ -39,16 +88,16 @@ export async function createProcess(formData: FormData) {
       client_id: clientId,
       service_flow_id: flow.id,
       service_name: flow.service_name,
-      contact_phone: contactPhone || null,
+      contact_phone: contactPhone || phone || null,
       status: 'Activo',
       priority: value(formData, 'priority') || 'Media',
       current_stage: 'Inicio',
       government_appointment_at: value(formData, 'government_appointment_at')
-        ? new Date(`${value(formData, 'government_appointment_at')}T12:00:00`).toISOString()
+        ? hermosilloDateTime(value(formData, 'government_appointment_at'), 12).toISOString()
         : null,
       notes: value(formData, 'notes') || null,
       assigned_to: assignedTo,
-      priority_attention_at: priorityAttentionAt || null,
+      priority_attention_at: priorityAttentionAt ? (hermosilloLocalInputToDate(priorityAttentionAt)?.toISOString() ?? null) : null,
       created_by: context.userId,
       operational_status: 'Automático',
       last_movement_at: new Date().toISOString(),
@@ -97,7 +146,7 @@ export async function createProcess(formData: FormData) {
       clientId,
       title: `Prioridad asignada · ${flow.service_name}`,
       description: 'Trámite asignado para atención prioritaria en esta fecha.',
-      startsAt: new Date(priorityAttentionAt),
+      startsAt: hermosilloLocalInputToDate(priorityAttentionAt) ?? new Date(),
       automationKey: `${process.id}:assigned-priority`,
       eventType: 'Tarea prioritaria',
       assignedTo,
@@ -112,46 +161,28 @@ export async function createProcess(formData: FormData) {
 }
 
 
-function localDateParts(value: string) {
-  const date = new Date(value)
-  return {
-    date,
-    year: date.getFullYear(),
-    month: date.getMonth(),
-    day: date.getDate(),
-  }
-}
-
 function atLocalTime(base: Date, hour: number, minute = 0) {
-  const result = new Date(base)
-  result.setHours(hour, minute, 0, 0)
-  return result
+  return hermosilloDateTime(hermosilloDateKey(base), hour, minute)
 }
 
 function reminderBeforeAppointment(appointment: Date) {
-  const result = new Date(appointment)
-  if (appointment.getDay() === 1) {
-    result.setDate(result.getDate() - 2)
-  } else {
-    result.setDate(result.getDate() - 1)
-  }
-  return atLocalTime(result, 10, 0)
+  const appointmentKey = hermosilloDateKey(appointment)
+  const reminderKey = addDaysKey(appointmentKey, weekdayForKey(appointmentKey) === 1 ? -2 : -1)
+  return hermosilloDateTime(reminderKey, 10, 0)
 }
 
 function addDaysAt(base: Date, days: number, hour = 10, minute = 0) {
-  const result = new Date(base)
-  result.setDate(result.getDate() + days)
-  return atLocalTime(result, hour, minute)
+  return hermosilloDateTime(addDaysKey(hermosilloDateKey(base), days), hour, minute)
 }
 
 function etaFollowupDate() {
-  const now = new Date()
-  const hours = [5, 6, 0].includes(now.getDay()) ? 72 : 24
-  return new Date(now.getTime() + hours * 60 * 60 * 1000)
+  const today = hermosilloTodayKey()
+  const hours = [5, 6, 0].includes(weekdayForKey(today)) ? 72 : 24
+  return new Date(Date.now() + hours * 60 * 60 * 1000)
 }
 
 function appointmentDate(value: string) {
-  return new Date(`${value}T12:00:00`)
+  return hermosilloDateTime(value, 12, 0)
 }
 
 function whatsappReminder(clientName: string, appointmentType: string, appointment: Date) {
@@ -263,9 +294,9 @@ async function createAppointmentAutomations(
     await upsertAutomatedAgendaEvent(context, {
       processId,
       clientId,
-      title: `Verificar resultado consular · ${clientName}`,
-      description: 'Verificar si el trámite fue aprobado o rechazado.',
-      startsAt: atLocalTime(dates.consulate, 17, 0),
+      title: `Verificar estatus de la cita · ${clientName}`,
+      description: 'Registrar si la cita consular fue aprobada o rechazada.',
+      startsAt: atLocalTime(dates.consulate, 15, 0),
       automationKey: `${processId}:consulate-status`,
       eventType: 'Seguimiento',
     })
@@ -531,6 +562,85 @@ export async function updateProcessStep(formData: FormData) {
   redirect(`/admin/tramites/${processId}?updated=1`)
 }
 
+export async function resolveConsularStatus(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const eventId = value(formData, 'event_id')
+  const result = value(formData, 'result_status')
+  const returnTo = value(formData, 'return_to') || '/admin'
+
+  if (!processId || !['Aprobada', 'Rechazada'].includes(result)) {
+    redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}error=Resultado%20inválido`)
+  }
+
+  const { data: process, error: processError } = await context.supabase
+    .from('processes')
+    .select('id, client_id, service_name, clients(full_name)')
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+    .single()
+
+  if (processError || !process) {
+    redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}error=No%20se%20encontró%20el%20trámite`)
+  }
+
+  const now = new Date().toISOString()
+  const clientRelation = (process as any).clients
+  const client = Array.isArray(clientRelation) ? clientRelation[0] : clientRelation
+  const clientName = client?.full_name ?? 'Cliente'
+
+  if (result === 'Rechazada') {
+    await context.supabase.from('processes').update({
+      result_status: 'Rechazada',
+      status: 'Rechazada',
+      current_stage: 'Rechazada',
+      operational_status: 'En orden',
+      closed_at: now,
+      last_movement_at: now,
+    }).eq('id', processId).eq('organization_id', context.organizationId)
+  } else {
+    await context.supabase.from('processes').update({
+      result_status: 'Aprobada',
+      status: 'Aprobada',
+      current_stage: 'Aprobada · pendiente de recolección',
+      operational_status: 'Seguimiento pendiente',
+      last_movement_at: now,
+    }).eq('id', processId).eq('organization_id', context.organizationId)
+
+    await upsertAutomatedAgendaEvent(context, {
+      processId,
+      clientId: process.client_id,
+      title: `Pendiente recoger visa · ${clientName}`,
+      description: 'Dar seguimiento al cliente hasta confirmar que recogió o recibió su visa.',
+      startsAt: new Date(),
+      automationKey: `${processId}:visa-pickup-pending`,
+      eventType: 'Seguimiento',
+      priority: 'Normal',
+    })
+  }
+
+  if (eventId) {
+    await context.supabase.from('agenda_events').update({ status: 'Realizado' })
+      .eq('id', eventId).eq('organization_id', context.organizationId)
+  }
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'process',
+    entity_id: processId,
+    action: 'consular_result',
+    description: `Resultado consular registrado: ${result}`,
+    metadata: { result },
+  })
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/agenda')
+  revalidatePath('/admin/tramites')
+  revalidatePath(`/admin/tramites/${processId}`)
+  redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}consular_result=${encodeURIComponent(result)}`)
+}
+
 export async function createVisaFollowup(formData: FormData) {
   const context = await requireAuthContext()
   const processId = value(formData, 'process_id')
@@ -582,7 +692,7 @@ export async function updateProcessAssignment(formData: FormData) {
     .update({
       assigned_to: assignedTo,
       priority,
-      priority_attention_at: priorityAttentionAt || null,
+      priority_attention_at: priorityAttentionAt ? (hermosilloLocalInputToDate(priorityAttentionAt)?.toISOString() ?? null) : null,
       operational_status: operationalStatus,
       last_movement_at: new Date().toISOString(),
     })
@@ -608,7 +718,7 @@ export async function updateProcessAssignment(formData: FormData) {
       clientId: process.client_id,
       title: `Prioridad asignada · ${process.service_name}`,
       description: 'Trámite asignado para atención prioritaria en esta fecha.',
-      startsAt: new Date(priorityAttentionAt),
+      startsAt: hermosilloLocalInputToDate(priorityAttentionAt) ?? new Date(),
       automationKey: `${processId}:assigned-priority`,
       eventType: 'Tarea prioritaria',
       assignedTo,

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
+import { hermosilloLocalInputToDate } from '@/lib/hermosillo'
 
 function value(formData: FormData, name: string) {
   return String(formData.get(name) ?? '').trim()
@@ -50,8 +51,8 @@ export async function createProspect(formData: FormData) {
       origin: value(formData, 'origin') || 'WhatsApp',
       temperature: value(formData, 'temperature') || 'Seguimiento',
       quoted_amount: Number(value(formData, 'quoted_amount') || 0),
-      internal_appointment_at: value(formData, 'internal_appointment_at') || null,
-      next_followup_at: value(formData, 'next_followup_at') || null,
+      internal_appointment_at: value(formData, 'internal_appointment_at') ? hermosilloLocalInputToDate(value(formData, 'internal_appointment_at'))?.toISOString() ?? null : null,
+      next_followup_at: value(formData, 'next_followup_at') ? hermosilloLocalInputToDate(value(formData, 'next_followup_at'))?.toISOString() ?? null : null,
       notes: value(formData, 'notes') || null,
       last_followup_at: new Date().toISOString(),
       followup_status: 'Pendiente',
@@ -183,7 +184,8 @@ export async function addProspectFollowup(formData: FormData) {
   const prospectId = value(formData, 'prospect_id')
   const note = value(formData, 'note')
   const outcome = value(formData, 'outcome') || 'Seguimiento'
-  const nextFollowupAt = value(formData, 'next_followup_at') || null
+  const nextFollowupRaw = value(formData, 'next_followup_at')
+  const nextFollowupAt = nextFollowupRaw ? hermosilloLocalInputToDate(nextFollowupRaw)?.toISOString() ?? null : null
 
   if (!prospectId || !note) {
     redirect(`/admin/prospectos/${prospectId}?error=Escribe%20la%20anotación`)
@@ -227,7 +229,8 @@ export async function addProspectFollowup(formData: FormData) {
 export async function rescheduleProspect(formData: FormData) {
   const context = await requireAuthContext()
   const prospectId = value(formData, 'prospect_id')
-  const nextFollowupAt = value(formData, 'next_followup_at')
+  const nextFollowupRaw = value(formData, 'next_followup_at')
+  const nextFollowupAt = nextFollowupRaw ? hermosilloLocalInputToDate(nextFollowupRaw)?.toISOString() ?? '' : ''
   if (!prospectId || !nextFollowupAt) redirect(`/admin/prospectos/${prospectId}?error=Selecciona%20una%20fecha`)
 
   const { error } = await context.supabase.from('prospects').update({

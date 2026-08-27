@@ -1,3 +1,5 @@
+import { hermosilloTodayKey } from '@/lib/hermosillo'
+
 type SupabaseClient = any
 
 export type FinancialProcessRow = {
@@ -72,7 +74,7 @@ export async function getFinancialSummary(
     )
   }
 
-  const now = new Date()
+  const todayKey = hermosilloTodayKey()
   const rows: FinancialProcessRow[] = (processes ?? []).map((process: any) => {
     const charge = Array.isArray(process.process_charges)
       ? process.process_charges[0]
@@ -85,7 +87,7 @@ export async function getFinancialSummary(
     const overdue = Boolean(
       commitment &&
         balance > 0 &&
-        new Date(`${commitment}T23:59:59`) < now,
+        commitment < todayKey,
     )
 
     return {

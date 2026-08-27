@@ -1,34 +1,32 @@
 import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
+import { daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
 import { getFinancialSummary } from '@/lib/financial-summary'
 import { agendaCategory, inactivityLevel, processOperationalState } from '@/lib/operational'
 import SubmitButton from '@/components/submit-button'
 import ProcessQuickControl from '@/components/process-quick-control'
 import { completeAgendaEvent } from '@/app/admin/agenda/actions'
+import { resolveConsularStatus } from '@/app/admin/tramites/actions'
 import { isAdministrator } from '@/lib/admin-access'
 import { getPersonalGoalData } from '@/lib/personal-goal'
 import PersonalGoalCard from '@/components/personal-goal-card'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
-function dayStart(value: Date) {
-  const date = new Date(value); date.setHours(0, 0, 0, 0); return date
-}
 
 export default async function AdminPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   const context = await requireAuthContext()
   const now = new Date()
-  const todayStart = dayStart(now)
-  const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1)
+  const todayKey = hermosilloTodayKey()
   const selectedView = typeof params.view === 'string' ? params.view : 'mine'
   const administrator = isAdministrator(context.role)
   const personalGoal = administrator ? null : await getPersonalGoalData(context.supabase, context.organizationId, context.userId)
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, { data: prospects }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
-      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, clients(full_name, phone), processes(id, service_name, contact_phone)'
+      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
       'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
@@ -54,13 +52,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     if (selectedView === 'team') return true
     if (selectedView === 'unassigned') return !process.assigned_to
     if (selectedView.startsWith('user:')) return process.assigned_to === selectedView.slice(5)
-    return process.assigned_to === context.userId
+    return process.assigned_to === context.userId || !process.assigned_to
   })
 
-  const overdue = visibleAgenda.filter((event: any) => new Date(event.starts_at) < todayStart)
-  const today = visibleAgenda.filter((event: any) => {
-    const date = new Date(event.starts_at); return date >= todayStart && date < tomorrowStart
-  })
+  const overdue = visibleAgenda.filter((event: any) => hermosilloDateKey(event.starts_at) < todayKey)
+  const today = visibleAgenda.filter((event: any) => hermosilloDateKey(event.starts_at) === todayKey)
   const queue = [...overdue, ...today].sort((a: any, b: any) => {
     const ap = a.assigned_to === context.userId ? 0 : 1
     const bp = b.assigned_to === context.userId ? 0 : 1
@@ -76,14 +72,28 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     state: processOperationalState(process, now),
     inactive: inactivityLevel(process, now),
   }))
-  const stalled = processStates.filter((item: any) => item.inactive.days >= 3 && item.state === 'Sin movimiento')
+  const stalled = processStates.filter((item: any) => item.inactive.days >= 4 && item.state === 'Sin movimiento')
   const prospectAlerts = (prospects ?? []).filter((prospect: any) => {
-    const next = prospect.next_followup_at ? new Date(prospect.next_followup_at) : null
-    if (next && next >= todayStart) return false
+    const nextKey = prospect.next_followup_at ? hermosilloDateKey(prospect.next_followup_at) : null
+    if (nextKey && nextKey >= todayKey) return false
     const reference = prospect.last_followup_at || prospect.updated_at || prospect.created_at
-    return reference && Math.floor((now.getTime() - new Date(reference).getTime()) / 86400000) >= 2
-  }).filter((prospect: any) => selectedView === 'team' || selectedView === 'unassigned' ? (selectedView === 'team' || !prospect.assigned_to) : selectedView.startsWith('user:') ? prospect.assigned_to === selectedView.slice(5) : prospect.assigned_to === context.userId)
+    return reference && daysBetweenKeys(hermosilloDateKey(reference), todayKey) >= 2
+  }).filter((prospect: any) => selectedView === 'team' || selectedView === 'unassigned' ? (selectedView === 'team' || !prospect.assigned_to) : selectedView.startsWith('user:') ? prospect.assigned_to === selectedView.slice(5) : prospect.assigned_to === context.userId || !prospect.assigned_to)
   const stateCount = (state: string) => processStates.filter((item: any) => item.state === state).length
+  const workItems = [
+    ...queue.map((event: any) => ({
+      kind: 'agenda' as const,
+      id: `agenda:${event.id}`,
+      rank: String(event.automation_key || '').endsWith(':consulate-status') ? 0 : 3,
+      event,
+    })),
+    ...stalled.map((item: any) => ({
+      kind: 'stalled' as const,
+      id: `stalled:${item.process.id}`,
+      rank: item.inactive.days >= 7 ? 1 : 2,
+      ...item,
+    })),
+  ].sort((a: any, b: any) => a.rank - b.rank)
 
   return (
     <>
@@ -129,24 +139,17 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
             <><h2>Operación al corriente</h2><p>No hay actividades vencidas ni programadas para hoy en esta vista.</p></>
           )}
         </div>
-        {recommended ? (
-          <div className="recommendation-actions">
-            {(() => {
-              const recommendedProcess = Array.isArray(recommended.processes)
-                ? recommended.processes[0]
-                : recommended.processes
-
-              return recommendedProcess?.id ? (
-                <Link className="secondary-button" href={`/admin/tramites/${recommendedProcess.id}`}>Abrir trámite</Link>
-              ) : null
-            })()}
-            <form action={completeAgendaEvent}>
-              <input type="hidden" name="event_id" value={recommended.id} />
-              <input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`} />
-              <SubmitButton pendingText="Actualizando…">Marcar realizada</SubmitButton>
-            </form>
+        {recommended ? (() => {
+          const recommendedProcess = Array.isArray(recommended.processes) ? recommended.processes[0] : recommended.processes
+          const isConsular = String(recommended.automation_key || '').endsWith(':consulate-status') && recommendedProcess?.id
+          return <div className="recommendation-actions">
+            {recommendedProcess?.id ? <Link className="secondary-button" href={`/admin/tramites/${recommendedProcess.id}`}>Abrir trámite</Link> : null}
+            {isConsular ? <>
+              <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="process_id" value={recommendedProcess.id}/><input type="hidden" name="result_status" value="Rechazada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="danger-button" pendingText="Guardando…">Rechazada</SubmitButton></form>
+              <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="process_id" value={recommendedProcess.id}/><input type="hidden" name="result_status" value="Aprobada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton pendingText="Guardando…">Aprobada</SubmitButton></form>
+            </> : <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton pendingText="Actualizando…">Marcar realizada</SubmitButton></form>}
           </div>
-        ) : null}
+        })() : null}
       </section>
 
       <section className="smart-state-grid">
@@ -157,23 +160,36 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
       <section className="daily-operation-grid smart-operation-grid">
         <article className="panel-card">
-          <div className="panel-heading"><div><span className="eyebrow">Trabajo de hoy</span><h3>Bandeja ordenada</h3></div><strong>{queue.length}</strong></div>
+          <div className="panel-heading"><div><span className="eyebrow">Trabajo de hoy · Hermosillo</span><h3>Bandeja ordenada</h3></div><strong>{workItems.length}</strong></div>
           <div className="daily-work-list">
-            {queue.slice(0, 15).map((event: any) => {
+            {workItems.slice(0, 20).map((item: any) => {
+              if (item.kind === 'stalled') {
+                const process = item.process
+                const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+                return <article className="daily-work-item stalled-queue-item" key={item.id}>
+                  <div><span className="work-category">SIN MOVIMIENTO</span><time>{item.inactive.days} días</time></div>
+                  <div className="daily-work-copy"><strong>{client?.full_name || 'Cliente'} · {process.service_name}</strong><small>{process.current_stage || 'Inicio'} · {item.inactive.reason}</small></div>
+                  <div className="daily-work-actions"><Link className="secondary-button mini-button" href={`/admin/tramites/${process.id}`}>Abrir</Link></div>
+                </article>
+              }
+
+              const event = item.event
               const client = Array.isArray(event.clients) ? event.clients[0] : event.clients
               const process = Array.isArray(event.processes) ? event.processes[0] : event.processes
-              return (
-                <article className="daily-work-item" key={event.id}>
-                  <div><span className="work-category">{agendaCategory(event)}</span><time>{dateTime(event.starts_at)}</time></div>
-                  <div className="daily-work-copy"><strong>{event.title}</strong><small>{client?.full_name || 'Actividad interna'}{process?.service_name ? ` · ${process.service_name}` : ''}</small></div>
-                  <div className="daily-work-actions">
-                    {process?.id ? <Link className="secondary-button mini-button" href={`/admin/tramites/${process.id}`}>Abrir</Link> : null}
-                    <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Actualizando…">Realizada</SubmitButton></form>
-                  </div>
-                </article>
-              )
+              const consularDecision = String(event.automation_key || '').endsWith(':consulate-status') && process?.id
+              return <article className={`daily-work-item ${consularDecision ? 'consular-decision-item' : ''}`} key={item.id}>
+                <div><span className="work-category">{consularDecision ? 'CITA CONSULAR' : agendaCategory(event)}</span><time>{dateTime(event.starts_at)}</time></div>
+                <div className="daily-work-copy"><strong>{event.title}</strong><small>{client?.full_name || 'Actividad interna'}{process?.service_name ? ` · ${process.service_name}` : ''}</small></div>
+                <div className="daily-work-actions">
+                  {process?.id ? <Link className="secondary-button mini-button" href={`/admin/tramites/${process.id}`}>Abrir</Link> : null}
+                  {consularDecision ? <>
+                    <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="result_status" value="Rechazada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button danger-button" pendingText="Guardando…">Rechazada</SubmitButton></form>
+                    <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="result_status" value="Aprobada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Guardando…">Aprobada</SubmitButton></form>
+                  </> : <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Actualizando…">Realizada</SubmitButton></form>}
+                </div>
+              </article>
             })}
-            {!queue.length ? <div className="empty-state">Sin actividades para esta vista.</div> : null}
+            {!workItems.length ? <div className="empty-state">Sin actividades para esta vista.</div> : null}
           </div>
         </article>
 
@@ -206,7 +222,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
             const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
             return (
               <article className="smart-process-row" key={process.id}>
-                <Link href={`/admin/tramites/${process.id}`} className="smart-process-main"><strong>{client?.full_name || 'Cliente'}</strong><small>{process.service_name} · {process.current_stage || 'Inicio'}</small><span className={`operational-state state-${state.toLowerCase().replaceAll(' ','-')}`}>{state}</span>{inactive.days >= 3 ? <em>{inactive.days} días sin movimiento</em> : null}</Link>
+                <Link href={`/admin/tramites/${process.id}`} className="smart-process-main"><strong>{client?.full_name || 'Cliente'}</strong><small>{process.service_name} · {process.current_stage || 'Inicio'}</small><span className={`operational-state state-${state.toLowerCase().replaceAll(' ','-')}`}>{state}</span>{inactive.days >= 4 ? <em>{inactive.days} días sin movimiento</em> : null}</Link>
                 <ProcessQuickControl processId={process.id} assignedTo={process.assigned_to} priority={process.priority} operationalStatus={process.operational_status} profiles={profiles ?? []} returnTo={`/admin?view=${encodeURIComponent(selectedView)}`} />
               </article>
             )

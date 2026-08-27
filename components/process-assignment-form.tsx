@@ -1,5 +1,6 @@
 import SubmitButton from '@/components/submit-button'
 import { updateProcessAssignment } from '@/app/admin/tramites/actions'
+import { hermosilloLocalInputValue } from '@/lib/hermosillo'
 
 type Profile = {
   id: string
@@ -22,11 +23,7 @@ export default function ProcessAssignmentForm({
   operationalStatus?: string | null
   profiles: Profile[]
 }) {
-  const localValue = priorityAttentionAt
-    ? new Date(new Date(priorityAttentionAt).getTime() - new Date(priorityAttentionAt).getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16)
-    : ''
+  const localValue = hermosilloLocalInputValue(priorityAttentionAt)
 
   return (
     <form action={updateProcessAssignment} className="assignment-form">

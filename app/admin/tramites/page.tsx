@@ -59,7 +59,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
   })
 
   return <>
-    <header className="page-header"><div><span className="eyebrow">Operación organizada</span><h1>Trámites</h1><p>Busca, filtra y atiende expedientes sin perder seguimiento.</p></div><div className="header-actions"><NewProcessModal defaultClientId={defaultClientId} clients={(clients??[]).map((c:any)=>({id:c.id,full_name:c.full_name,phone:c.phone||'',city:c.city,state:c.state,process_count:c.processes?.length??0}))} flows={flows} profiles={profiles??[]}/></div></header>
+    <header className="page-header"><div><span className="eyebrow">Operación organizada</span><h1>Trámites</h1><p>Busca, filtra y atiende expedientes sin perder seguimiento.</p></div><div className="header-actions"><NewProcessModal defaultClientId={defaultClientId} clients={(clients??[]).map((c:any)=>({id:c.id,full_name:c.full_name,phone:c.phone||'',email:c.email,city:c.city,state:c.state,process_count:c.processes?.length??0}))} flows={flows} profiles={profiles??[]}/></div></header>
     {params.error ? <div className="notice error">{String(params.error)}</div> : null}
 
     <form className="process-filter-bar" method="get">
