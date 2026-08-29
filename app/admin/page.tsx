@@ -3,7 +3,7 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
 import { daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
 import { getFinancialSummary } from '@/lib/financial-summary'
-import { agendaCategory, inactivityLevel, processOperationalState } from '@/lib/operational'
+import { agendaCategory, inactivityLevel, isFinalProcess, processOperationalState, shouldShowProcessInOperationalBoard } from '@/lib/operational'
 import SubmitButton from '@/components/submit-button'
 import ProcessQuickControl from '@/components/process-quick-control'
 import { completeAgendaEvent } from '@/app/admin/agenda/actions'
@@ -26,7 +26,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, { data: prospects }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
-      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone)'
+      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
       'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
@@ -36,7 +36,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     getFinancialSummary(context.supabase, context.organizationId),
   ])
 
-  const allAgenda = agenda ?? []
+  const allAgenda = (agenda ?? []).filter((event: any) => {
+    const linkedProcess = Array.isArray(event.processes) ? event.processes[0] : event.processes
+    return !linkedProcess || !isFinalProcess(linkedProcess)
+  })
   const allProcesses = (processes ?? []).map((process: any) => ({
     ...process,
     paid_amount: (process.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount), 0),
@@ -67,11 +70,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
   })
   const recommended = queue[0]
-  const processStates = visibleProcesses.map((process: any) => ({
-    process,
-    state: processOperationalState(process, now),
-    inactive: inactivityLevel(process, now),
-  }))
+  const processStates = visibleProcesses
+    .filter((process: any) => shouldShowProcessInOperationalBoard(process, now))
+    .map((process: any) => ({
+      process,
+      state: processOperationalState(process, now),
+      inactive: inactivityLevel(process, now),
+    }))
   const stalled = processStates.filter((item: any) => item.inactive.days >= 4 && item.state === 'Sin movimiento')
   const prospectAlerts = (prospects ?? []).filter((prospect: any) => {
     const nextKey = prospect.next_followup_at ? hermosilloDateKey(prospect.next_followup_at) : null
