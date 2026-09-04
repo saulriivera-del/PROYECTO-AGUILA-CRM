@@ -323,14 +323,6 @@ async function createAppointmentAutomations(
       startsAt: addDaysAt(dates.cas, 20),
       automationKey: `${processId}:renewal-status-20`,
     })
-    await upsertAutomatedAgendaEvent(context, {
-      processId,
-      clientId,
-      title: `Verificar llegada de visa · ${clientName}`,
-      description: 'Han transcurrido 40 días desde la cita CAS. Verificar si la visa está lista para recolección.',
-      startsAt: addDaysAt(dates.cas, 40),
-      automationKey: `${processId}:renewal-status-40`,
-    })
   }
 
   if (dates.cas && service === 'Visa tipo H') {
@@ -408,6 +400,8 @@ export async function updateProcessStep(formData: FormData) {
   const consulateValue = value(formData, 'consulate_appointment_at')
   const interviewValue = value(formData, 'interview_preparation_at')
   const resultStatus = value(formData, 'result_status')
+  const renewalResolution = value(formData, 'renewal_resolution')
+  const renewalApprovalValue = value(formData, 'renewal_approval_at')
 
   const normalizedStep = step.step_name
     .normalize('NFD')
@@ -444,6 +438,18 @@ export async function updateProcessStep(formData: FormData) {
     !resultStatus
   ) {
     redirect(`/admin/tramites/${processId}?error=Selecciona%20el%20resultado`)
+  }
+
+  if (nextStatus === 'Completado' && normalizedStep.includes('verificar estatus de renovacion')) {
+    if (!['Aprobada', 'Cita consular'].includes(renewalResolution)) {
+      redirect(`/admin/tramites/${processId}?error=Selecciona%20el%20resultado%20de%20la%20renovación`)
+    }
+    if (renewalResolution === 'Aprobada' && !renewalApprovalValue) {
+      redirect(`/admin/tramites/${processId}?error=Captura%20la%20fecha%20de%20aprobación`)
+    }
+    if (renewalResolution === 'Cita consular' && !consulateValue) {
+      redirect(`/admin/tramites/${processId}?error=Captura%20la%20fecha%20de%20la%20cita%20consular`)
+    }
   }
 
   const now = new Date().toISOString()
@@ -483,6 +489,11 @@ export async function updateProcessStep(formData: FormData) {
   if (consulateValue) processUpdates.consulate_appointment_at = appointmentDate(consulateValue).toISOString()
   if (interviewValue) processUpdates.interview_preparation_at = appointmentDate(interviewValue).toISOString()
   if (resultStatus) processUpdates.result_status = resultStatus
+  if (renewalResolution) processUpdates.renewal_resolution = renewalResolution
+  if (renewalApprovalValue) {
+    processUpdates.renewal_approval_at = appointmentDate(renewalApprovalValue).toISOString()
+    processUpdates.result_status = 'Aprobada'
+  }
 
   if (Object.keys(processUpdates).length) {
     await context.supabase
@@ -498,6 +509,40 @@ export async function updateProcessStep(formData: FormData) {
       consulate: consulateValue ? appointmentDate(consulateValue) : null,
       interview: interviewValue ? appointmentDate(interviewValue) : null,
     })
+
+    if (process.service_name === 'Renovación Visa Americana' && normalizedStep.includes('verificar estatus de renovacion')) {
+      await context.supabase
+        .from('agenda_events')
+        .update({ status: 'Realizado' })
+        .eq('organization_id', context.organizationId)
+        .eq('automation_key', `${processId}:renewal-status-20`)
+
+      await context.supabase.from('process_steps').delete().eq('process_id', processId).gt('step_order', step.step_order)
+
+      if (renewalResolution === 'Aprobada') {
+        await context.supabase.from('process_steps').insert([
+          { organization_id: context.organizationId, process_id: processId, step_order: step.step_order + 1, step_name: 'Esperar entrega de visa', status: 'Pendiente', is_optional: false },
+          { organization_id: context.organizationId, process_id: processId, step_order: step.step_order + 2, step_name: 'Trámite concluido', status: 'Pendiente', is_optional: false },
+        ])
+        const clientRelation = (process as any).clients
+        const renewalClient = Array.isArray(clientRelation) ? clientRelation[0] : clientRelation
+        await upsertAutomatedAgendaEvent(context, {
+          processId,
+          clientId: process.client_id,
+          title: `Verificar llegada de visa · ${renewalClient?.full_name ?? 'Cliente'}`,
+          description: 'Han transcurrido 20 días desde la fecha de aprobación. Verificar si la visa ya llegó.',
+          startsAt: addDaysAt(appointmentDate(renewalApprovalValue), 20),
+          automationKey: `${processId}:renewal-visa-arrival-20`,
+          eventType: 'Seguimiento',
+        })
+      } else if (renewalResolution === 'Cita consular') {
+        await context.supabase.from('process_steps').insert([
+          { organization_id: context.organizationId, process_id: processId, step_order: step.step_order + 1, step_name: 'Preparación entrevista', status: 'Pendiente', is_optional: false },
+          { organization_id: context.organizationId, process_id: processId, step_order: step.step_order + 2, step_name: 'Aprobada o rechazada', status: 'Pendiente', is_optional: false },
+          { organization_id: context.organizationId, process_id: processId, step_order: step.step_order + 3, step_name: 'Trámite concluido', status: 'Pendiente', is_optional: false },
+        ])
+      }
+    }
 
     if (process.service_name === 'eTA Canadá' && normalizedStep === 'pagar eta') {
       const clientRelation = (process as any).clients as
@@ -552,7 +597,7 @@ export async function updateProcessStep(formData: FormData) {
       nextStatus === 'Completado'
         ? `${step.step_name} y etapas anteriores: Completado`
         : `${step.step_name} y etapas posteriores: Pendiente`,
-    metadata: resultStatus ? { result_status: resultStatus } : {},
+    metadata: renewalResolution ? { renewal_resolution: renewalResolution, renewal_approval_at: renewalApprovalValue || null } : resultStatus ? { result_status: resultStatus } : {},
   })
 
   revalidatePath('/admin')

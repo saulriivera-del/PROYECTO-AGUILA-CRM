@@ -188,6 +188,7 @@ export default async function ProcessDetailPage({
             <p><strong>Cita Consulado:</strong> {dateOnly(process.consulate_appointment_at)}</p>
             <p><strong>Preparación entrevista:</strong> {dateOnly(process.interview_preparation_at)}</p>
             <p><strong>Resultado:</strong> {process.result_status || 'Pendiente'}</p>
+            {process.service_name === 'Renovación Visa Americana' ? <><p><strong>Resolución renovación:</strong> {process.renewal_resolution || 'Pendiente'}</p><p><strong>Fecha de aprobación:</strong> {dateOnly(process.renewal_approval_at)}</p></> : null}
             <p><strong>Compromiso de pago:</strong> {charge?.payment_commitment_date || 'Sin fecha'}</p>
             <p><strong>Notas:</strong> {process.notes || 'Sin notas'}</p>
           </section>

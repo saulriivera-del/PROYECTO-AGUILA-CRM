@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
-import { dateTime, money } from '@/lib/format'
-import { daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
+import { dateOnly, dateTime, money } from '@/lib/format'
+import { addDaysKey, daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
 import { getFinancialSummary } from '@/lib/financial-summary'
 import { agendaCategory, inactivityLevel, processOperationalState } from '@/lib/operational'
 import SubmitButton from '@/components/submit-button'
@@ -29,7 +29,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
       'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
-      'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
+      'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, interview_preparation_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
     ).eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado,Rechazada)').order('priority_attention_at', { ascending: true, nullsFirst: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
     context.supabase.from('prospects').select('id, full_name, phone, service_interest, status, assigned_to, next_followup_at, last_followup_at, updated_at, created_at').eq('organization_id', context.organizationId).eq('status','Activo'),
@@ -73,6 +73,18 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     inactive: inactivityLevel(process, now),
   }))
   const stalled = processStates.filter((item: any) => item.inactive.days >= 4 && item.state === 'Sin movimiento')
+  const preparationEndKey = addDaysKey(todayKey, 5)
+  const preparationProcesses = processStates.filter(({ process }: any) => {
+    const stageKey = String(process.current_stage || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    if (stageKey.includes('tramite concluido') || stageKey === 'concluido') return false
+    const prepKey = process.interview_preparation_at ? hermosilloDateKey(process.interview_preparation_at) : null
+    const casKey = process.cas_appointment_at ? hermosilloDateKey(process.cas_appointment_at) : null
+    const consulateKey = process.consulate_appointment_at ? hermosilloDateKey(process.consulate_appointment_at) : null
+    const manuallyScheduled = Boolean(prepKey && prepKey >= todayKey)
+    const appointmentSoon = [casKey, consulateKey].some((key) => Boolean(key && key >= todayKey && key <= preparationEndKey))
+    const renewalCasOnly = process.service_name === 'Renovación Visa Americana' && !consulateKey
+    return manuallyScheduled || (appointmentSoon && !renewalCasOnly)
+  })
   const prospectAlerts = (prospects ?? []).filter((prospect: any) => {
     const nextKey = prospect.next_followup_at ? hermosilloDateKey(prospect.next_followup_at) : null
     if (nextKey && nextKey >= todayKey) return false
@@ -216,18 +228,27 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
       </section>
 
       <section className="panel-card smart-process-board">
-        <div className="panel-heading"><div><span className="eyebrow">Control rápido</span><h3>Trámites de la vista seleccionada</h3></div><strong>{processStates.length}</strong></div>
+        <div className="panel-heading"><div><span className="eyebrow">Preparación de entrevista</span><h3>Clientes que requieren preparación</h3><p>Solo aparecen preparaciones agendadas o trámites con CAS/Consulado dentro de los próximos 5 días.</p></div><strong>{preparationProcesses.length}</strong></div>
         <div className="smart-process-list">
-          {processStates.slice(0, 18).map(({process, state, inactive}: any) => {
+          {preparationProcesses.slice(0, 18).map(({process, state}: any) => {
             const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+            const prepKey = process.interview_preparation_at ? hermosilloDateKey(process.interview_preparation_at) : null
+            const casKey = process.cas_appointment_at ? hermosilloDateKey(process.cas_appointment_at) : null
+            const consulateKey = process.consulate_appointment_at ? hermosilloDateKey(process.consulate_appointment_at) : null
+            const nextAppointmentKey = [casKey, consulateKey].filter((key): key is string => Boolean(key && key >= todayKey)).sort()[0]
+            const reason = prepKey && prepKey >= todayKey
+              ? `Preparación agendada: ${dateOnly(process.interview_preparation_at)}`
+              : nextAppointmentKey
+                ? `Cita en ${daysBetweenKeys(todayKey, nextAppointmentKey)} día(s) · Preparar entrevista`
+                : 'Preparación pendiente'
             return (
               <article className="smart-process-row" key={process.id}>
-                <Link href={`/admin/tramites/${process.id}`} className="smart-process-main"><strong>{client?.full_name || 'Cliente'}</strong><small>{process.service_name} · {process.current_stage || 'Inicio'}</small><span className={`operational-state state-${state.toLowerCase().replaceAll(' ','-')}`}>{state}</span>{inactive.days >= 4 ? <em>{inactive.days} días sin movimiento</em> : null}</Link>
-                <div className="smart-process-actions"><ProcessQuickControl processId={process.id} assignedTo={process.assigned_to} priority={process.priority} operationalStatus={process.operational_status} profiles={profiles ?? []} returnTo={`/admin?view=${encodeURIComponent(selectedView)}`} /><form action={updateProcessStatus}><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="next_status" value="Concluido"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button secondary-button" pendingText="Concluyendo…">Concluir</SubmitButton></form></div>
+                <Link href={`/admin/tramites/${process.id}`} className="smart-process-main"><strong>{client?.full_name || 'Cliente'}</strong><small>{process.service_name} · {reason}</small><span className={`operational-state state-${state.toLowerCase().replaceAll(' ','-')}`}>{state}</span></Link>
+                <div className="smart-process-actions"><Link className="primary-button mini-button" href={`/admin/tramites/${process.id}`}>Preparar / abrir</Link></div>
               </article>
             )
           })}
-          {!processStates.length ? <div className="empty-state">No hay trámites en esta vista.</div> : null}
+          {!preparationProcesses.length ? <div className="empty-state">No hay clientes que requieran preparación de entrevista en esta vista.</div> : null}
         </div>
       </section>
     </>

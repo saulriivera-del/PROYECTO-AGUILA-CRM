@@ -75,9 +75,9 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   }
 
   // Campos superiores de la plantilla Canva.
-  draw(safeText(client?.full_name || 'Cliente', 46), 220, 602, 9, true)
-  draw(paymentDate(payment.payment_date), 220, 584.5, 9)
-  draw(payment.payment_method || 'Sin especificar', 220, 567, 9)
+  draw(safeText(client?.full_name || 'Cliente', 46), 202, 602, 9, true)
+  draw(paymentDate(payment.payment_date), 202, 584.5, 9)
+  draw(payment.payment_method || 'Sin especificar', 202, 567, 9)
   draw(`Folio: ${folio}`, 445, 539, 7, true)
   draw(`Tel: ${processData.contact_phone || client?.phone || '—'}`, 445, 526, 7)
 

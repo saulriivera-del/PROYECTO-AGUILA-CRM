@@ -1,6 +1,6 @@
 {
   "name": "proyecto-aguila-fase4-2",
-  "version": "5.4.5.1",
+  "version": "5.4.5.4",
   "private": true,
   "scripts": {
     "dev": "next dev",

@@ -26,12 +26,14 @@ export default function ProcessStepAction({
 }) {
   const completed = step.status === 'Completado'
   const [open, setOpen] = useState(false)
+  const [renewalResolution, setRenewalResolution] = useState('')
   const key = normalized(step.step_name)
 
   const mode = useMemo(() => {
     if (key.includes('cita encontrada') || key === 'cita agendada') return 'two-appointments'
     if (key.includes('cita ante el cas') || key.includes('programacion de cita')) return 'cas-only'
     if (key.includes('preparacion entrevista')) return 'interview'
+    if (key.includes('verificar estatus de renovacion')) return 'renewal-status'
     if (key.includes('aprobada o rechazada')) return 'result'
     return 'simple'
   }, [key])
@@ -112,6 +114,31 @@ export default function ProcessStepAction({
             <option value="Rechazada">Rechazada</option>
           </select>
         </label>
+      ) : null}
+
+      {mode === 'renewal-status' ? (
+        <>
+          <label>
+            Resultado de la renovación
+            <select name="renewal_resolution" value={renewalResolution} onChange={(event) => setRenewalResolution(event.target.value)} required>
+              <option value="" disabled>Selecciona</option>
+              <option value="Aprobada">Aprobada</option>
+              <option value="Cita consular">Llamada a cita consular</option>
+            </select>
+          </label>
+          {renewalResolution === 'Aprobada' ? (
+            <label>
+              Fecha de aprobación
+              <input name="renewal_approval_at" type="date" required />
+            </label>
+          ) : null}
+          {renewalResolution === 'Cita consular' ? (
+            <label>
+              Fecha de cita consular
+              <input name="consulate_appointment_at" type="date" required />
+            </label>
+          ) : null}
+        </>
       ) : null}
 
       <div className="step-data-actions">
