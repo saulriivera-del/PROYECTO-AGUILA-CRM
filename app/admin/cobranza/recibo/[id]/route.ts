@@ -75,16 +75,16 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   }
 
   // Campos superiores de la plantilla Canva.
-  draw(safeText(client?.full_name || 'Cliente', 46), 153, 550, 10, true)
-  draw(paymentDate(payment.payment_date), 153, 529, 9)
-  draw(payment.payment_method || 'Sin especificar', 153, 508, 9)
-  draw(`Folio: ${folio}`, 420, 563, 8, true)
-  draw(`Tel: ${processData.contact_phone || client?.phone || '—'}`, 420, 548, 8)
+  draw(safeText(client?.full_name || 'Cliente', 46), 220, 602, 9, true)
+  draw(paymentDate(payment.payment_date), 220, 584.5, 9)
+  draw(payment.payment_method || 'Sin especificar', 220, 567, 9)
+  draw(`Folio: ${folio}`, 445, 539, 7, true)
+  draw(`Tel: ${processData.contact_phone || client?.phone || '—'}`, 445, 526, 7)
 
   // Primer renglón de servicios.
-  draw(processData.service_name || 'Servicio Visa Master', 85, 448, 10, true)
-  draw('1', 340, 448, 10)
-  draw(money(Number(payment.amount)), 442, 448, 10, true)
+  draw(processData.service_name || 'Servicio Visa Master', 88, 457, 9)
+  draw('1', 338, 457, 9)
+  draw(money(Number(payment.amount)), 446, 457, 9)
 
   // Resumen inferior. El PDF se genera bajo demanda; no se guarda en Storage.
   draw(money(Number(payment.amount)), 500, 239, 12, true)
