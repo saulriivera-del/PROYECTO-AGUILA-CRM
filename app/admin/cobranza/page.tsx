@@ -36,6 +36,7 @@ export default async function CobranzaPage({ searchParams }: { searchParams: Sea
   let currentWeekPayments: any[] = []
   let previousWeekPayments: any[] = []
   let periodPayments: any[] = []
+  let operationalPayments: any[] = []
 
   if (administrator) {
     const currentStart = hermosilloDateTime(weekStartKey, 0).toISOString()
@@ -53,6 +54,14 @@ export default async function CobranzaPage({ searchParams }: { searchParams: Sea
     currentWeekPayments = currentResult.data ?? []
     previousWeekPayments = previousResult.data ?? []
     periodPayments = rangeResult.data ?? []
+  } else {
+    const { data: recentPayments } = await context.supabase
+      .from('payments')
+      .select('id, amount, payment_date, payment_method, reference, processes(service_name, clients(full_name))')
+      .eq('organization_id', context.organizationId)
+      .order('payment_date', { ascending: false })
+      .limit(50)
+    operationalPayments = recentPayments ?? []
   }
 
   const sum = (items: any[]) => items.reduce((total, item) => total + Number(item.amount ?? 0), 0)
@@ -102,6 +111,11 @@ export default async function CobranzaPage({ searchParams }: { searchParams: Sea
         <div className="activity-list compact">{periodPayments.slice(0,50).map((p:any) => { const process=Array.isArray(p.processes)?p.processes[0]:p.processes; const client=Array.isArray(process?.clients)?process.clients[0]:process?.clients; return <div key={p.id} className="payment-history-row"><div><strong>{money(p.amount)} · {client?.full_name||'Cliente'}</strong><small>{dateTime(p.payment_date)} · {process?.service_name||'Sin trámite'} · {p.payment_method}</small></div><a className="secondary-button mini-button" href={`/admin/cobranza/recibo/${p.id}`}>Recibo PDF</a></div> })}{!periodPayments.length ? <div className="empty-state">Sin ingresos en el periodo seleccionado.</div> : null}</div>
       </section>
     </> : null}
+
+    {!administrator ? <section className="panel-card">
+      <div className="panel-heading"><div><span className="eyebrow">Recibos</span><h3>Pagos recientes</h3><p>Genera el recibo PDF únicamente cuando lo necesites.</p></div><strong>{operationalPayments.length}</strong></div>
+      <div className="activity-list compact">{operationalPayments.map((p:any) => { const process=Array.isArray(p.processes)?p.processes[0]:p.processes; const client=Array.isArray(process?.clients)?process.clients[0]:process?.clients; return <div key={p.id} className="payment-history-row"><div><strong>{money(p.amount)} · {client?.full_name||'Cliente'}</strong><small>{dateTime(p.payment_date)} · {process?.service_name||'Sin trámite'} · {p.payment_method}</small></div><a className="secondary-button mini-button" href={`/admin/cobranza/recibo/${p.id}`}>Generar recibo PDF</a></div> })}{!operationalPayments.length ? <div className="empty-state">Todavía no hay pagos registrados.</div> : null}</div>
+    </section> : null}
 
     <section className="client-kpis"><article><span>Total acordado</span><strong>{money(financial.totalAgreed)}</strong></article><article><span>Cobrado histórico</span><strong>{money(financial.totalPaid)}</strong></article><article><span>Por cobrar</span><strong>{money(financial.totalBalance)}</strong></article><article><span>Vencido</span><strong>{money(financial.overdueBalance)}</strong></article></section>
     <section className="collections-layout"><PaymentForm processes={financial.rows.filter(r=>r.balance>0).map(r=>{const c=Array.isArray(r.clients)?r.clients[0]:r.clients;return{id:r.id,service_name:r.service_name,client_name:c?.full_name||'Cliente',balance:r.balance}})}/><section className="table-card"><div className="panel-heading"><div><span className="eyebrow">Cuentas</span><h3>Estado de cobranza</h3></div><strong>{financial.rows.length}</strong></div><div className="collection-cards">{financial.rows.map(row=>{const c=Array.isArray(row.clients)?row.clients[0]:row.clients;return <article className={row.overdue?'collection-card overdue':'collection-card'} key={row.id}><div className="collection-card-head"><div><strong>{c?.full_name||'Cliente'}</strong><small>{row.service_name} · {c?.phone||''}</small></div><span className={row.balance<=0?'payment-status paid':row.paid>0?'payment-status partial':'payment-status pending'}>{row.balance<=0?'Pagado':row.paid>0?'Parcial':'Pendiente'}</span></div><div className="collection-amounts"><div><span>Total</span><strong>{money(row.agreed)}</strong></div><div><span>Pagado</span><strong>{money(row.paid)}</strong></div><div><span>Saldo</span><strong>{money(row.balance)}</strong></div></div><small>Compromiso: {row.commitment||'Sin fecha'}{row.overdue?' · VENCIDO':''}</small></article>})}</div></section></section>
