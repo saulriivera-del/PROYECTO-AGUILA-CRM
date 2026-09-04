@@ -1367,3 +1367,14 @@ body.modal-open{overflow:hidden}
 @media (max-width: 820px) {
   .weekly-row { grid-template-columns: .6fr 1fr 1fr; font-size: 13px; }
 }
+
+/* Fase 5.4.5 */
+.receipt-success { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.payment-history-row { display:flex !important; align-items:center; justify-content:space-between; gap:12px; }
+.payment-history-row > div { display:flex; flex-direction:column; min-width:0; }
+.smart-process-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.prospect-day-item strong { display:block; }
+@media (max-width: 720px) {
+  .payment-history-row { align-items:flex-start; flex-direction:column; }
+  .smart-process-actions { justify-content:flex-start; }
+}

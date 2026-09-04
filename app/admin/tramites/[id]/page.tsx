@@ -199,9 +199,9 @@ export default async function ProcessDetailPage({
             </div>
             <div className="activity-list">
               {(payments ?? []).map((payment) => (
-                <div key={payment.id}>
-                  <strong>{money(payment.amount)} · {payment.payment_method}</strong>
-                  <small>{dateTime(payment.payment_date)}</small>
+                <div key={payment.id} className="payment-history-row">
+                  <div><strong>{money(payment.amount)} · {payment.payment_method}</strong><small>{dateTime(payment.payment_date)}</small></div>
+                  <a className="secondary-button mini-button" href={`/admin/cobranza/recibo/${payment.id}`}>Recibo PDF</a>
                 </div>
               ))}
               {!payments?.length ? <div className="empty-state">Sin pagos registrados.</div> : null}

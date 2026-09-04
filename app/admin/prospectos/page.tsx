@@ -57,7 +57,7 @@ export default async function ProspectosPage({ searchParams }: { searchParams: S
     <ProspectFilters />
     <nav className="prospect-view-tabs"><Link className={view==='agenda'?'active':''} href="/admin/prospectos?view=agenda">Calendario</Link><Link className={view==='all'?'active':''} href="/admin/prospectos?view=all">Todos</Link></nav>
 
-    {view==='agenda'?<ProspectCalendar prospects={active.map((p:any)=>({id:p.id,full_name:p.full_name,phone:p.phone,service_interest:p.service_interest,temperature:p.temperature,next_followup_at:p.next_followup_at,internal_appointment_at:p.internal_appointment_at,last_followup_at:p.last_followup_at}))}/>:null}
+    {view==='agenda'?<ProspectCalendar prospects={active.map((p:any)=>({id:p.id,full_name:p.full_name,phone:p.phone,service_interest:p.service_interest,temperature:p.temperature,next_followup_at:p.next_followup_at,next_followup_mode:p.next_followup_mode,internal_appointment_at:p.internal_appointment_at,last_followup_at:p.last_followup_at}))}/>:null}
 
     {view!=='agenda'?<section className="prospect-cards prospect-cards-2">
       {((view==='overdue'?overdue:view==='today'?todayItems:view==='tomorrow'?tomorrowItems:view==='upcoming'?upcoming:view==='nodate'?noDate:view==='neglected'?neglected:prospects)||[]).map((p:any)=>{
@@ -66,7 +66,7 @@ export default async function ProspectosPage({ searchParams }: { searchParams: S
         return <article className={`prospect-card ${days!==null&&days>=2?'prospect-needs-followup':''}`} key={p.id}>
           <Link className="prospect-card-open" href={`/admin/prospectos/${p.id}`}><div><strong>{p.full_name}</strong><small>{p.phone}{p.email?` · ${p.email}`:''}</small></div><span className={`status-pill ${p.status.toLowerCase()}`}>{p.status}</span></Link>
           <div className="prospect-tags"><span>{p.service_interest}</span><span>{p.temperature}</span><span>{p.origin}</span></div>
-          <div className="prospect-details"><div><span>Cotización</span><strong>{money(p.quoted_amount)}</strong></div><div><span>Próximo seguimiento</span><strong>{dateTime(p.next_followup_at)}</strong></div><div><span>Último movimiento</span><strong>{days===null?'Sin registro':`${days} día(s)`}</strong></div></div>
+          <div className="prospect-details"><div><span>Cotización</span><strong>{money(p.quoted_amount)}</strong></div><div><span>Próximo seguimiento</span><strong>{dateTime(p.next_followup_at)}{p.next_followup_mode?` · ${p.next_followup_mode}`:''}</strong></div><div><span>Último movimiento</span><strong>{days===null?'Sin registro':`${days} día(s)`}</strong></div></div>
           <div className="prospect-actions"><a className="secondary-button" href={`tel:${p.phone}`}>Llamar</a><a className="secondary-button" href={wa} target="_blank" rel="noreferrer">WhatsApp</a><Link className="primary-button" href={`/admin/prospectos/${p.id}`}>Abrir expediente</Link></div>
         </article>
       })}

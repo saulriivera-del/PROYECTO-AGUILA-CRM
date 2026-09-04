@@ -1,5 +1,4 @@
 import {
-  addDaysKey,
   daysBetweenKeys,
   hermosilloDateKey,
   hermosilloTodayKey,
@@ -21,37 +20,6 @@ export function isFinalProcess(process: any) {
   const status = normalized(process.status)
   const stage = normalized(process.current_stage)
   return FINAL_WORDS.some((word) => status.includes(word) || stage.includes(word))
-}
-
-
-export function nextFutureAppointmentKey(process: any, now = new Date()) {
-  const todayKey = hermosilloDateKey(now)
-  const keys = [
-    process.cas_appointment_at,
-    process.consulate_appointment_at,
-    process.government_appointment_at,
-  ]
-    .filter(Boolean)
-    .map((value) => hermosilloDateKey(value))
-    .filter((key) => key >= todayKey)
-    .sort()
-  return keys[0] ?? null
-}
-
-/**
- * Regla de visibilidad del Control rápido / Bandeja operativa:
- * - nunca mostrar trámites finalizados;
- * - si existe una cita futura, mostrar el trámite sólo cuando la cita
- *   esté dentro de los próximos 7 días naturales (incluyendo hoy);
- * - los trámites activos sin cita futura siguen visibles para permitir
- *   supervisión por estado e inactividad.
- */
-export function shouldShowProcessInOperationalBoard(process: any, now = new Date()) {
-  if (isFinalProcess(process)) return false
-  const todayKey = hermosilloDateKey(now)
-  const nextAppointmentKey = nextFutureAppointmentKey(process, now)
-  if (!nextAppointmentKey) return true
-  return nextAppointmentKey <= addDaysKey(todayKey, 7)
 }
 
 export function inactivityAlert(process: any, now = new Date()) {

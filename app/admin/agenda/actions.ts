@@ -18,6 +18,24 @@ export async function createAgendaEvent(f:FormData){
 }
 
 export async function completeAgendaEvent(f:FormData){
- const c=await requireAuthContext(); const id=v(f,'event_id'); const returnTo=v(f,'return_to')||'/admin/agenda'; const {error}=await c.supabase.from('agenda_events').update({status:'Realizado'}).eq('id',id).eq('organization_id',c.organizationId);
- if(error) redirect('/admin/agenda?error='+encodeURIComponent(error.message)); revalidatePath('/admin'); revalidatePath('/admin/agenda'); redirect(returnTo+(returnTo.includes('?')?'&':'?')+'updated=1');
+ const c=await requireAuthContext();
+ const id=v(f,'event_id');
+ const returnTo=v(f,'return_to')||'/admin/agenda';
+ const {data:event,error:lookupError}=await c.supabase.from('agenda_events').select('id, process_id, automation_key').eq('id',id).eq('organization_id',c.organizationId).single();
+ if(lookupError||!event) redirect('/admin/agenda?error=No%20se%20encontró%20la%20actividad');
+ const {error}=await c.supabase.from('agenda_events').update({status:'Realizado'}).eq('id',id).eq('organization_id',c.organizationId);
+ if(error) redirect('/admin/agenda?error='+encodeURIComponent(error.message));
+
+ // Si se confirma la recolección de una visa, el trámite queda concluido y
+ // cualquier otra alerta pendiente del mismo expediente se depura.
+ if(event.process_id && String(event.automation_key||'').endsWith(':visa-pickup-pending')){
+   const now=new Date().toISOString()
+   await c.supabase.from('processes').update({status:'Concluido',current_stage:'Concluido',closed_at:now,last_movement_at:now,operational_status:'En orden'}).eq('id',event.process_id).eq('organization_id',c.organizationId)
+   await c.supabase.from('agenda_events').update({status:'Realizado'}).eq('process_id',event.process_id).eq('organization_id',c.organizationId).eq('status','Pendiente')
+   await c.supabase.from('activity_log').insert({organization_id:c.organizationId,actor_id:c.userId,entity_type:'process',entity_id:event.process_id,action:'completed_after_pickup',description:'Trámite concluido al confirmar la recolección/recepción de la visa.'})
+ }
+
+ revalidatePath('/admin'); revalidatePath('/admin/agenda'); revalidatePath('/admin/tramites');
+ if(event.process_id) revalidatePath('/admin/tramites/'+event.process_id)
+ redirect(returnTo+(returnTo.includes('?')?'&':'?')+'updated=1');
 }

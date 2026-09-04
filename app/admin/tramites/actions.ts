@@ -558,6 +558,7 @@ export async function updateProcessStep(formData: FormData) {
   revalidatePath('/admin')
   revalidatePath('/admin/agenda')
   revalidatePath('/admin/tramites')
+  revalidatePath('/admin/agenda')
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`/admin/tramites/${processId}?updated=1`)
 }
@@ -619,7 +620,10 @@ export async function resolveConsularStatus(formData: FormData) {
     })
   }
 
-  if (eventId) {
+  if (result === 'Rechazada') {
+    await context.supabase.from('agenda_events').update({ status: 'Realizado' })
+      .eq('process_id', processId).eq('organization_id', context.organizationId).eq('status', 'Pendiente')
+  } else if (eventId) {
     await context.supabase.from('agenda_events').update({ status: 'Realizado' })
       .eq('id', eventId).eq('organization_id', context.organizationId)
   }
@@ -760,6 +764,7 @@ export async function updateProcessStatus(formData: FormData) {
   const context = await requireAuthContext()
   const processId = value(formData, 'process_id')
   const nextStatus = value(formData, 'next_status')
+  const returnTo = value(formData, 'return_to')
 
   const allowedStatuses = ['Activo', 'En espera', 'Concluido', 'Cancelado']
 
@@ -810,6 +815,13 @@ export async function updateProcessStatus(formData: FormData) {
     redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
   }
 
+  if (isClosed) {
+    await context.supabase.from('agenda_events').update({ status: 'Realizado' })
+      .eq('process_id', processId)
+      .eq('organization_id', context.organizationId)
+      .eq('status', 'Pendiente')
+  }
+
   await context.supabase.from('activity_log').insert({
     organization_id: context.organizationId,
     actor_id: context.userId,
@@ -822,10 +834,12 @@ export async function updateProcessStatus(formData: FormData) {
 
   revalidatePath('/admin')
   revalidatePath('/admin/tramites')
+  revalidatePath('/admin/agenda')
   revalidatePath(`/admin/tramites/${processId}`)
   revalidatePath(`/admin/clientes/${currentProcess.client_id}`)
   revalidatePath('/admin/cobranza')
 
+  if (returnTo) redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}status_updated=1`)
   redirect(`/admin/tramites/${processId}?status_updated=1`)
 }
 

@@ -53,6 +53,7 @@ export async function createProspect(formData: FormData) {
       quoted_amount: Number(value(formData, 'quoted_amount') || 0),
       internal_appointment_at: value(formData, 'internal_appointment_at') ? hermosilloLocalInputToDate(value(formData, 'internal_appointment_at'))?.toISOString() ?? null : null,
       next_followup_at: value(formData, 'next_followup_at') ? hermosilloLocalInputToDate(value(formData, 'next_followup_at'))?.toISOString() ?? null : null,
+      next_followup_mode: value(formData, 'next_followup_mode') || null,
       notes: value(formData, 'notes') || null,
       last_followup_at: new Date().toISOString(),
       followup_status: 'Pendiente',
@@ -186,6 +187,7 @@ export async function addProspectFollowup(formData: FormData) {
   const outcome = value(formData, 'outcome') || 'Seguimiento'
   const nextFollowupRaw = value(formData, 'next_followup_at')
   const nextFollowupAt = nextFollowupRaw ? hermosilloLocalInputToDate(nextFollowupRaw)?.toISOString() ?? null : null
+  const followupMode = value(formData, 'followup_mode') || null
 
   if (!prospectId || !note) {
     redirect(`/admin/prospectos/${prospectId}?error=Escribe%20la%20anotación`)
@@ -198,6 +200,7 @@ export async function addProspectFollowup(formData: FormData) {
     note,
     outcome,
     next_followup_at: nextFollowupAt,
+    followup_mode: followupMode,
     created_by: context.userId,
   })
   if (error) redirect(`/admin/prospectos/${prospectId}?error=${encodeURIComponent(error.message)}`)
@@ -206,6 +209,7 @@ export async function addProspectFollowup(formData: FormData) {
     last_followup_at: now,
     next_followup_at: nextFollowupAt,
     followup_status: nextFollowupAt ? 'Programado' : 'Pendiente',
+    next_followup_mode: nextFollowupAt ? followupMode : null,
     notes: note,
   }).eq('id', prospectId).eq('organization_id', context.organizationId)
   if (updateError) redirect(`/admin/prospectos/${prospectId}?error=${encodeURIComponent(updateError.message)}`)
@@ -217,7 +221,7 @@ export async function addProspectFollowup(formData: FormData) {
     entity_id: prospectId,
     action: 'followup_added',
     description: `Seguimiento de prospecto: ${outcome}`,
-    metadata: { note, next_followup_at: nextFollowupAt },
+    metadata: { note, next_followup_at: nextFollowupAt, followup_mode: followupMode },
   })
 
   revalidatePath('/admin')
@@ -231,10 +235,12 @@ export async function rescheduleProspect(formData: FormData) {
   const prospectId = value(formData, 'prospect_id')
   const nextFollowupRaw = value(formData, 'next_followup_at')
   const nextFollowupAt = nextFollowupRaw ? hermosilloLocalInputToDate(nextFollowupRaw)?.toISOString() ?? '' : ''
+  const followupMode = value(formData, 'followup_mode') || null
   if (!prospectId || !nextFollowupAt) redirect(`/admin/prospectos/${prospectId}?error=Selecciona%20una%20fecha`)
 
   const { error } = await context.supabase.from('prospects').update({
     next_followup_at: nextFollowupAt,
+    next_followup_mode: followupMode,
     followup_status: 'Programado',
   }).eq('id', prospectId).eq('organization_id', context.organizationId)
   if (error) redirect(`/admin/prospectos/${prospectId}?error=${encodeURIComponent(error.message)}`)

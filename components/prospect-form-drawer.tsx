@@ -121,6 +121,17 @@ export default function ProspectFormDrawer() {
                 </label>
 
                 <label>
+                  Modalidad del seguimiento
+                  <select name="next_followup_mode" defaultValue="Llamada">
+                    <option>En oficina</option>
+                    <option>Llamada</option>
+                    <option>WhatsApp</option>
+                    <option>Videollamada</option>
+                    <option>Otro</option>
+                  </select>
+                </label>
+
+                <label>
                   Ciudad
                   <input name="city" defaultValue="Hermosillo" />
                 </label>

@@ -76,7 +76,7 @@ export default async function CobranzaPage({ searchParams }: { searchParams: Sea
 
   return <>
     <header className="page-header"><div><span className="eyebrow">Control financiero</span><h1>Cobranza</h1><p>Semana operativa de lunes a domingo, siempre con horario de Hermosillo.</p></div></header>
-    {params.created ? <div className="notice success">Pago registrado correctamente.</div> : null}
+    {params.created ? <div className="notice success receipt-success"><span>Pago registrado correctamente.</span>{typeof params.payment==='string'?<a className="primary-button mini-button" href={`/admin/cobranza/recibo/${params.payment}`}>Generar recibo PDF</a>:null}</div> : null}
     {params.error ? <div className="notice error">{String(params.error)}</div> : null}
 
     {administrator ? <>
@@ -99,7 +99,7 @@ export default async function CobranzaPage({ searchParams }: { searchParams: Sea
         <form className="date-range-form" method="get"><label>Desde<input type="date" name="from" defaultValue={customFrom}/></label><label>Hasta<input type="date" name="to" defaultValue={customTo}/></label><button className="primary-button" type="submit">Consultar</button></form>
         <div className="client-kpis"><article><span>Cobrado</span><strong>{money(periodTotal)}</strong></article><article><span>Pagos</span><strong>{periodPayments.length}</strong></article><article><span>Ticket promedio</span><strong>{money(periodAverage)}</strong></article><article><span>Periodo</span><strong className="small-kpi">{dateOnly(`${customFrom}T12:00:00-07:00`)}–{dateOnly(`${customTo}T12:00:00-07:00`)}</strong></article></div>
         <div className="payment-method-summary">{[...methods.entries()].map(([method,total]) => <div key={method}><span>{method}</span><strong>{money(total)}</strong></div>)}</div>
-        <div className="activity-list compact">{periodPayments.slice(0,50).map((p:any) => { const process=Array.isArray(p.processes)?p.processes[0]:p.processes; const client=Array.isArray(process?.clients)?process.clients[0]:process?.clients; return <div key={p.id}><strong>{money(p.amount)} · {client?.full_name||'Cliente'}</strong><small>{dateTime(p.payment_date)} · {process?.service_name||'Sin trámite'} · {p.payment_method}</small></div> })}{!periodPayments.length ? <div className="empty-state">Sin ingresos en el periodo seleccionado.</div> : null}</div>
+        <div className="activity-list compact">{periodPayments.slice(0,50).map((p:any) => { const process=Array.isArray(p.processes)?p.processes[0]:p.processes; const client=Array.isArray(process?.clients)?process.clients[0]:process?.clients; return <div key={p.id} className="payment-history-row"><div><strong>{money(p.amount)} · {client?.full_name||'Cliente'}</strong><small>{dateTime(p.payment_date)} · {process?.service_name||'Sin trámite'} · {p.payment_method}</small></div><a className="secondary-button mini-button" href={`/admin/cobranza/recibo/${p.id}`}>Recibo PDF</a></div> })}{!periodPayments.length ? <div className="empty-state">Sin ingresos en el periodo seleccionado.</div> : null}</div>
       </section>
     </> : null}
 

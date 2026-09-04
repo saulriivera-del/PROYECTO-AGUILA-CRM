@@ -11,11 +11,13 @@ type ProspectItem = {
   service_interest: string
   temperature: string
   next_followup_at: string | null
+  next_followup_mode: string | null
   internal_appointment_at: string | null
   last_followup_at: string | null
 }
 
 function localDateKey(value: string | null) { return value ? hermosilloDateKey(value) : null }
+function followupTime(value: string | null) { return value ? new Intl.DateTimeFormat('es-MX',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/Hermosillo'}).format(new Date(value)) : 'Sin hora' }
 
 export default function ProspectCalendar({ prospects }: { prospects: ProspectItem[] }) {
   const todayKey = hermosilloTodayKey()
@@ -60,7 +62,7 @@ export default function ProspectCalendar({ prospects }: { prospects: ProspectIte
       <article className="panel-card prospect-day-panel">
         <div className="panel-heading"><div><span className="eyebrow">Agenda comercial</span><h3>{new Intl.DateTimeFormat('es-MX',{dateStyle:'long'}).format(new Date(`${selected}T12:00:00-07:00`))}</h3></div><strong>{selectedItems.length}</strong></div>
         <div className="prospect-day-list">
-          {selectedItems.map(p=><Link href={`/admin/prospectos/${p.id}`} key={p.id} className="prospect-day-item"><div><strong>{p.full_name}</strong><small>{p.service_interest} · {p.temperature}</small></div><span>Abrir →</span></Link>)}
+          {selectedItems.sort((a,b)=>new Date(a.next_followup_at||a.internal_appointment_at||0).getTime()-new Date(b.next_followup_at||b.internal_appointment_at||0).getTime()).map(p=><Link href={`/admin/prospectos/${p.id}`} key={p.id} className="prospect-day-item"><div><strong>{followupTime(p.next_followup_at||p.internal_appointment_at)} · {p.next_followup_mode||'Seguimiento'}</strong><small>{p.full_name} · {p.service_interest} · {p.temperature}</small></div><span>Abrir →</span></Link>)}
           {!selectedItems.length?<div className="empty-state">No hay seguimientos programados.</div>:null}
         </div>
       </article>

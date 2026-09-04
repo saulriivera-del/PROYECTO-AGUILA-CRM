@@ -3,11 +3,11 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { dateTime, money } from '@/lib/format'
 import { daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
 import { getFinancialSummary } from '@/lib/financial-summary'
-import { agendaCategory, inactivityLevel, isFinalProcess, processOperationalState, shouldShowProcessInOperationalBoard } from '@/lib/operational'
+import { agendaCategory, inactivityLevel, processOperationalState } from '@/lib/operational'
 import SubmitButton from '@/components/submit-button'
 import ProcessQuickControl from '@/components/process-quick-control'
 import { completeAgendaEvent } from '@/app/admin/agenda/actions'
-import { resolveConsularStatus } from '@/app/admin/tramites/actions'
+import { resolveConsularStatus, updateProcessStatus } from '@/app/admin/tramites/actions'
 import { isAdministrator } from '@/lib/admin-access'
 import { getPersonalGoalData } from '@/lib/personal-goal'
 import PersonalGoalCard from '@/components/personal-goal-card'
@@ -26,20 +26,17 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, { data: prospects }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
-      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage)'
+      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
       'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
-    ).eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado)').order('priority_attention_at', { ascending: true, nullsFirst: false }),
+    ).eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado,Rechazada)').order('priority_attention_at', { ascending: true, nullsFirst: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
     context.supabase.from('prospects').select('id, full_name, phone, service_interest, status, assigned_to, next_followup_at, last_followup_at, updated_at, created_at').eq('organization_id', context.organizationId).eq('status','Activo'),
     getFinancialSummary(context.supabase, context.organizationId),
   ])
 
-  const allAgenda = (agenda ?? []).filter((event: any) => {
-    const linkedProcess = Array.isArray(event.processes) ? event.processes[0] : event.processes
-    return !linkedProcess || !isFinalProcess(linkedProcess)
-  })
+  const allAgenda = agenda ?? []
   const allProcesses = (processes ?? []).map((process: any) => ({
     ...process,
     paid_amount: (process.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount), 0),
@@ -70,13 +67,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
   })
   const recommended = queue[0]
-  const processStates = visibleProcesses
-    .filter((process: any) => shouldShowProcessInOperationalBoard(process, now))
-    .map((process: any) => ({
-      process,
-      state: processOperationalState(process, now),
-      inactive: inactivityLevel(process, now),
-    }))
+  const processStates = visibleProcesses.map((process: any) => ({
+    process,
+    state: processOperationalState(process, now),
+    inactive: inactivityLevel(process, now),
+  }))
   const stalled = processStates.filter((item: any) => item.inactive.days >= 4 && item.state === 'Sin movimiento')
   const prospectAlerts = (prospects ?? []).filter((prospect: any) => {
     const nextKey = prospect.next_followup_at ? hermosilloDateKey(prospect.next_followup_at) : null
@@ -174,7 +169,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
                 return <article className="daily-work-item stalled-queue-item" key={item.id}>
                   <div><span className="work-category">SIN MOVIMIENTO</span><time>{item.inactive.days} días</time></div>
                   <div className="daily-work-copy"><strong>{client?.full_name || 'Cliente'} · {process.service_name}</strong><small>{process.current_stage || 'Inicio'} · {item.inactive.reason}</small></div>
-                  <div className="daily-work-actions"><Link className="secondary-button mini-button" href={`/admin/tramites/${process.id}`}>Abrir</Link></div>
+                  <div className="daily-work-actions"><Link className="secondary-button mini-button" href={`/admin/tramites/${process.id}`}>Abrir</Link><form action={updateProcessStatus}><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="next_status" value="Concluido"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Concluyendo…">Concluir</SubmitButton></form></div>
                 </article>
               }
 
@@ -228,7 +223,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
             return (
               <article className="smart-process-row" key={process.id}>
                 <Link href={`/admin/tramites/${process.id}`} className="smart-process-main"><strong>{client?.full_name || 'Cliente'}</strong><small>{process.service_name} · {process.current_stage || 'Inicio'}</small><span className={`operational-state state-${state.toLowerCase().replaceAll(' ','-')}`}>{state}</span>{inactive.days >= 4 ? <em>{inactive.days} días sin movimiento</em> : null}</Link>
-                <ProcessQuickControl processId={process.id} assignedTo={process.assigned_to} priority={process.priority} operationalStatus={process.operational_status} profiles={profiles ?? []} returnTo={`/admin?view=${encodeURIComponent(selectedView)}`} />
+                <div className="smart-process-actions"><ProcessQuickControl processId={process.id} assignedTo={process.assigned_to} priority={process.priority} operationalStatus={process.operational_status} profiles={profiles ?? []} returnTo={`/admin?view=${encodeURIComponent(selectedView)}`} /><form action={updateProcessStatus}><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="next_status" value="Concluido"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button secondary-button" pendingText="Concluyendo…">Concluir</SubmitButton></form></div>
               </article>
             )
           })}
