@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: { params: Params }) {
 
   if (!payment) return new Response('Pago no encontrado', { status: 404 })
 
-  const [{ data: process }, { data: allPayments }] = await Promise.all([
+  const [{ data: processData }, { data: allPayments }] = await Promise.all([
     context.supabase
       .from('processes')
       .select('id, service_name, contact_phone, clients(full_name, phone), process_charges(agreed_amount)')
@@ -50,11 +50,11 @@ export async function GET(_request: Request, { params }: { params: Params }) {
       .eq('organization_id', context.organizationId),
   ])
 
-  if (!process) return new Response('Trámite no encontrado', { status: 404 })
+  if (!processData) return new Response('Trámite no encontrado', { status: 404 })
 
-  const clientRelation = (process as any).clients
+  const clientRelation = (processData as any).clients
   const client = Array.isArray(clientRelation) ? clientRelation[0] : clientRelation
-  const chargeRelation = (process as any).process_charges
+  const chargeRelation = (processData as any).process_charges
   const charge = Array.isArray(chargeRelation) ? chargeRelation[0] : chargeRelation
   const agreed = Number(charge?.agreed_amount ?? 0)
   const paidTotal = (allPayments ?? []).reduce((sum, item: any) => sum + Number(item.amount ?? 0), 0)
@@ -79,10 +79,10 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   draw(paymentDate(payment.payment_date), 153, 529, 9)
   draw(payment.payment_method || 'Sin especificar', 153, 508, 9)
   draw(`Folio: ${folio}`, 420, 563, 8, true)
-  draw(`Tel: ${process.contact_phone || client?.phone || '—'}`, 420, 548, 8)
+  draw(`Tel: ${processData.contact_phone || client?.phone || '—'}`, 420, 548, 8)
 
   // Primer renglón de servicios.
-  draw(process.service_name || 'Servicio Visa Master', 85, 448, 10, true)
+  draw(processData.service_name || 'Servicio Visa Master', 85, 448, 10, true)
   draw('1', 340, 448, 10)
   draw(money(Number(payment.amount)), 442, 448, 10, true)
 
