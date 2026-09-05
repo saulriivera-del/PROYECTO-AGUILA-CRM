@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
+import { requireAdministrator } from '@/lib/admin-access'
 import { addDaysKey, hermosilloDateKey, hermosilloDateTime, hermosilloLocalInputToDate, hermosilloTodayKey, weekdayForKey } from '@/lib/hermosillo'
 
 function value(formData: FormData, name: string) {
@@ -931,4 +932,85 @@ export async function quickUpdateProcess(formData: FormData) {
   revalidatePath('/admin/tramites')
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}quick_updated=1`)
+}
+
+
+// Fase 5.4.5.5 - correcciones operativas del expediente
+export async function updateProcessContactEmail(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const email = value(formData, 'email') || null
+  const { data: process } = await context.supabase.from('processes').select('client_id').eq('id', processId).eq('organization_id', context.organizationId).single()
+  if (!process) redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20el%20trámite`)
+  const { error } = await context.supabase.from('clients').update({ email }).eq('id', process.client_id).eq('organization_id', context.organizationId)
+  if (error) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+  await context.supabase.from('activity_log').insert({ organization_id: context.organizationId, actor_id: context.userId, entity_type: 'process', entity_id: processId, action: 'contact_email_updated', description: `Correo actualizado: ${email ?? 'Sin correo'}` })
+  revalidatePath(`/admin/tramites/${processId}`); revalidatePath('/admin/tramites')
+  redirect(`/admin/tramites/${processId}?contact_updated=1`)
+}
+
+export async function addAppointmentAdvanceService(formData: FormData) {
+  const context = await requireAuthContext()
+  const processId = value(formData, 'process_id')
+  const amount = Number(value(formData, 'advance_amount') || 0)
+  if (!processId || amount < 0) redirect(`/admin/tramites/${processId}?error=Monto%20de%20adelanto%20no%20válido`)
+  const { data: process } = await context.supabase.from('processes').select('id, service_name').eq('id', processId).eq('organization_id', context.organizationId).single()
+  if (!process) redirect(`/admin/tramites/${processId}?error=Trámite%20no%20encontrado`)
+  const allowed = ['Visa americana','Visa TN','Visa TD']
+  if (!allowed.includes(process.service_name)) redirect(`/admin/tramites/${processId}?error=Este%20trámite%20no%20admite%20adelanto%20de%20cita`)
+  const { data: charge } = await context.supabase.from('process_charges').select('id, agreed_amount').eq('process_id', processId).maybeSingle()
+  if (charge) await context.supabase.from('process_charges').update({ agreed_amount: Number(charge.agreed_amount || 0) + amount }).eq('id', charge.id)
+  else if (amount > 0) await context.supabase.from('process_charges').insert({ organization_id: context.organizationId, process_id: processId, agreed_amount: amount, discount_amount: 0, created_by: context.userId })
+  const { data: existing } = await context.supabase.from('process_steps').select('id,status').eq('process_id', processId).ilike('step_name','%adelanto de cita%').maybeSingle()
+  if (existing) await context.supabase.from('process_steps').update({ status: 'Pendiente', completed_at: null, completed_by: null }).eq('id', existing.id)
+  else {
+    const { data: rows } = await context.supabase.from('process_steps').select('step_order').eq('process_id', processId).order('step_order', { ascending: false }).limit(1)
+    await context.supabase.from('process_steps').insert({ organization_id: context.organizationId, process_id: processId, step_order: Number(rows?.[0]?.step_order || 0)+1, step_name: 'Proceso de adelanto de cita', status: 'Pendiente', is_optional: true })
+  }
+  await context.supabase.from('processes').update({ last_movement_at: new Date().toISOString() }).eq('id', processId).eq('organization_id', context.organizationId)
+  await context.supabase.from('activity_log').insert({ organization_id: context.organizationId, actor_id: context.userId, entity_type: 'process', entity_id: processId, action: 'appointment_advance_added', description: `Adelanto de cita agregado por ${amount}` })
+  revalidatePath(`/admin/tramites/${processId}`); revalidatePath('/admin/cobranza'); revalidatePath('/admin')
+  redirect(`/admin/tramites/${processId}?advance_added=1`)
+}
+
+export async function adminCorrectProcess(formData: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const processId = value(formData, 'process_id')
+  const serviceName = value(formData, 'service_name')
+  const agreedAmount = Number(value(formData, 'agreed_amount') || 0)
+  const { data: current } = await context.supabase.from('processes').select('service_name').eq('id', processId).eq('organization_id', context.organizationId).single()
+  if (!current) redirect(`/admin/tramites/${processId}?error=Trámite%20no%20encontrado`)
+  if (serviceName && serviceName !== current.service_name) {
+    const { data: flowRows } = await context.supabase.from('service_flows').select('id, service_name').eq('service_name', serviceName).eq('is_active', true).limit(1)
+    const flow = flowRows?.[0]
+    if (!flow) redirect(`/admin/tramites/${processId}?error=No%20se%20encontró%20el%20flujo%20del%20nuevo%20tipo`)
+    const { data: oldSteps } = await context.supabase.from('process_steps').select('status').eq('process_id', processId)
+    const completedCount = (oldSteps ?? []).filter((row:any) => row.status === 'Completado').length
+    const { data: template } = await context.supabase.from('service_flow_steps').select('step_order, step_name, is_optional').eq('service_flow_id', flow.id).order('step_order')
+    await context.supabase.from('process_steps').delete().eq('process_id', processId)
+    if (template?.length) await context.supabase.from('process_steps').insert(template.map((row:any) => ({ organization_id: context.organizationId, process_id: processId, step_order: row.step_order, step_name: row.step_name, is_optional: row.is_optional, status: row.step_order <= completedCount ? 'Completado' : 'Pendiente', completed_at: row.step_order <= completedCount ? new Date().toISOString() : null })))
+    const nextStage = template?.find((row:any) => row.step_order > completedCount)?.step_name || 'Concluido'
+    await context.supabase.from('processes').update({ service_name: serviceName, service_flow_id: flow.id, current_stage: nextStage, last_movement_at: new Date().toISOString() }).eq('id', processId).eq('organization_id', context.organizationId)
+  }
+  const { data: charge } = await context.supabase.from('process_charges').select('id').eq('process_id', processId).maybeSingle()
+  if (charge) await context.supabase.from('process_charges').update({ agreed_amount: agreedAmount }).eq('id', charge.id)
+  await context.supabase.from('activity_log').insert({ organization_id: context.organizationId, actor_id: context.userId, entity_type: 'process', entity_id: processId, action: 'admin_correction', description: `Corrección administrativa: ${current.service_name} → ${serviceName || current.service_name}; monto ${agreedAmount}` })
+  revalidatePath(`/admin/tramites/${processId}`); revalidatePath('/admin/tramites'); revalidatePath('/admin/cobranza')
+  redirect(`/admin/tramites/${processId}?admin_corrected=1`)
+}
+
+export async function adminCorrectPayment(formData: FormData) {
+  const context = await requireAuthContext(); requireAdministrator(context)
+  const processId = value(formData, 'process_id')
+  const paymentId = value(formData, 'payment_id')
+  const amount = Number(value(formData, 'amount') || 0)
+  const method = value(formData, 'payment_method') || 'Efectivo'
+  if (amount <= 0) redirect(`/admin/tramites/${processId}?error=El%20importe%20debe%20ser%20mayor%20a%20cero`)
+  const { data: before } = await context.supabase.from('payments').select('amount,payment_method').eq('id', paymentId).eq('process_id', processId).single()
+  if (!before) redirect(`/admin/tramites/${processId}?error=Pago%20no%20encontrado`)
+  const { error } = await context.supabase.from('payments').update({ amount, payment_method: method }).eq('id', paymentId).eq('process_id', processId).eq('organization_id', context.organizationId)
+  if (error) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(error.message)}`)
+  await context.supabase.from('activity_log').insert({ organization_id: context.organizationId, actor_id: context.userId, entity_type: 'payment', entity_id: paymentId, action: 'admin_payment_correction', description: `Pago corregido: ${before.amount} ${before.payment_method} → ${amount} ${method}`, metadata: { before, after: { amount, payment_method: method }, process_id: processId } })
+  revalidatePath(`/admin/tramites/${processId}`); revalidatePath('/admin/cobranza'); revalidatePath('/admin')
+  redirect(`/admin/tramites/${processId}?admin_corrected=1`)
 }

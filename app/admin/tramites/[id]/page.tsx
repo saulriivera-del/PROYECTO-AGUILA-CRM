@@ -5,7 +5,8 @@ import { dateOnly, dateTime, money } from '@/lib/format'
 import ProcessStepAction from '@/components/process-step-action'
 import SubmitButton from '@/components/submit-button'
 import ProcessAssignmentForm from '@/components/process-assignment-form'
-import { updateProcessStatus } from '../actions'
+import { updateProcessStatus, updateProcessContactEmail, addAppointmentAdvanceService, adminCorrectProcess, adminCorrectPayment } from '../actions'
+import { isAdministrator } from '@/lib/admin-access'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -20,6 +21,7 @@ export default async function ProcessDetailPage({
   const { id } = await params
   const query = await searchParams
   const context = await requireAuthContext()
+  const administrator = isAdministrator(context.role)
 
   const { data: process } = await context.supabase
     .from('processes')
@@ -74,6 +76,9 @@ export default async function ProcessDetailPage({
       {query.updated ? <div className="notice success">Etapa actualizada correctamente.</div> : null}
       {query.status_updated ? <div className="notice success">Estado del trámite actualizado.</div> : null}
       {query.visa_followup ? <div className="notice success">Seguimiento para Visa Americana agregado a la agenda.</div> : null}
+      {query.contact_updated ? <div className="notice success">Correo actualizado.</div> : null}
+      {query.advance_added ? <div className="notice success">Servicio de adelanto de cita agregado al trámite.</div> : null}
+      {query.admin_corrected ? <div className="notice success">Corrección administrativa guardada.</div> : null}
       {query.assignment_updated ? <div className="notice success">Asignación y prioridad actualizadas.</div> : null}
       {query.error ? <div className="notice error">{String(query.error)}</div> : null}
 
@@ -191,7 +196,33 @@ export default async function ProcessDetailPage({
             {process.service_name === 'Renovación Visa Americana' ? <><p><strong>Resolución renovación:</strong> {process.renewal_resolution || 'Pendiente'}</p><p><strong>Fecha de aprobación:</strong> {dateOnly(process.renewal_approval_at)}</p></> : null}
             <p><strong>Compromiso de pago:</strong> {charge?.payment_commitment_date || 'Sin fecha'}</p>
             <p><strong>Notas:</strong> {process.notes || 'Sin notas'}</p>
+            <hr />
+            <form action={updateProcessContactEmail} className="stack-form">
+              <input type="hidden" name="process_id" value={process.id} />
+              <label>Correo del cliente<input name="email" type="email" defaultValue={client?.email || ''} placeholder="correo@ejemplo.com" /></label>
+              <SubmitButton className="secondary-button" pendingText="Guardando…">Actualizar correo</SubmitButton>
+            </form>
           </section>
+
+          {['Visa americana','Visa TN','Visa TD'].includes(process.service_name) ? <section className="panel-card">
+            <div className="panel-heading"><div><span className="eyebrow">Servicio complementario</span><h3>Adelanto de cita</h3></div></div>
+            <p>Actívalo si el cliente decide contratar el adelanto después de haber iniciado su trámite.</p>
+            <form action={addAppointmentAdvanceService} className="stack-form">
+              <input type="hidden" name="process_id" value={process.id} />
+              <label>Monto pactado<input name="advance_amount" type="number" min="0" step="0.01" required /></label>
+              <SubmitButton className="primary-button" pendingText="Agregando…">Agregar adelanto de cita</SubmitButton>
+            </form>
+          </section> : null}
+
+          {administrator ? <section className="panel-card">
+            <div className="panel-heading"><div><span className="eyebrow">Solo administrador</span><h3>Corregir datos críticos</h3></div></div>
+            <form action={adminCorrectProcess} className="stack-form">
+              <input type="hidden" name="process_id" value={process.id} />
+              <label>Tipo de trámite<select name="service_name" defaultValue={process.service_name}><option>Visa americana</option><option>Renovación Visa Americana</option><option>Pasaporte mexicano</option><option>Adelanto de cita</option><option>Visa TN</option><option>Visa TD</option><option>Visa tipo H</option><option>eTA Canadá</option><option>I-94</option><option>Reporte de extravío</option></select></label>
+              <label>Monto total pactado<input name="agreed_amount" type="number" min="0" step="0.01" defaultValue={agreed} required /></label>
+              <SubmitButton className="danger-outline-button" pendingText="Corrigiendo…">Guardar corrección administrativa</SubmitButton>
+            </form>
+          </section> : null}
 
 
           <section className="panel-card">
@@ -203,6 +234,7 @@ export default async function ProcessDetailPage({
                 <div key={payment.id} className="payment-history-row">
                   <div><strong>{money(payment.amount)} · {payment.payment_method}</strong><small>{dateTime(payment.payment_date)}</small></div>
                   <a className="secondary-button mini-button" href={`/admin/cobranza/recibo/${payment.id}`}>Recibo PDF</a>
+                  {administrator ? <form action={adminCorrectPayment} className="inline-admin-correction"><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="payment_id" value={payment.id}/><input name="amount" type="number" min="0.01" step="0.01" defaultValue={Number(payment.amount)} aria-label="Monto corregido"/><select name="payment_method" defaultValue={payment.payment_method}><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Depósito</option></select><SubmitButton className="mini-button" pendingText="Guardando…">Corregir</SubmitButton></form> : null}
                 </div>
               ))}
               {!payments?.length ? <div className="empty-state">Sin pagos registrados.</div> : null}

@@ -92,7 +92,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     return reference && daysBetweenKeys(hermosilloDateKey(reference), todayKey) >= 2
   }).filter((prospect: any) => selectedView === 'team' || selectedView === 'unassigned' ? (selectedView === 'team' || !prospect.assigned_to) : selectedView.startsWith('user:') ? prospect.assigned_to === selectedView.slice(5) : prospect.assigned_to === context.userId || !prospect.assigned_to)
   const stateCount = (state: string) => processStates.filter((item: any) => item.state === state).length
+  const paymentReflection = processStates.filter(({ process }: any) => String(process.current_stage || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('esperando reflejo de pago'))
   const workItems = [
+    ...paymentReflection.map((item: any) => ({ kind: 'payment-reflection' as const, id: `payment-reflection:${item.process.id}`, rank: -1, ...item })),
     ...queue.map((event: any) => ({
       kind: 'agenda' as const,
       id: `agenda:${event.id}`,
@@ -175,6 +177,15 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
           <div className="panel-heading"><div><span className="eyebrow">Trabajo de hoy · Hermosillo</span><h3>Bandeja ordenada</h3></div><strong>{workItems.length}</strong></div>
           <div className="daily-work-list">
             {workItems.slice(0, 20).map((item: any) => {
+              if (item.kind === 'payment-reflection') {
+                const process = item.process
+                const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+                return <article className="daily-work-item consular-decision-item" key={item.id}>
+                  <div><span className="work-category">PAGO POR REFLEJAR</span><time>Prioridad</time></div>
+                  <div className="daily-work-copy"><strong>{client?.full_name || 'Cliente'} · {process.service_name}</strong><small>Esperando reflejo de pago consular. Revisar hasta que el sistema permita continuar.</small></div>
+                  <div className="daily-work-actions"><Link className="primary-button mini-button" href={`/admin/tramites/${process.id}`}>Revisar pago</Link></div>
+                </article>
+              }
               if (item.kind === 'stalled') {
                 const process = item.process
                 const client = Array.isArray(process.clients) ? process.clients[0] : process.clients

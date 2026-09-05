@@ -75,11 +75,11 @@ export async function GET(_request: Request, { params }: { params: Params }) {
   }
 
   // Campos superiores de la plantilla Canva.
-  draw(safeText(client?.full_name || 'Cliente', 46), 202, 602, 9, true)
-  draw(paymentDate(payment.payment_date), 202, 584.5, 9)
-  draw(payment.payment_method || 'Sin especificar', 202, 567, 9)
-  draw(`Folio: ${folio}`, 445, 539, 7, true)
-  draw(`Tel: ${processData.contact_phone || client?.phone || '—'}`, 445, 526, 7)
+  draw(safeText(client?.full_name || 'Cliente', 46), 214, 604, 9, true)
+  draw(paymentDate(payment.payment_date), 214, 581.5, 9)
+  draw(payment.payment_method || 'Sin especificar', 214, 559, 9)
+  draw(`Folio: ${folio}`, 445, 532, 7, true)
+  draw(`Tel: ${processData.contact_phone || client?.phone || '—'}`, 445, 519, 7)
 
   // Primer renglón de servicios.
   draw(processData.service_name || 'Servicio Visa Master', 88, 457, 9)
