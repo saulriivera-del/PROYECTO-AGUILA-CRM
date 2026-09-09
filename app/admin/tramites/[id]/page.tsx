@@ -77,7 +77,7 @@ export default async function ProcessDetailPage({
       {query.status_updated ? <div className="notice success">Estado del trámite actualizado.</div> : null}
       {query.visa_followup ? <div className="notice success">Seguimiento para Visa Americana agregado a la agenda.</div> : null}
       {query.contact_updated ? <div className="notice success">Correo actualizado.</div> : null}
-      {query.advance_added ? <div className="notice success">Servicio de adelanto de cita agregado al trámite.</div> : null}
+      {query.advance_added ? <div className="notice success">Servicio de adelanto de cita agregado al trámite y total actualizado.{query.advance_payment ? ' El pago recibido también quedó registrado en Cobranza.' : ''}</div> : null}
       {query.admin_corrected ? <div className="notice success">Corrección administrativa guardada.</div> : null}
       {query.assignment_updated ? <div className="notice success">Asignación y prioridad actualizadas.</div> : null}
       {query.error ? <div className="notice error">{String(query.error)}</div> : null}
@@ -209,7 +209,9 @@ export default async function ProcessDetailPage({
             <p>Actívalo si el cliente decide contratar el adelanto después de haber iniciado su trámite.</p>
             <form action={addAppointmentAdvanceService} className="stack-form">
               <input type="hidden" name="process_id" value={process.id} />
-              <label>Monto pactado<input name="advance_amount" type="number" min="0" step="0.01" required /></label>
+              <label>Monto pactado del adelanto<input name="advance_amount" type="number" min="0.01" step="0.01" required /></label>
+              <label>Pago recibido ahora <small>(opcional; deja 0 si todavía no paga)</small><input name="advance_payment_amount" type="number" min="0" step="0.01" defaultValue="0" /></label>
+              <label>Forma de pago<select name="payment_method" defaultValue="Efectivo"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option><option>Depósito</option></select></label>
               <SubmitButton className="primary-button" pendingText="Agregando…">Agregar adelanto de cita</SubmitButton>
             </form>
           </section> : null}

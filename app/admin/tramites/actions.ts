@@ -952,25 +952,137 @@ export async function updateProcessContactEmail(formData: FormData) {
 export async function addAppointmentAdvanceService(formData: FormData) {
   const context = await requireAuthContext()
   const processId = value(formData, 'process_id')
-  const amount = Number(value(formData, 'advance_amount') || 0)
-  if (!processId || amount < 0) redirect(`/admin/tramites/${processId}?error=Monto%20de%20adelanto%20no%20válido`)
-  const { data: process } = await context.supabase.from('processes').select('id, service_name').eq('id', processId).eq('organization_id', context.organizationId).single()
-  if (!process) redirect(`/admin/tramites/${processId}?error=Trámite%20no%20encontrado`)
-  const allowed = ['Visa americana','Visa TN','Visa TD']
-  if (!allowed.includes(process.service_name)) redirect(`/admin/tramites/${processId}?error=Este%20trámite%20no%20admite%20adelanto%20de%20cita`)
-  const { data: charge } = await context.supabase.from('process_charges').select('id, agreed_amount').eq('process_id', processId).maybeSingle()
-  if (charge) await context.supabase.from('process_charges').update({ agreed_amount: Number(charge.agreed_amount || 0) + amount }).eq('id', charge.id)
-  else if (amount > 0) await context.supabase.from('process_charges').insert({ organization_id: context.organizationId, process_id: processId, agreed_amount: amount, discount_amount: 0, created_by: context.userId })
-  const { data: existing } = await context.supabase.from('process_steps').select('id,status').eq('process_id', processId).ilike('step_name','%adelanto de cita%').maybeSingle()
-  if (existing) await context.supabase.from('process_steps').update({ status: 'Pendiente', completed_at: null, completed_by: null }).eq('id', existing.id)
-  else {
-    const { data: rows } = await context.supabase.from('process_steps').select('step_order').eq('process_id', processId).order('step_order', { ascending: false }).limit(1)
-    await context.supabase.from('process_steps').insert({ organization_id: context.organizationId, process_id: processId, step_order: Number(rows?.[0]?.step_order || 0)+1, step_name: 'Proceso de adelanto de cita', status: 'Pendiente', is_optional: true })
+  const agreedAmount = Number(value(formData, 'advance_amount') || 0)
+  const paymentAmount = Number(value(formData, 'advance_payment_amount') || 0)
+  const paymentMethod = value(formData, 'payment_method') || 'Efectivo'
+
+  if (!processId || agreedAmount <= 0) {
+    redirect(`/admin/tramites/${processId}?error=Captura%20un%20monto%20pactado%20válido`)
   }
-  await context.supabase.from('processes').update({ last_movement_at: new Date().toISOString() }).eq('id', processId).eq('organization_id', context.organizationId)
-  await context.supabase.from('activity_log').insert({ organization_id: context.organizationId, actor_id: context.userId, entity_type: 'process', entity_id: processId, action: 'appointment_advance_added', description: `Adelanto de cita agregado por ${amount}` })
-  revalidatePath(`/admin/tramites/${processId}`); revalidatePath('/admin/cobranza'); revalidatePath('/admin')
-  redirect(`/admin/tramites/${processId}?advance_added=1`)
+  if (paymentAmount < 0 || paymentAmount > agreedAmount) {
+    redirect(`/admin/tramites/${processId}?error=El%20pago%20recibido%20debe%20estar%20entre%200%20y%20el%20monto%20pactado`)
+  }
+
+  const { data: process, error: processError } = await context.supabase
+    .from('processes')
+    .select('id, service_name')
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+    .single()
+  if (processError || !process) redirect(`/admin/tramites/${processId}?error=Trámite%20no%20encontrado`)
+
+  const allowed = ['Visa americana', 'Visa TN', 'Visa TD']
+  if (!allowed.includes(process.service_name)) {
+    redirect(`/admin/tramites/${processId}?error=Este%20trámite%20no%20admite%20adelanto%20de%20cita`)
+  }
+
+  // 1) Sumar el servicio complementario al monto total pactado del trámite.
+  const { data: chargeRows, error: chargeReadError } = await context.supabase
+    .from('process_charges')
+    .select('id, agreed_amount')
+    .eq('process_id', processId)
+    .eq('organization_id', context.organizationId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+  if (chargeReadError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(chargeReadError.message)}`)
+
+  const charge = chargeRows?.[0]
+  if (charge) {
+    const { error: chargeUpdateError } = await context.supabase
+      .from('process_charges')
+      .update({ agreed_amount: Number(charge.agreed_amount || 0) + agreedAmount })
+      .eq('id', charge.id)
+      .eq('organization_id', context.organizationId)
+    if (chargeUpdateError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(chargeUpdateError.message)}`)
+  } else {
+    const { error: chargeInsertError } = await context.supabase.from('process_charges').insert({
+      organization_id: context.organizationId,
+      process_id: processId,
+      agreed_amount: agreedAmount,
+      discount_amount: 0,
+      created_by: context.userId,
+    })
+    if (chargeInsertError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(chargeInsertError.message)}`)
+  }
+
+  // 2) Activar/crear la etapa operativa del adelanto dentro del mismo expediente.
+  const { data: existingRows, error: existingError } = await context.supabase
+    .from('process_steps')
+    .select('id,status')
+    .eq('process_id', processId)
+    .ilike('step_name', '%adelanto de cita%')
+    .limit(1)
+  if (existingError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(existingError.message)}`)
+
+  const existing = existingRows?.[0]
+  if (existing) {
+    const { error: stepUpdateError } = await context.supabase
+      .from('process_steps')
+      .update({ status: 'Pendiente', completed_at: null, completed_by: null })
+      .eq('id', existing.id)
+    if (stepUpdateError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(stepUpdateError.message)}`)
+  } else {
+    const { data: rows, error: orderError } = await context.supabase
+      .from('process_steps')
+      .select('step_order')
+      .eq('process_id', processId)
+      .order('step_order', { ascending: false })
+      .limit(1)
+    if (orderError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(orderError.message)}`)
+    const { error: stepInsertError } = await context.supabase.from('process_steps').insert({
+      organization_id: context.organizationId,
+      process_id: processId,
+      step_order: Number(rows?.[0]?.step_order || 0) + 1,
+      step_name: 'Proceso de adelanto de cita',
+      status: 'Pendiente',
+      is_optional: true,
+    })
+    if (stepInsertError) redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(stepInsertError.message)}`)
+  }
+
+  // 3) Si recibió dinero en este momento, registrarlo como pago real para que aparezca
+  //    inmediatamente en Cobranza y en el historial del trámite.
+  let paymentId: string | null = null
+  if (paymentAmount > 0) {
+    const { data: payment, error: paymentError } = await context.supabase
+      .from('payments')
+      .insert({
+        organization_id: context.organizationId,
+        process_id: processId,
+        amount: paymentAmount,
+        payment_method: paymentMethod,
+        notes: 'Pago registrado al agregar servicio de adelanto de cita',
+        recorded_by: context.userId,
+      })
+      .select('id')
+      .single()
+    if (paymentError || !payment) {
+      redirect(`/admin/tramites/${processId}?error=${encodeURIComponent(paymentError?.message || 'No se pudo registrar el pago del adelanto')}`)
+    }
+    paymentId = payment.id
+  }
+
+  await context.supabase
+    .from('processes')
+    .update({ last_movement_at: new Date().toISOString() })
+    .eq('id', processId)
+    .eq('organization_id', context.organizationId)
+
+  await context.supabase.from('activity_log').insert({
+    organization_id: context.organizationId,
+    actor_id: context.userId,
+    entity_type: 'process',
+    entity_id: processId,
+    action: 'appointment_advance_added',
+    description: `Adelanto de cita agregado. Pactado: ${agreedAmount}. Pago recibido: ${paymentAmount}.`,
+    metadata: { agreed_amount: agreedAmount, payment_amount: paymentAmount, payment_method: paymentMethod, payment_id: paymentId },
+  })
+
+  revalidatePath(`/admin/tramites/${processId}`)
+  revalidatePath('/admin/tramites')
+  revalidatePath('/admin/cobranza')
+  revalidatePath('/admin')
+  redirect(`/admin/tramites/${processId}?advance_added=1${paymentId ? '&advance_payment=1' : ''}`)
 }
 
 export async function adminCorrectProcess(formData: FormData) {
