@@ -5,25 +5,40 @@
 .eyebrow,.kicker{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#b23636}
 .headerStatus{display:flex;align-items:center;gap:8px;border:1px solid #d7e1ed;border-radius:999px;padding:9px 12px;background:#fff;font-size:12px;font-weight:800}
 .liveDot{width:8px;height:8px;border-radius:50%;background:#1c9c67;box-shadow:0 0 0 4px #e4f7ef}
-.summaryGrid{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px}
+.summaryGrid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px}
 .summaryGrid article{background:#fff;border:1px solid #dbe4ef;border-radius:14px;padding:14px 15px}
 .summaryGrid span{display:block;color:#697c9b;font-size:10px;font-weight:900;text-transform:uppercase}
 .summaryGrid strong{display:block;margin-top:7px;font-size:22px}
 .section{background:#f7f9fc;border:1px solid #e0e7f0;border-radius:18px;padding:18px}
 .sectionHeading{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:14px}
 .sectionHeading h2{margin:4px 0 0;font-size:21px}
-.consulateGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.consulateCard{background:#fff;border:1px solid #dbe4ef;border-radius:14px;padding:14px}
-.consulateHead{display:flex;justify-content:space-between;align-items:center;gap:10px}
-.consulateHead strong{font-size:15px}
-.consulateHead span{font-size:10px;background:#edf4ff;color:#0c5fba;padding:5px 7px;border-radius:999px;font-weight:850}
-.consulateMetrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-.consulateMetrics div{background:#f7f9fc;border-radius:9px;padding:9px}
-.consulateMetrics span{display:block;color:#72819a;font-size:9px}
-.consulateMetrics b{display:block;margin-top:3px;font-size:13px}
-.bestWindow{margin-top:10px;border-top:1px solid #e5ebf2;padding-top:10px}
-.bestWindow span,.bestWindow small{display:block;color:#6e7d94;font-size:9px}
-.bestWindow strong{display:block;margin:3px 0;font-size:12px}
+.consulatePicker{display:flex;gap:8px;align-items:end;background:#fff;border:1px solid #dbe4ef;border-radius:12px;padding:9px}
+.consulatePicker label{display:flex;flex-direction:column;gap:4px}
+.consulatePicker span{font-size:9px;font-weight:850;text-transform:uppercase;color:#728098}
+.consulatePicker select{min-width:190px;border:1px solid #d7e0eb;border-radius:8px;padding:8px 9px;background:#fff;color:#132a4e}
+.consulatePicker button{border:0;border-radius:8px;background:#0b61c5;color:#fff;font-weight:850;padding:9px 11px;font-size:11px}
+.intelligencePanel{background:#fff;border:1px solid #dbe4ef;border-radius:15px;padding:16px}
+.intelligenceHero{display:flex;justify-content:space-between;gap:18px;align-items:center}
+.intelligenceHero span{font-size:9px;text-transform:uppercase;color:#75839a;font-weight:850}
+.intelligenceHero h3{font-size:23px;margin:4px 0 0}
+.heroCount{display:flex;gap:8px;align-items:center}
+.heroCount strong{font-size:30px}
+.heroCount span{font-size:9px;line-height:1.25}
+.intelligenceMetrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:14px}
+.intelligenceMetrics article{background:#f5f8fc;border-radius:10px;padding:11px}
+.intelligenceMetrics span{display:block;color:#71819a;font-size:9px}
+.intelligenceMetrics strong{display:block;margin-top:4px;font-size:14px}
+.windowsBlock{border-top:1px solid #e5ebf2;margin-top:14px;padding-top:13px}
+.windowsTitle{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px}
+.windowsTitle span{font-size:11px;font-weight:900}
+.windowsTitle small{font-size:9px;color:#718098}
+.windowsGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.windowsGrid article{background:#f7f9fc;border:1px solid #e1e7ef;border-radius:10px;padding:9px}
+.windowsGrid article>span{display:block;font-size:9px;color:#0b61c5;font-weight:900}
+.windowsGrid strong,.windowsGrid b,.windowsGrid small{display:block}
+.windowsGrid strong{font-size:10px;margin-top:4px}
+.windowsGrid b{font-size:12px;margin-top:2px}
+.windowsGrid small{font-size:8px;color:#77849a;margin-top:4px}
 .configList{display:flex;flex-direction:column;gap:10px}
 .configCard{background:#fff;border:1px solid #dbe4ef;border-radius:15px;overflow:hidden}
 .configCard summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1.35fr .7fr 1fr .8fr;gap:16px;align-items:center;padding:15px}
@@ -33,9 +48,11 @@
 .clientBlock small,.currentAppointment small,.rulePreview small{font-size:10px;color:#73829a}
 .currentAppointment span,.rulePreview span{display:block;font-size:9px;color:#78869c;text-transform:uppercase;font-weight:800;margin-bottom:3px}
 .badgeRow{display:flex;gap:5px;flex-wrap:wrap}
-.badge{font-size:9px;font-weight:900;background:#edf1f6;color:#45546a;border-radius:999px;padding:4px 7px}
+.badge,.recommended{font-size:9px;font-weight:900;border-radius:999px;padding:4px 7px}
+.badge{background:#edf1f6;color:#45546a}
 .badge.active{background:#e8f7f0;color:#087149}
 .badge.paused{background:#fff4d6;color:#8b5c00}
+.recommended{background:#e9f2ff;color:#095db7;border:1px solid #cfe2fb}
 .form{border-top:1px solid #e4eaf1;padding:15px;background:#fbfcfe}
 .formGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
 .formGrid label{display:flex;flex-direction:column;gap:5px}
@@ -60,16 +77,21 @@
 .success{background:#eaf8f1;color:#116844;border:1px solid #ccebdc}
 .error{background:#fff0f0;color:#8a3131;border:1px solid #f0cccc}
 @media(max-width:1150px){
-  .summaryGrid{grid-template-columns:repeat(3,1fr)}
-  .consulateGrid{grid-template-columns:repeat(2,1fr)}
+  .summaryGrid{grid-template-columns:repeat(2,1fr)}
+  .intelligenceMetrics{grid-template-columns:repeat(2,1fr)}
+  .windowsGrid{grid-template-columns:repeat(3,1fr)}
   .configCard summary{grid-template-columns:1fr 1fr}
   .formGrid{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:720px){
-  .header,.sectionHeading{flex-direction:column;align-items:flex-start}
-  .summaryGrid,.consulateGrid{grid-template-columns:1fr 1fr}
+  .header,.sectionHeading,.windowsTitle{flex-direction:column;align-items:flex-start}
+  .summaryGrid,.intelligenceMetrics{grid-template-columns:1fr 1fr}
+  .windowsGrid{grid-template-columns:1fr 1fr}
   .configCard summary,.formGrid{grid-template-columns:1fr}
   .wide{grid-column:span 1}
   .eventTable{overflow:auto}
   .eventHeader,.eventRow{min-width:820px}
+  .consulatePicker{width:100%}
+  .consulatePicker label{flex:1}
+  .consulatePicker select{width:100%;min-width:0}
 }

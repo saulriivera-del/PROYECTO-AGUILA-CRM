@@ -30,7 +30,13 @@ function fmtWindow(row: any) {
 }
 
 function modeLabel(mode: string) {
-  return mode === 'ALERT_ONLY' ? 'Alerta SARU' : 'Estándar'
+  const labels: Record<string, string> = {
+    ALERT_ONLY: 'Master Notificador',
+    STANDARD: 'Búsqueda estándar',
+    INTENSIVE: 'Búsqueda intensiva',
+    INTELLIGENT: 'Modo inteligente',
+  }
+  return labels[mode] || mode
 }
 
 function statusLabel(status: string) {
@@ -41,6 +47,11 @@ function statusLabel(status: string) {
     ERROR: 'Error',
   }
   return map[status] || status
+}
+
+function visibleSource(source?: string | null) {
+  if (!source) return '—'
+  return source.toUpperCase().includes('SARU') ? 'Master Notificador' : source
 }
 
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
@@ -79,10 +90,17 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     standard_configs: 0,
   }
 
-  const bestByConsulate = new Map<string, any>()
-  for (const row of windows ?? []) {
-    if (!bestByConsulate.has(row.consulate)) bestByConsulate.set(row.consulate, row)
-  }
+  const consulates = (openings ?? []).map((row: any) => row.consulate)
+  const rawSelected = typeof params.consulate === 'string' ? params.consulate.toUpperCase() : ''
+  const selectedConsulate =
+    (rawSelected && consulates.includes(rawSelected) && rawSelected)
+    || (consulates.includes('HERMOSILLO') ? 'HERMOSILLO' : consulates[0])
+    || ''
+
+  const selectedOpening = (openings ?? []).find((row: any) => row.consulate === selectedConsulate)
+  const selectedWindows = (windows ?? [])
+    .filter((row: any) => row.consulate === selectedConsulate)
+    .slice(0, 5)
 
   return (
     <div className={styles.page}>
@@ -90,7 +108,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <div>
           <span className={styles.eyebrow}>Visa Master · Proyecto Águila</span>
           <h1>Motor de Citas</h1>
-          <p>Configura por anticipado qué citas puede tomar el motor y analiza cuándo se están abriendo.</p>
+          <p>Configura por anticipado qué citas puede tomar el motor y analiza el comportamiento de cada consulado.</p>
         </div>
         <div className={styles.headerStatus}>
           <span className={styles.liveDot} />
@@ -102,7 +120,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       {params.error ? <div className={styles.error}>{String(params.error)}</div> : null}
       {anyError ? (
         <div className={styles.error}>
-          No pude leer una o más vistas del Motor de Citas. Revisa que la migración haya terminado sin errores.
+          No pude leer una o más vistas del Motor de Citas. Revisa que la migración V2 haya terminado sin errores.
         </div>
       ) : null}
 
@@ -111,46 +129,81 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <article><span>Pausados</span><strong>{summary.paused_configs}</strong></article>
         <article><span>Login requerido</span><strong>{summary.login_required_configs}</strong></article>
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
-        <article><span>Alerta SARU</span><strong>{summary.alert_only_configs}</strong></article>
-        <article><span>Estándar</span><strong>{summary.standard_configs}</strong></article>
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <div>
             <span className={styles.kicker}>Inteligencia de aperturas</span>
-            <h2>Próximos 30 días</h2>
+            <h2>Movimiento por consulado</h2>
           </div>
-          <p>Detecciones SARU agrupadas por consulado. Las repeticiones no se cuentan como fechas nuevas.</p>
+
+          <form method="get" className={styles.consulatePicker}>
+            <label>
+              <span>Consulado</span>
+              <select name="consulate" defaultValue={selectedConsulate}>
+                {consulates.map((consulate: string) => (
+                  <option key={consulate} value={consulate}>{consulate}</option>
+                ))}
+              </select>
+            </label>
+            <button type="submit">Ver estadísticas</button>
+          </form>
         </div>
 
-        <div className={styles.consulateGrid}>
-          {(openings ?? []).map((row: any) => {
-            const best = bestByConsulate.get(row.consulate)
-            return (
-              <article className={styles.consulateCard} key={row.consulate}>
-                <div className={styles.consulateHead}>
-                  <strong>{row.consulate}</strong>
-                  <span>{row.distinct_available_dates} fechas</span>
-                </div>
-                <div className={styles.consulateMetrics}>
-                  <div><span>Detecciones 24 h</span><b>{row.detections_last_24h}</b></div>
-                  <div><span>Detecciones 7 días</span><b>{row.detections_last_7d}</b></div>
-                  <div><span>Primera fecha</span><b>{fmtDate(row.earliest_available_date)}</b></div>
-                  <div><span>Última fecha</span><b>{fmtDate(row.latest_available_date)}</b></div>
-                </div>
-                {best ? (
-                  <div className={styles.bestWindow}>
-                    <span>Ventana más observada</span>
-                    <strong>{best.weekday} · {fmtWindow(best)}</strong>
-                    <small>{best.detections} detecciones · {best.distinct_available_dates} fecha(s) distinta(s)</small>
-                  </div>
-                ) : null}
+        {selectedOpening ? (
+          <div className={styles.intelligencePanel}>
+            <div className={styles.intelligenceHero}>
+              <div>
+                <span>Consulado seleccionado</span>
+                <h3>{selectedOpening.consulate}</h3>
+              </div>
+              <div className={styles.heroCount}>
+                <strong>{selectedOpening.distinct_available_dates}</strong>
+                <span>fechas distintas<br/>en próximos 30 días</span>
+              </div>
+            </div>
+
+            <div className={styles.intelligenceMetrics}>
+              <article>
+                <span>Detecciones 24 h</span>
+                <strong>{selectedOpening.detections_last_24h}</strong>
               </article>
-            )
-          })}
-          {!openings?.length ? <div className={styles.empty}>Todavía no hay aperturas dentro de los próximos 30 días.</div> : null}
-        </div>
+              <article>
+                <span>Detecciones 7 días</span>
+                <strong>{selectedOpening.detections_last_7d}</strong>
+              </article>
+              <article>
+                <span>Primera fecha observada</span>
+                <strong>{fmtDate(selectedOpening.earliest_available_date)}</strong>
+              </article>
+              <article>
+                <span>Última fecha observada</span>
+                <strong>{fmtDate(selectedOpening.latest_available_date)}</strong>
+              </article>
+            </div>
+
+            <div className={styles.windowsBlock}>
+              <div className={styles.windowsTitle}>
+                <span>Horarios con más movimiento observado</span>
+                <small>Basado en el histórico disponible de Master Notificador</small>
+              </div>
+              <div className={styles.windowsGrid}>
+                {selectedWindows.map((row: any, index: number) => (
+                  <article key={`${row.weekday}-${row.local_hour}-${row.minute_bucket}`}>
+                    <span>#{index + 1}</span>
+                    <strong>{row.weekday}</strong>
+                    <b>{fmtWindow(row)}</b>
+                    <small>{row.detections} detecciones · {row.distinct_available_dates} fecha(s)</small>
+                  </article>
+                ))}
+                {!selectedWindows.length ? <div className={styles.empty}>Aún no hay suficiente histórico para este consulado.</div> : null}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.empty}>Todavía no hay aperturas dentro de los próximos 30 días.</div>
+        )}
       </section>
 
       <section className={styles.section}>
@@ -159,7 +212,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             <span className={styles.kicker}>Configuración previa</span>
             <h2>Agendados de citas</h2>
           </div>
-          <p>El operador define las reglas antes de que aparezca la cita. El motor no espera una decisión manual.</p>
+          <p>El operador define las reglas antes de que aparezca la cita; el motor actúa con esa configuración.</p>
         </div>
 
         <div className={styles.configList}>
@@ -172,6 +225,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                       {statusLabel(config.operational_status)}
                     </span>
                     <span className={styles.badge}>{modeLabel(config.search_mode)}</span>
+                    {config.search_mode === 'INTELLIGENT' ? <span className={styles.recommended}>Recomendado</span> : null}
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
                   </div>
                   <strong>{config.full_name}</strong>
@@ -204,8 +258,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   <label>
                     <span>Modo de búsqueda</span>
                     <select name="search_mode" defaultValue={config.search_mode}>
-                      <option value="ALERT_ONLY">ALERT_ONLY · reaccionar a SARU</option>
-                      <option value="STANDARD">STANDARD · múltiplos de 5 + reintentos</option>
+                      <option value="ALERT_ONLY">Master Notificador</option>
+                      <option value="STANDARD">Búsqueda estándar</option>
+                      <option value="INTENSIVE">Búsqueda intensiva</option>
+                      <option value="INTELLIGENT">Modo inteligente · recomendado</option>
                     </select>
                   </label>
 
@@ -231,12 +287,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
                   <label className={styles.wide}>
                     <span>Consulados permitidos · ordenados por preferencia</span>
-                    <input name="allowed_consulates" defaultValue={(config.allowed_consulates || []).join(', ')} placeholder="HERMOSILLO, NOGALES, TIJUANA" />
+                    <input name="allowed_consulates" defaultValue={(config.allowed_consulates || []).join(', ')} />
                   </label>
 
                   <label className={styles.wide}>
                     <span>CAS permitidos · ordenados por preferencia</span>
-                    <input name="allowed_cas_locations" defaultValue={(config.allowed_cas_locations || []).join(', ')} placeholder="HERMOSILLO, NOGALES" />
+                    <input name="allowed_cas_locations" defaultValue={(config.allowed_cas_locations || []).join(', ')} />
                   </label>
 
                   <label>
@@ -268,6 +324,16 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   </label>
 
                   <label>
+                    <span>Intervalo intensivo (segundos)</span>
+                    <input
+                      type="number"
+                      min="15"
+                      name="intensive_interval_seconds"
+                      defaultValue={config.intensive_interval_seconds || 15}
+                    />
+                  </label>
+
+                  <label>
                     <span>Hora mínima</span>
                     <input type="time" name="allowed_time_from" defaultValue={fmtTime(config.allowed_time_from) === '—' ? '' : fmtTime(config.allowed_time_from)} />
                   </label>
@@ -293,7 +359,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   </label>
 
                   <div className={`${styles.checkLabel} ${styles.locked}`}>
-                    <input type="checkbox" disabled checked={false} />
+                    <input type="checkbox" disabled checked={false} readOnly />
                     <span>Confirmación automática · bloqueada en esta fase</span>
                   </div>
 
@@ -321,7 +387,6 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               </form>
             </details>
           ))}
-          {!configs?.length ? <div className={styles.empty}>No hay configuraciones de agendado todavía.</div> : null}
         </div>
       </section>
 
@@ -336,7 +401,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
         <div className={styles.eventTable}>
           <div className={styles.eventHeader}>
-            <span>Evento</span><span>Consulado</span><span>Consular</span><span>CAS</span><span>Resultado</span><span>Fecha</span>
+            <span>Evento</span><span>Consulado</span><span>Consular</span><span>CAS</span><span>Fuente / resultado</span><span>Fecha</span>
           </div>
           {(events ?? []).map((event: any) => (
             <div className={styles.eventRow} key={event.id}>
@@ -344,14 +409,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               <span>{event.consulate || '—'}</span>
               <span>{event.consular_date ? `${fmtDate(event.consular_date)} ${fmtTime(event.consular_time)}` : '—'}</span>
               <span>{event.cas_location ? `${event.cas_location} · ${fmtDate(event.cas_date)}` : '—'}</span>
-              <span>{event.result_code || event.message || '—'}</span>
+              <span>{visibleSource(event.source)}{event.result_code ? ` · ${event.result_code}` : ''}</span>
               <time>{new Intl.DateTimeFormat('es-MX', {
                 day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
                 timeZone: 'America/Hermosillo',
               }).format(new Date(event.created_at))}</time>
             </div>
           ))}
-          {!events?.length ? <div className={styles.empty}>El historial comenzará a llenarse cuando conectemos el Worker con vm_booking_events.</div> : null}
+          {!events?.length ? <div className={styles.empty}>El historial comenzará a llenarse al conectar el Worker con vm_booking_events.</div> : null}
         </div>
       </section>
     </div>

@@ -43,12 +43,12 @@ export async function updateBookingConfig(formData: FormData) {
   const allowAnyTime = formData.get('allow_any_time') === 'on'
   const enabled = formData.get('enabled') === 'on'
   const autoVerify = formData.get('auto_verify_enabled') === 'on'
+  const searchMode = text(formData, 'search_mode') || 'INTELLIGENT'
 
-  const payload = {
+  const payload: any = {
     enabled,
-    search_mode: text(formData, 'search_mode') || 'STANDARD',
+    search_mode: searchMode,
     auto_verify_enabled: autoVerify,
-    // Fase actual: mantenemos la confirmación final bloqueada desde el panel.
     auto_confirm_enabled: false,
     acceptable_date_from: optionalDate(text(formData, 'acceptable_date_from')),
     acceptable_date_to: optionalDate(text(formData, 'acceptable_date_to')),
@@ -64,6 +64,17 @@ export async function updateBookingConfig(formData: FormData) {
     selection_policy: text(formData, 'selection_policy') || 'EARLIEST_DATE',
     operational_status: text(formData, 'operational_status') || 'ACTIVE',
     notes: text(formData, 'notes') || null,
+
+    // Modo Inteligente = búsqueda estándar + Master Notificador.
+    intelligent_notifier_enabled: searchMode === 'INTELLIGENT',
+    intelligent_standard_enabled: searchMode === 'INTELLIGENT',
+
+    // El intervalo real del modo intensivo se aplicará en Worker V3.
+    intensive_interval_seconds:
+      searchMode === 'INTENSIVE'
+        ? Math.max(15, numberValue(formData, 'intensive_interval_seconds', 15))
+        : null,
+
     updated_at: new Date().toISOString(),
   }
 
