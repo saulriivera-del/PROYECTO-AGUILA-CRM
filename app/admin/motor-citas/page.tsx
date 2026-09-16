@@ -435,7 +435,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                               <form action={createClientFromTarget} className={styles.targetLinkForm}>
                                 <input type="hidden" name="target_id" value={target.id} />
                                 <label>
-                                  <span>Crear cliente nuevo</span>
+                                  <span>Crear cliente interno del Motor</span>
                                   <input
                                     name="client_name"
                                     defaultValue={target.display_name}
@@ -443,7 +443,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                                   />
                                 </label>
                                 <button type="submit" className={styles.secondaryButton}>
-                                  Crear cliente + configuración
+                                  Crear cliente de prueba + configuración
                                 </button>
                               </form>
                             </div>
@@ -596,6 +596,45 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                 </div>
               </summary>
 
+              <div className={styles.topOperationalActions}>
+                {config.operational_status === 'PAUSED' && config.current_appointment_date ? (
+                  <div className={styles.improvementAction}>
+                    <div>
+                      <strong>Búsqueda pausada</strong>
+                      <span>
+                        La cita actual se conserva. Puedes reactivar la búsqueda para intentar mejorarla sin perderla.
+                      </span>
+                    </div>
+
+                    <form action={resumeImprovementSearch}>
+                      <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
+                      <button type="submit" className={styles.improvementButton}>
+                        Buscar una cita mejor (sin perder la cita actual)
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <form action={toggleBookingConfig} className={styles.quickActionTop}>
+                    <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
+                    <input
+                      type="hidden"
+                      name="next_status"
+                      value={config.operational_status === 'PAUSED' ? 'ACTIVE' : 'PAUSED'}
+                    />
+                    <button
+                      type="submit"
+                      className={
+                        config.operational_status === 'PAUSED'
+                          ? styles.startButton
+                          : styles.secondaryButton
+                      }
+                    >
+                      {config.operational_status === 'PAUSED' ? 'Iniciar búsqueda' : 'Pausar motor'}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               <form action={updateBookingConfig} className={styles.form}>
                 <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
 
@@ -711,35 +750,6 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                 </div>
               </form>
 
-              {config.operational_status === 'PAUSED' && config.current_appointment_date ? (
-                <div className={styles.improvementAction}>
-                  <div>
-                    <strong>¿Quieres intentar mejorar esta cita?</strong>
-                    <span>
-                      La cita actual se mantiene vigente. El Motor solo la reemplaza después de que AIS confirme correctamente una nueva.
-                    </span>
-                  </div>
-
-                  <form action={resumeImprovementSearch}>
-                    <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
-                    <button type="submit" className={styles.improvementButton}>
-                      Buscar una cita mejor (sin perder la cita actual)
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <form action={toggleBookingConfig} className={styles.quickAction}>
-                  <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
-                  <input
-                    type="hidden"
-                    name="next_status"
-                    value={config.operational_status === 'PAUSED' ? 'ACTIVE' : 'PAUSED'}
-                  />
-                  <button type="submit" className={styles.secondaryButton}>
-                    {config.operational_status === 'PAUSED' ? 'Iniciar búsqueda' : 'Pausar motor'}
-                  </button>
-                </form>
-              )}
             </details>
           ))}
         </div>

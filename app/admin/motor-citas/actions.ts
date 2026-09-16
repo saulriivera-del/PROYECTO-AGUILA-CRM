@@ -344,7 +344,7 @@ export async function linkTargetToExistingClient(formData: FormData) {
 }
 
 export async function createClientFromTarget(formData: FormData) {
-  const context = await requireAuthContext()
+  await requireAuthContext()
   const supabaseAdmin = getVisaMasterAdminClient()
 
   const targetId = numberValue(formData, 'target_id')
@@ -365,12 +365,14 @@ export async function createClientFromTarget(formData: FormData) {
 
     const fullName = customName || target.display_name
 
-    // Usamos el cliente autenticado/scoped del CRM para respetar el alcance
-    // organizacional de Proyecto Águila cuando aplique.
-    const { data: client, error: clientError } = await context.supabase
+    // vm_appointment_clients es la entidad operativa del Motor de Citas.
+    // Esta acción ya pasó requireAuthContext(); usamos el cliente admin
+    // server-side para no chocar con RLS al crear un cliente de prueba
+    // o un objetivo AIS que todavía no existe en el CRM comercial.
+    const { data: client, error: clientError } = await supabaseAdmin
       .from('vm_appointment_clients')
       .insert({
-        full_name: fullName,
+        full_name: fullName || `Cliente AIS ${targetId}`,
         visa_type: 'B1/B2',
         status: 'ACTIVE',
         current_appointment_date: target.current_consular_date || null,
