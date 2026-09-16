@@ -374,8 +374,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   <label>
                     <span>Política de selección</span>
                     <select name="selection_policy" defaultValue={config.selection_policy}>
-                      <option value="EARLIEST_DATE">Fecha más próxima posible</option>
-                      <option value="CONSULATE_PRIORITY_THEN_DATE">Prioridad de consulado y luego fecha</option>
+                      <option value="EARLIEST_DATE">Fecha más próxima</option>
+                      <option value="CONSULATE_PRIORITY_THEN_DATE">Prioridad de consulado</option>
                     </select>
                   </label>
 
