@@ -364,3 +364,111 @@ button:disabled{opacity:.5;cursor:not-allowed}
 @media (max-width:620px){
   .healthTotals,.healthMetrics{grid-template-columns:1fr}
 }
+
+
+/* V12 - histórico y episodios de posible restricción */
+.healthHistory{
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid #e1e9f3;
+}
+.healthHistoryTitle{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:10px;
+}
+.healthHistoryTitle>div{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.healthHistoryTitle>div>span{
+  color:#71849c;
+  font-size:9px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.healthHistoryTitle>div>strong{
+  color:#183659;
+  font-size:12px;
+}
+.blockBadge{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:9px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.blockNone{
+  background:#e7f7ef;
+  color:#087149;
+}
+.blockRecovered{
+  background:#fff2ce;
+  color:#8a5b00;
+}
+.blockActive{
+  background:#ffe1df;
+  color:#a2302b;
+}
+.healthHistoryGrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.healthHistoryGrid>div,
+.blockEpisode>div{
+  border:1px solid #e2eaf4;
+  background:#f8fafd;
+  border-radius:10px;
+  padding:10px;
+}
+.healthHistoryGrid span,
+.blockEpisode span{
+  display:block;
+  color:#71849c;
+  font-size:8px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.healthHistoryGrid strong,
+.blockEpisode strong{
+  display:block;
+  margin-top:4px;
+  color:#183659;
+  font-size:13px;
+}
+.healthHistoryGrid small{
+  display:block;
+  margin-top:3px;
+  color:#8b5c00;
+  font-size:9px;
+}
+.blockEpisode{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin-top:9px;
+}
+.blockEpisode>div{
+  background:#fffaf0;
+}
+@media (max-width:980px){
+  .healthHistoryGrid,
+  .blockEpisode{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width:620px){
+  .healthHistoryTitle{
+    flex-direction:column;
+  }
+  .healthHistoryGrid,
+  .blockEpisode{
+    grid-template-columns:1fr;
+  }
+}

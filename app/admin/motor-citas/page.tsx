@@ -180,6 +180,44 @@ function fmtPct(value?: string | number | null) {
   return `${n.toFixed(0)}%`
 }
 
+
+function fmtDurationSeconds(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return '—'
+
+  let seconds = Math.max(0, Math.round(Number(value)))
+  if (!Number.isFinite(seconds)) return '—'
+
+  const days = Math.floor(seconds / 86400)
+  seconds -= days * 86400
+
+  const hours = Math.floor(seconds / 3600)
+  seconds -= hours * 3600
+
+  const minutes = Math.floor(seconds / 60)
+  seconds -= minutes * 60
+
+  const parts: string[] = []
+
+  if (days) parts.push(`${days} d`)
+  if (hours) parts.push(`${hours} h`)
+  if (minutes) parts.push(`${minutes} min`)
+  if (!days && !hours && !minutes) parts.push(`${seconds} s`)
+
+  return parts.slice(0, 2).join(' ')
+}
+
+function blockLabel(status?: string | null) {
+  if (status === 'POSSIBLE') return 'Posible restricción activa'
+  if (status === 'RECOVERED') return 'Restricción transitoria recuperada'
+  return 'Sin indicios de restricción'
+}
+
+function blockClass(status?: string | null) {
+  if (status === 'POSSIBLE') return styles.blockActive
+  if (status === 'RECOVERED') return styles.blockRecovered
+  return styles.blockNone
+}
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   await requireAuthContext()
@@ -675,6 +713,92 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   <span>Actividad: <strong>{fmtDateTime(health?.last_activity_at)}</strong></span>
                 </div>
 
+
+                {health ? (
+                  <div className={styles.healthHistory}>
+                    <div className={styles.healthHistoryTitle}>
+                      <div>
+                        <span>Histórico desde V11</span>
+                        <strong>Comportamiento acumulado de la cuenta</strong>
+                      </div>
+                      <span className={`${styles.blockBadge} ${blockClass(health.possible_block_status)}`}>
+                        {blockLabel(health.possible_block_status)}
+                      </span>
+                    </div>
+
+                    <div className={styles.healthHistoryGrid}>
+                      <div>
+                        <span>Requests acumulados</span>
+                        <strong>{health.total_requests ?? 0}</strong>
+                      </div>
+
+                      <div>
+                        <span>Ejecuciones acumuladas</span>
+                        <strong>{health.total_runs ?? 0}</strong>
+                      </div>
+
+                      <div>
+                        <span>Tiempo real dentro de AIS</span>
+                        <strong>{fmtDurationSeconds(health.active_duration_seconds)}</strong>
+                      </div>
+
+                      <div>
+                        <span>Primera actividad</span>
+                        <strong>{fmtDateTime(health.first_activity_at)}</strong>
+                      </div>
+
+                      <div>
+                        <span>Primer error observado</span>
+                        <strong>{fmtDateTime(health.first_error_at)}</strong>
+                        {health.first_error_code ? <small>{health.first_error_code}</small> : null}
+                      </div>
+
+                      <div>
+                        <span>Requests al primer error</span>
+                        <strong>
+                          {health.requests_at_first_error === null || health.requests_at_first_error === undefined
+                            ? '—'
+                            : health.requests_at_first_error}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Requests desde último éxito</span>
+                        <strong>{health.requests_since_last_success ?? 0}</strong>
+                      </div>
+
+                      <div>
+                        <span>Errores consecutivos del episodio</span>
+                        <strong>{health.possible_block_error_runs ?? 0}</strong>
+                      </div>
+                    </div>
+
+                    {health.possible_block_status !== 'NONE' ? (
+                      <div className={styles.blockEpisode}>
+                        <div>
+                          <span>Inicio del posible episodio</span>
+                          <strong>{fmtDateTime(health.possible_block_started_at)}</strong>
+                        </div>
+
+                        <div>
+                          <span>Duración</span>
+                          <strong>{fmtDurationSeconds(health.possible_block_duration_seconds)}</strong>
+                        </div>
+
+                        <div>
+                          <span>Último éxito antes</span>
+                          <strong>{fmtDateTime(health.last_success_before_block_at)}</strong>
+                        </div>
+
+                        <div>
+                          <span>Primer éxito después</span>
+                          <strong>{fmtDateTime(health.first_success_after_block_at)}</strong>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 {!health ? (
                   <div className={styles.healthEmpty}>
                     Aún no hay telemetría V11 para esta cuenta. Aparecerá con la siguiente búsqueda.
@@ -688,6 +812,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <div className={styles.healthNote}>
           <strong>Importante:</strong> “Requests AIS” cuenta documentos, XHR y fetch del dominio AIS utilizados por el Motor.
           No cuenta imágenes, CSS ni consultas a Supabase.
+          <br />
+          <strong>Posible restricción</strong> es una señal operativa, no una confirmación de bloqueo por AIS:
+          V12 la marca cuando observa al menos 3 ejecuciones consecutivas con error sin una ejecución exitosa entre ellas.
+          Si después vuelve a existir una ejecución exitosa, el episodio queda como recuperado.
         </div>
       </section>
 
