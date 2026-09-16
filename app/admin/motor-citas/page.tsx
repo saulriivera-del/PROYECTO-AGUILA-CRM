@@ -1,9 +1,36 @@
 import { requireAuthContext } from '@/lib/auth-context'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
 import { toggleBookingConfig, updateBookingConfig } from './actions'
+import OrderedMultiSelect from './OrderedMultiSelect'
 import styles from './motor-citas.module.css'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
+
+const CONSULATE_OPTIONS = [
+  { value: 'CIUDAD JUAREZ', label: 'Ciudad Juárez' },
+  { value: 'GUADALAJARA', label: 'Guadalajara' },
+  { value: 'HERMOSILLO', label: 'Hermosillo' },
+  { value: 'MATAMOROS', label: 'Matamoros' },
+  { value: 'MERIDA', label: 'Mérida' },
+  { value: 'MEXICO CITY', label: 'Mexico City' },
+  { value: 'MONTERREY', label: 'Monterrey' },
+  { value: 'NOGALES', label: 'Nogales' },
+  { value: 'NUEVO LAREDO', label: 'Nuevo Laredo' },
+  { value: 'TIJUANA', label: 'Tijuana' },
+]
+
+const CAS_OPTIONS = [
+  { value: 'CIUDAD JUAREZ', label: 'Ciudad Juárez ASC' },
+  { value: 'GUADALAJARA', label: 'Guadalajara ASC' },
+  { value: 'HERMOSILLO', label: 'Hermosillo ASC' },
+  { value: 'MATAMOROS', label: 'Matamoros ASC' },
+  { value: 'MERIDA', label: 'Mérida ASC' },
+  { value: 'MEXICO CITY', label: 'Mexico City ASC' },
+  { value: 'MONTERREY', label: 'Monterrey ASC' },
+  { value: 'NOGALES', label: 'Nogales ASC' },
+  { value: 'NUEVO LAREDO', label: 'Nuevo Laredo ASC' },
+  { value: 'TIJUANA', label: 'Tijuana ASC' },
+]
 
 function fmtDate(value?: string | null) {
   if (!value) return '—'
@@ -54,6 +81,11 @@ function visibleSource(source?: string | null) {
   return source.toUpperCase().includes('SARU') ? 'Master Notificador' : source
 }
 
+function prettyCode(value: string) {
+  const option = [...CONSULATE_OPTIONS, ...CAS_OPTIONS].find((item) => item.value === value)
+  return option?.label || value
+}
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   await requireAuthContext()
@@ -86,8 +118,6 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     paused_configs: 0,
     login_required_configs: 0,
     error_configs: 0,
-    alert_only_configs: 0,
-    standard_configs: 0,
   }
 
   const consulates = (openings ?? []).map((row: any) => row.consulate)
@@ -120,7 +150,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       {params.error ? <div className={styles.error}>{String(params.error)}</div> : null}
       {anyError ? (
         <div className={styles.error}>
-          No pude leer una o más vistas del Motor de Citas. Revisa que la migración V2 haya terminado sin errores.
+          No pude leer una o más vistas del Motor de Citas.
         </div>
       ) : null}
 
@@ -143,7 +173,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               <span>Consulado</span>
               <select name="consulate" defaultValue={selectedConsulate}>
                 {consulates.map((consulate: string) => (
-                  <option key={consulate} value={consulate}>{consulate}</option>
+                  <option key={consulate} value={consulate}>{prettyCode(consulate)}</option>
                 ))}
               </select>
             </label>
@@ -156,7 +186,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             <div className={styles.intelligenceHero}>
               <div>
                 <span>Consulado seleccionado</span>
-                <h3>{selectedOpening.consulate}</h3>
+                <h3>{prettyCode(selectedOpening.consulate)}</h3>
               </div>
               <div className={styles.heroCount}>
                 <strong>{selectedOpening.distinct_available_dates}</strong>
@@ -240,8 +270,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
                 <div className={styles.rulePreview}>
                   <span>Consulados</span>
-                  <strong>{(config.allowed_consulates || []).join(' · ') || 'Sin configurar'}</strong>
-                  <small>CAS: {(config.allowed_cas_locations || []).join(' · ') || 'Sin configurar'}</small>
+                  <strong>{(config.allowed_consulates || []).map(prettyCode).join(' · ') || 'Sin configurar'}</strong>
+                  <small>CAS: {(config.allowed_cas_locations || []).map(prettyCode).join(' · ') || 'Sin configurar'}</small>
                 </div>
 
                 <div className={styles.rulePreview}>
@@ -285,15 +315,25 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <input type="date" name="acceptable_date_to" defaultValue={config.acceptable_date_to || ''} />
                   </label>
 
-                  <label className={styles.wide}>
-                    <span>Consulados permitidos · ordenados por preferencia</span>
-                    <input name="allowed_consulates" defaultValue={(config.allowed_consulates || []).join(', ')} />
-                  </label>
+                  <div className={styles.fullWidth}>
+                    <OrderedMultiSelect
+                      name="allowed_consulates"
+                      title="Consulados permitidos"
+                      help="Selecciona los consulados y ordénalos de mayor a menor preferencia."
+                      options={CONSULATE_OPTIONS}
+                      initialValues={config.allowed_consulates || []}
+                    />
+                  </div>
 
-                  <label className={styles.wide}>
-                    <span>CAS permitidos · ordenados por preferencia</span>
-                    <input name="allowed_cas_locations" defaultValue={(config.allowed_cas_locations || []).join(', ')} />
-                  </label>
+                  <div className={styles.fullWidth}>
+                    <OrderedMultiSelect
+                      name="allowed_cas_locations"
+                      title="CAS permitidos"
+                      help="Selecciona los CAS autorizados para este cliente y ordénalos por preferencia."
+                      options={CAS_OPTIONS}
+                      initialValues={config.allowed_cas_locations || []}
+                    />
+                  </div>
 
                   <label>
                     <span>Aviso mínimo (días)</span>

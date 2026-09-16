@@ -64,22 +64,25 @@ export async function updateBookingConfig(formData: FormData) {
     selection_policy: text(formData, 'selection_policy') || 'EARLIEST_DATE',
     operational_status: text(formData, 'operational_status') || 'ACTIVE',
     notes: text(formData, 'notes') || null,
-
-    // Modo Inteligente = búsqueda estándar + Master Notificador.
     intelligent_notifier_enabled: searchMode === 'INTELLIGENT',
     intelligent_standard_enabled: searchMode === 'INTELLIGENT',
-
-    // El intervalo real del modo intensivo se aplicará en Worker V3.
     intensive_interval_seconds:
       searchMode === 'INTENSIVE'
         ? Math.max(15, numberValue(formData, 'intensive_interval_seconds', 15))
         : null,
-
     updated_at: new Date().toISOString(),
   }
 
   if (payload.cas_max_days_before < payload.cas_min_days_before) {
     redirect(`${PATH}?error=El máximo de días CAS no puede ser menor al mínimo`)
+  }
+
+  if (!payload.allowed_consulates.length) {
+    redirect(`${PATH}?error=Selecciona al menos un consulado permitido`)
+  }
+
+  if (!payload.allowed_cas_locations.length) {
+    redirect(`${PATH}?error=Selecciona al menos un CAS permitido`)
   }
 
   const { error } = await supabase
