@@ -8,6 +8,18 @@ import { encryptVisaCredential } from '@/lib/visa-master-credentials'
 
 const PATH = '/admin/motor-citas'
 
+function rethrowNextRedirect(error: any) {
+  const digest = String(error?.digest || '')
+  const message = String(error?.message || '')
+
+  if (
+    digest.startsWith('NEXT_REDIRECT') ||
+    message === 'NEXT_REDIRECT'
+  ) {
+    throw error
+  }
+}
+
 function text(formData: FormData, key: string) {
   return String(formData.get(key) || '').trim()
 }
@@ -212,6 +224,7 @@ export async function addAisAccount(formData: FormData) {
     revalidatePath(PATH)
     redirect(`${PATH}?account_added=1#cuentas-ais`)
   } catch (error: any) {
+    rethrowNextRedirect(error)
     redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo registrar la cuenta AIS.')}`)
   }
 }
@@ -253,6 +266,7 @@ export async function updateAisPassword(formData: FormData) {
     revalidatePath(PATH)
     redirect(`${PATH}?credentials_updated=1#cuentas-ais`)
   } catch (error: any) {
+    rethrowNextRedirect(error)
     redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo actualizar la contraseña.')}`)
   }
 }
@@ -279,6 +293,7 @@ export async function requestAisAccountSync(formData: FormData) {
     revalidatePath(PATH)
     redirect(`${PATH}?sync_requested=1#cuentas-ais`)
   } catch (error: any) {
+    rethrowNextRedirect(error)
     redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo solicitar la sincronización.')}`)
   }
 }
@@ -323,6 +338,7 @@ export async function linkTargetToExistingClient(formData: FormData) {
     revalidatePath(PATH)
     redirect(`${PATH}?process_created=1#agendados`)
   } catch (error: any) {
+    rethrowNextRedirect(error)
     redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo crear la configuración.')}`)
   }
 }
@@ -387,6 +403,7 @@ export async function createClientFromTarget(formData: FormData) {
     revalidatePath(PATH)
     redirect(`${PATH}?client_created=1#agendados`)
   } catch (error: any) {
+    rethrowNextRedirect(error)
     redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo crear el cliente.')}`)
   }
 }
@@ -512,6 +529,7 @@ export async function resumeImprovementSearch(formData: FormData) {
     revalidatePath(PATH)
     redirect(`${PATH}?improvement_search=1#agendados`)
   } catch (error: any) {
+    rethrowNextRedirect(error)
     redirect(`${PATH}?error=${encodeURIComponent(
       error?.message || 'No se pudo reactivar la búsqueda de mejora.'
     )}#agendados`)
