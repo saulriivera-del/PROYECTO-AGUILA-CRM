@@ -402,10 +402,8 @@ export async function updateBookingConfig(formData: FormData) {
   const searchMode = text(formData, 'search_mode') || 'INTELLIGENT'
 
   const payload: any = {
-    enabled: true,
     search_mode: searchMode,
     auto_verify_enabled: true,
-    auto_confirm_enabled: false,
     acceptable_date_from: optionalDate(text(formData, 'acceptable_date_from')),
     acceptable_date_to: optionalDate(text(formData, 'acceptable_date_to')),
     minimum_improvement_days: Math.max(0, numberValue(formData, 'minimum_improvement_days', 1)),
@@ -450,6 +448,76 @@ export async function updateBookingConfig(formData: FormData) {
   revalidatePath(PATH)
   redirect(`${PATH}?updated=1#agendados`)
 }
+
+
+export async function resumeImprovementSearch(formData: FormData) {
+  await requireAuthContext()
+  const supabase = getVisaMasterAdminClient()
+
+  const id = numberValue(formData, 'booking_config_id')
+
+  if (!id) {
+    redirect(`${PATH}?error=${encodeURIComponent('Configuración inválida.')}`)
+  }
+
+  try {
+    const { data: config, error: configError } = await supabase
+      .from('vm_booking_configs')
+      .select('id,client_id,account_id,auto_confirm_enabled')
+      .eq('id', id)
+      .single()
+
+    if (configError) throw new Error(configError.message)
+
+    const { data: client, error: clientError } = await supabase
+      .from('vm_appointment_clients')
+      .select('id,current_appointment_date,current_consulate')
+      .eq('id', config.client_id)
+      .single()
+
+    if (clientError) throw new Error(clientError.message)
+
+    if (!client.current_appointment_date) {
+      redirect(`${PATH}?error=${encodeURIComponent(
+        'Este proceso todavía no tiene una cita actual para usar como referencia de mejora.'
+      )}#agendados`)
+    }
+
+    const { data: account, error: accountError } = await supabase
+      .from('vm_ais_accounts')
+      .select('id,credential_status,credential_error_message')
+      .eq('id', config.account_id)
+      .single()
+
+    if (accountError) throw new Error(accountError.message)
+
+    if (account.credential_status !== 'VALID') {
+      redirect(`${PATH}?error=${encodeURIComponent(
+        account.credential_error_message ||
+        'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de reactivar la búsqueda.'
+      )}#cuentas-ais`)
+    }
+
+    const { error } = await supabase
+      .from('vm_booking_configs')
+      .update({
+        enabled: true,
+        operational_status: 'ACTIVE',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+
+    if (error) throw new Error(error.message)
+
+    revalidatePath(PATH)
+    redirect(`${PATH}?improvement_search=1#agendados`)
+  } catch (error: any) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      error?.message || 'No se pudo reactivar la búsqueda de mejora.'
+    )}#agendados`)
+  }
+}
+
 
 export async function toggleBookingConfig(formData: FormData) {
   await requireAuthContext()

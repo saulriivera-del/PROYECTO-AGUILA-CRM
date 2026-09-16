@@ -198,3 +198,55 @@ button:disabled{opacity:.5;cursor:not-allowed}
   .passwordForm{flex-direction:column}
   .passwordForm input{min-width:0}
 }
+
+
+/* Visa Master interno: reactivación manual después de BOOKED_CONFIRMED */
+.improvementAction{
+  margin:0 15px 15px;
+  padding:13px 14px;
+  border:1px solid #cfe4f4;
+  background:#f5fbff;
+  border-radius:11px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+}
+.improvementAction>div{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+.improvementAction strong{
+  font-size:12px;
+  color:#183659;
+}
+.improvementAction span{
+  font-size:10px;
+  color:#667a92;
+  line-height:1.45;
+  max-width:680px;
+}
+.improvementButton{
+  border:0;
+  border-radius:9px;
+  padding:10px 14px;
+  background:#0b69c7;
+  color:white;
+  font-size:11px;
+  font-weight:900;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.improvementButton:hover{filter:brightness(.96)}
+@media (max-width:850px){
+  .improvementAction{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .improvementButton{
+    width:100%;
+    white-space:normal;
+  }
+}
