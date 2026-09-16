@@ -5,6 +5,7 @@ import {
   createClientFromTarget,
   linkTargetToExistingClient,
   requestAisAccountSync,
+  requestTargetAppointmentRefresh,
   resumeImprovementSearch,
   toggleBookingConfig,
   updateAisPassword,
@@ -122,6 +123,38 @@ function targetTypeLabel(type?: string | null) {
   return type === 'GROUP' ? 'Grupo' : 'Individual'
 }
 
+function fmtDateTime(value?: string | null) {
+  if (!value) return 'Nunca'
+  try {
+    return new Intl.DateTimeFormat('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Hermosillo',
+    }).format(new Date(value))
+  } catch {
+    return String(value)
+  }
+}
+
+function targetVerificationLabel(target: any) {
+  const status = String(target.appointment_refresh_status || 'NEVER')
+
+  if (status === 'PENDING') return 'Verificación pendiente'
+  if (status === 'RUNNING') return 'Verificando en AIS'
+  if (status === 'FAILED') return 'No se pudo verificar'
+
+  if (target.appointment_verified_at) {
+    return target.appointment_verified_has_current
+      ? 'Cita confirmada en AIS'
+      : 'Sin cita programada en AIS'
+  }
+
+  return 'Aún no verificado'
+}
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   await requireAuthContext()
@@ -152,7 +185,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     ).order('created_at', { ascending: false }).limit(20),
     supabase.from('vm_ais_accounts_dashboard_view').select('*').order('account_id'),
     supabase.from('vm_ais_account_targets').select(
-      'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active'
+      'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active,appointment_refresh_status,appointment_refresh_requested_at,appointment_refresh_started_at,appointment_refresh_finished_at,appointment_refresh_error_code,appointment_refresh_error_message,appointment_verified_has_current,appointment_verified_at'
     ).eq('is_active', true).order('account_id').order('display_name'),
     supabase.from('vm_appointment_clients').select(
       'id,full_name,visa_type,status,current_appointment_date,current_consulate'
@@ -181,6 +214,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       target,
     ])
   }
+
+  const targetById = new Map<number, any>(
+    (targets ?? []).map((target: any) => [Number(target.id), target])
+  )
 
   const pendingSyncByAccount = new Map<number, any>()
   for (const job of syncJobs ?? []) {
@@ -224,6 +261,16 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       {params.improvement_search ? (
         <div className={styles.success}>
           Búsqueda de mejora reactivada. La cita actual se conserva como referencia hasta que AIS confirme una nueva.
+        </div>
+      ) : null}
+      {params.target_refresh_requested ? (
+        <div className={styles.success}>
+          Verificación de cita enviada al Worker. Solo consultará AIS para ese solicitante/grupo.
+        </div>
+      ) : null}
+      {params.target_refresh_pending ? (
+        <div className={styles.success}>
+          Ese solicitante/grupo ya tiene una verificación AIS pendiente o en proceso.
         </div>
       ) : null}
       {params.error ? <div className={styles.error}>{String(params.error)}</div> : null}
@@ -396,9 +443,54 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                             </div>
 
                             <div className={styles.targetAppointment}>
-                              <span>Cita consular actual</span>
-                              <strong>{fmtDate(target.current_consular_date)}</strong>
-                              <small>{target.current_consulate || 'Sin cita detectada'}</small>
+                              <span>Estado actual en AIS</span>
+                              <strong>{targetVerificationLabel(target)}</strong>
+
+                              {target.appointment_verified_at ? (
+                                target.appointment_verified_has_current ? (
+                                  <>
+                                    <small>
+                                      Consular: {fmtDate(target.current_consular_date)} · {fmtTime(target.current_consular_time)}
+                                    </small>
+                                    <small>
+                                      CAS: {fmtDate(target.current_cas_date)} · {fmtTime(target.current_cas_time)}
+                                    </small>
+                                  </>
+                                ) : (
+                                  <small>No se detectó una cita programada en la última verificación.</small>
+                                )
+                              ) : (
+                                <small>
+                                  El dato del CRM/AIS previo no se toma como verificación actual hasta pulsar refrescar.
+                                </small>
+                              )}
+
+                              <small>
+                                Última verificación: {fmtDateTime(target.appointment_verified_at)}
+                              </small>
+
+                              {target.appointment_refresh_status === 'FAILED' ? (
+                                <small className={styles.targetRefreshError}>
+                                  {target.appointment_refresh_error_message || 'No fue posible verificar la cita.'}
+                                </small>
+                              ) : null}
+
+                              <form action={requestTargetAppointmentRefresh} className={styles.targetRefreshForm}>
+                                <input type="hidden" name="target_id" value={target.id} />
+                                <button
+                                  type="submit"
+                                  className={styles.secondaryButton}
+                                  disabled={['PENDING', 'RUNNING'].includes(String(target.appointment_refresh_status || ''))}
+                                >
+                                  {['PENDING', 'RUNNING'].includes(String(target.appointment_refresh_status || ''))
+                                    ? 'Verificando...'
+                                    : '↻ Verificar cita en AIS'}
+                                </button>
+                              </form>
+
+                              <small>
+                                Consulta manual. No busca disponibilidad ni abre calendarios de citas.
+                              </small>
                             </div>
                           </div>
 
@@ -560,7 +652,24 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
 
         <div className={styles.configList}>
-          {(configs ?? []).map((config: any) => (
+          {(configs ?? []).map((config: any) => {
+            const configTarget = config.ais_target_id
+              ? targetById.get(Number(config.ais_target_id))
+              : null
+
+            const targetWasVerified = Boolean(configTarget?.appointment_verified_at)
+            const targetHasAppointment = configTarget?.appointment_verified_has_current === true
+            const targetHasNoAppointment = configTarget?.appointment_verified_has_current === false
+
+            const effectiveCurrentDate = targetWasVerified
+              ? (targetHasAppointment ? configTarget?.current_consular_date : null)
+              : config.current_appointment_date
+
+            const effectiveCurrentConsulate = targetWasVerified
+              ? (targetHasAppointment ? configTarget?.current_consulate : null)
+              : config.current_consulate
+
+            return (
             <details className={styles.configCard} key={config.booking_config_id} open={(configs?.length ?? 0) === 1}>
               <summary>
                 <div className={styles.clientBlock}>
@@ -572,6 +681,13 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     {config.search_mode === 'INTELLIGENT' ? <span className={styles.recommended}>Recomendado</span> : null}
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
                     {config.ais_target_id ? <span className={styles.badge}>Objetivo AIS #{config.ais_target_id}</span> : null}
+                    {targetWasVerified ? (
+                      <span className={targetHasAppointment ? styles.aisVerifiedBadge : styles.aisNoAppointmentBadge}>
+                        {targetHasAppointment ? 'AIS: cita verificada' : 'AIS: sin cita'}
+                      </span>
+                    ) : config.ais_target_id ? (
+                      <span className={styles.aisUnverifiedBadge}>AIS: sin verificar</span>
+                    ) : null}
                   </div>
                   <strong>{config.full_name}</strong>
                   <small>{config.visa_type || 'Visa'} · {config.account_email}</small>
@@ -579,8 +695,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
                 <div className={styles.currentAppointment}>
                   <span>Cita actual</span>
-                  <strong>{fmtDate(config.current_appointment_date)}</strong>
-                  <small>{config.current_consulate || '—'}</small>
+                  <strong>{fmtDate(effectiveCurrentDate)}</strong>
+                  <small>
+                    {targetHasNoAppointment
+                      ? 'Verificado manualmente: sin cita en AIS'
+                      : (effectiveCurrentConsulate || '—')}
+                  </small>
                 </div>
 
                 <div className={styles.rulePreview}>
@@ -597,7 +717,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               </summary>
 
               <div className={styles.topOperationalActions}>
-                {config.operational_status === 'PAUSED' && config.current_appointment_date ? (
+                {config.operational_status === 'PAUSED' && effectiveCurrentDate ? (
                   <div className={styles.improvementAction}>
                     <div>
                       <strong>Búsqueda pausada</strong>
@@ -693,7 +813,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <small>Se cuenta desde hoy hasta la fecha del CAS, que es la primera cita.</small>
                   </label>
 
-                  {config.current_appointment_date ? (
+                  {effectiveCurrentDate ? (
                     <label>
                       <span>Mejora mínima de cita consular (días)</span>
                       <input
@@ -751,7 +871,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               </form>
 
             </details>
-          ))}
+            )
+          })}
         </div>
       </section>
 

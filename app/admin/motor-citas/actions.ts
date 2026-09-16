@@ -298,6 +298,82 @@ export async function requestAisAccountSync(formData: FormData) {
   }
 }
 
+
+export async function requestTargetAppointmentRefresh(formData: FormData) {
+  await requireAuthContext()
+  const supabase = getVisaMasterAdminClient()
+
+  const targetId = numberValue(formData, 'target_id')
+
+  if (!targetId) {
+    redirect(`${PATH}?error=${encodeURIComponent('Solicitante/grupo AIS inválido.')}#cuentas-ais`)
+  }
+
+  try {
+    const { data: target, error: targetError } = await supabase
+      .from('vm_ais_account_targets')
+      .select('id,account_id,appointment_refresh_status')
+      .eq('id', targetId)
+      .single()
+
+    if (targetError) throw new Error(targetError.message)
+
+    if (['PENDING', 'RUNNING'].includes(String(target.appointment_refresh_status || ''))) {
+      revalidatePath(PATH)
+      redirect(`${PATH}?target_refresh_pending=1#cuentas-ais`)
+    }
+
+    const { data: account, error: accountError } = await supabase
+      .from('vm_ais_accounts')
+      .select('id,credential_status,credential_error_message')
+      .eq('id', Number(target.account_id))
+      .single()
+
+    if (accountError) throw new Error(accountError.message)
+
+    if (account.credential_status !== 'VALID') {
+      redirect(`${PATH}?error=${encodeURIComponent(
+        account.credential_error_message ||
+        'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de verificar la cita.'
+      )}#cuentas-ais`)
+    }
+
+    const now = new Date().toISOString()
+
+    const { error } = await supabase
+      .from('vm_ais_account_targets')
+      .update({
+        appointment_refresh_status: 'PENDING',
+        appointment_refresh_requested_at: now,
+        appointment_refresh_started_at: null,
+        appointment_refresh_finished_at: null,
+        appointment_refresh_error_code: null,
+        appointment_refresh_error_message: null,
+        updated_at: now,
+      })
+      .eq('id', targetId)
+
+    if (error) throw new Error(error.message)
+
+    await supabase.from('vm_ais_account_events').insert({
+      account_id: Number(target.account_id),
+      event_type: 'TARGET_APPOINTMENT_REFRESH_REQUESTED',
+      source: 'WEB',
+      message: `Verificación manual de cita solicitada para target #${targetId}.`,
+      payload: { target_id: targetId },
+    })
+
+    revalidatePath(PATH)
+    redirect(`${PATH}?target_refresh_requested=1#cuentas-ais`)
+  } catch (error: any) {
+    rethrowNextRedirect(error)
+    redirect(`${PATH}?error=${encodeURIComponent(
+      error?.message || 'No se pudo solicitar la verificación de cita en AIS.'
+    )}#cuentas-ais`)
+  }
+}
+
+
 export async function linkTargetToExistingClient(formData: FormData) {
   await requireAuthContext()
   const supabase = getVisaMasterAdminClient()

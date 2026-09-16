@@ -274,3 +274,33 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .topOperationalActions .improvementAction{
   margin:0;
 }
+
+
+/* V10 - verificación manual de cita AIS por solicitante/grupo */
+.targetRefreshForm{
+  margin-top:7px;
+}
+.targetRefreshError{
+  color:#a13b3b!important;
+  font-weight:700;
+}
+.aisVerifiedBadge,
+.aisNoAppointmentBadge,
+.aisUnverifiedBadge{
+  font-size:9px;
+  font-weight:900;
+  border-radius:999px;
+  padding:4px 7px;
+}
+.aisVerifiedBadge{
+  background:#e7f7ef;
+  color:#087149;
+}
+.aisNoAppointmentBadge{
+  background:#eef4fb;
+  color:#315b87;
+}
+.aisUnverifiedBadge{
+  background:#fff4d6;
+  color:#8b5c00;
+}
