@@ -41,14 +41,13 @@ export async function updateBookingConfig(formData: FormData) {
   if (!id) redirect(`${PATH}?error=Configuración inválida`)
 
   const allowAnyTime = formData.get('allow_any_time') === 'on'
-  const enabled = formData.get('enabled') === 'on'
-  const autoVerify = formData.get('auto_verify_enabled') === 'on'
   const searchMode = text(formData, 'search_mode') || 'INTELLIGENT'
 
   const payload: any = {
-    enabled,
+    enabled: true,
     search_mode: searchMode,
-    auto_verify_enabled: autoVerify,
+    // Estas dos son reglas internas del motor, no opciones del operador.
+    auto_verify_enabled: true,
     auto_confirm_enabled: false,
     acceptable_date_from: optionalDate(text(formData, 'acceptable_date_from')),
     acceptable_date_to: optionalDate(text(formData, 'acceptable_date_to')),
@@ -62,7 +61,6 @@ export async function updateBookingConfig(formData: FormData) {
     allowed_time_from: allowAnyTime ? null : optionalTime(text(formData, 'allowed_time_from')),
     allowed_time_to: allowAnyTime ? null : optionalTime(text(formData, 'allowed_time_to')),
     selection_policy: text(formData, 'selection_policy') || 'EARLIEST_DATE',
-    operational_status: text(formData, 'operational_status') || 'ACTIVE',
     notes: text(formData, 'notes') || null,
     intelligent_notifier_enabled: searchMode === 'INTELLIGENT',
     intelligent_standard_enabled: searchMode === 'INTELLIGENT',

@@ -2,6 +2,8 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
 import { toggleBookingConfig, updateBookingConfig } from './actions'
 import OrderedMultiSelect from './OrderedMultiSelect'
+import SearchModeField from './SearchModeField'
+import TimeWindowField from './TimeWindowField'
 import styles from './motor-citas.module.css'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -285,25 +287,18 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                 <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
 
                 <div className={styles.formGrid}>
-                  <label>
-                    <span>Modo de búsqueda</span>
-                    <select name="search_mode" defaultValue={config.search_mode}>
-                      <option value="ALERT_ONLY">Master Notificador</option>
-                      <option value="STANDARD">Búsqueda estándar</option>
-                      <option value="INTENSIVE">Búsqueda intensiva</option>
-                      <option value="INTELLIGENT">Modo inteligente · recomendado</option>
-                    </select>
-                  </label>
+                  <SearchModeField
+                    initialMode={config.search_mode}
+                    initialIntensiveInterval={config.intensive_interval_seconds}
+                  />
 
-                  <label>
+                  <div className={styles.statusReadOnly}>
                     <span>Estado operativo</span>
-                    <select name="operational_status" defaultValue={config.operational_status}>
-                      <option value="ACTIVE">Activo</option>
-                      <option value="PAUSED">Pausado</option>
-                      <option value="LOGIN_REQUIRED">Login requerido</option>
-                      <option value="ERROR">Error</option>
-                    </select>
-                  </label>
+                    <strong>{statusLabel(config.operational_status)}</strong>
+                    <small>
+                      El operador solo pausa o reactiva el proceso. Login requerido y Error los asigna el sistema.
+                    </small>
+                  </div>
 
                   <label>
                     <span>Fecha mínima aceptable</span>
@@ -336,14 +331,35 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   </div>
 
                   <label>
-                    <span>Aviso mínimo (días)</span>
-                    <input type="number" min="0" name="minimum_travel_notice_days" defaultValue={config.minimum_travel_notice_days} />
+                    <span>Aviso mínimo para CAS (días)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      name="minimum_travel_notice_days"
+                      defaultValue={config.minimum_travel_notice_days}
+                    />
+                    <small>Se cuenta desde hoy hasta la fecha del CAS, que es la primera cita.</small>
                   </label>
 
-                  <label>
-                    <span>Mejora mínima (días)</span>
-                    <input type="number" min="0" name="minimum_improvement_days" defaultValue={config.minimum_improvement_days} />
-                  </label>
+                  {config.current_appointment_date ? (
+                    <label>
+                      <span>Mejora mínima de cita consular (días)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        name="minimum_improvement_days"
+                        defaultValue={config.minimum_improvement_days}
+                      />
+                      <small>Solo se acepta una nueva cita si mejora al menos esta cantidad de días.</small>
+                    </label>
+                  ) : (
+                    <div className={styles.statusReadOnly}>
+                      <input type="hidden" name="minimum_improvement_days" value="0" />
+                      <span>Mejora mínima de cita consular</span>
+                      <strong>No aplica</strong>
+                      <small>Este cliente todavía no tiene una cita consular programada.</small>
+                    </div>
+                  )}
 
                   <label>
                     <span>CAS mínimo antes</span>
@@ -363,44 +379,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     </select>
                   </label>
 
-                  <label>
-                    <span>Intervalo intensivo (segundos)</span>
-                    <input
-                      type="number"
-                      min="15"
-                      name="intensive_interval_seconds"
-                      defaultValue={config.intensive_interval_seconds || 15}
+                  <div className={styles.fullWidth}>
+                    <TimeWindowField
+                      initialAnyTime={config.allow_any_time}
+                      initialFrom={config.allowed_time_from}
+                      initialTo={config.allowed_time_to}
                     />
-                  </label>
-
-                  <label>
-                    <span>Hora mínima</span>
-                    <input type="time" name="allowed_time_from" defaultValue={fmtTime(config.allowed_time_from) === '—' ? '' : fmtTime(config.allowed_time_from)} />
-                  </label>
-
-                  <label>
-                    <span>Hora máxima</span>
-                    <input type="time" name="allowed_time_to" defaultValue={fmtTime(config.allowed_time_to) === '—' ? '' : fmtTime(config.allowed_time_to)} />
-                  </label>
-
-                  <label className={styles.checkLabel}>
-                    <input type="checkbox" name="allow_any_time" defaultChecked={config.allow_any_time} />
-                    <span>Aceptar cualquier horario</span>
-                  </label>
-
-                  <label className={styles.checkLabel}>
-                    <input type="checkbox" name="enabled" defaultChecked={config.enabled} />
-                    <span>Configuración habilitada</span>
-                  </label>
-
-                  <label className={styles.checkLabel}>
-                    <input type="checkbox" name="auto_verify_enabled" defaultChecked={config.auto_verify_enabled} />
-                    <span>Verificación AIS automática</span>
-                  </label>
-
-                  <div className={`${styles.checkLabel} ${styles.locked}`}>
-                    <input type="checkbox" disabled checked={false} readOnly />
-                    <span>Confirmación automática · bloqueada en esta fase</span>
                   </div>
 
                   <label className={styles.wide}>
