@@ -155,6 +155,31 @@ function targetVerificationLabel(target: any) {
   return 'Aún no verificado'
 }
 
+
+function healthLabel(status?: string | null) {
+  const map: Record<string, string> = {
+    HEALTHY: 'Saludable',
+    WARNING: 'Atención',
+    DEGRADED: 'Degradado',
+    NO_DATA: 'Sin datos',
+  }
+  return map[String(status || 'NO_DATA')] || String(status || 'Sin datos')
+}
+
+function healthClass(status?: string | null) {
+  if (status === 'HEALTHY') return styles.healthGood
+  if (status === 'WARNING') return styles.healthWarning
+  if (status === 'DEGRADED') return styles.healthBad
+  return styles.healthNeutral
+}
+
+function fmtPct(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return '—'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return '—'
+  return `${n.toFixed(0)}%`
+}
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   await requireAuthContext()
@@ -170,6 +195,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: targets, error: targetsError },
     { data: clients, error: clientsError },
     { data: syncJobs, error: syncJobsError },
+    { data: healthRows, error: healthError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -193,11 +219,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     supabase.from('vm_ais_account_sync_jobs').select(
       'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
     ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
+    supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError
+    accountsError || targetsError || clientsError || syncJobsError || healthError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -229,6 +256,22 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
   const clientById = new Map<number, any>(
     (clients ?? []).map((client: any) => [Number(client.id), client])
+  )
+
+  const healthByAccount = new Map<number, any>(
+    (healthRows ?? []).map((row: any) => [Number(row.account_id), row])
+  )
+
+  const healthTotals = (healthRows ?? []).reduce(
+    (acc: any, row: any) => {
+      acc.requests1h += Number(row.requests_1h || 0)
+      acc.runs1h += Number(row.runs_1h || 0)
+      acc.errors1h += Number(row.errors_1h || 0)
+      acc.empty1h += Number(row.empty_responses_1h || 0)
+      acc.timeouts1h += Number(row.timeouts_1h || 0)
+      return acc
+    },
+    { requests1h: 0, runs1h: 0, errors1h: 0, empty1h: 0, timeouts1h: 0 }
   )
 
   const consulates = (openings ?? []).map((row: any) => row.consulate)
@@ -350,6 +393,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                         {credentialLabel(account.credential_status)}
                       </span>
                       {pendingJob ? <span className={styles.syncBadge}>Sincronizando / pendiente</span> : null}
+                      {(() => {
+                        const health = healthByAccount.get(accountId)
+                        return (
+                          <span className={`${styles.healthBadge} ${healthClass(health?.health_status)}`}>
+                            {healthLabel(health?.health_status)}
+                          </span>
+                        )
+                      })()}
                     </div>
                     <strong>{account.display_name || account.account_email}</strong>
                     <small>{account.account_email}</small>
@@ -567,6 +618,79 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
       </section>
 
+      <section className={styles.section} id="salud-ais">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Telemetría del Motor</span>
+            <h2>Salud de cuentas AIS</h2>
+          </div>
+          <p>
+            Mide solicitudes reales del Motor hacia AIS. Los contadores empiezan a acumularse desde V11.
+          </p>
+        </div>
+
+        <div className={styles.healthTotals}>
+          <article><span>Requests AIS · 60 min</span><strong>{healthTotals.requests1h}</strong></article>
+          <article><span>Ejecuciones · 60 min</span><strong>{healthTotals.runs1h}</strong></article>
+          <article><span>Errores · 60 min</span><strong>{healthTotals.errors1h}</strong></article>
+          <article><span>Empty response · 60 min</span><strong>{healthTotals.empty1h}</strong></article>
+          <article><span>Timeouts · 60 min</span><strong>{healthTotals.timeouts1h}</strong></article>
+        </div>
+
+        <div className={styles.healthAccounts}>
+          {(accounts ?? []).map((account: any) => {
+            const accountId = Number(account.account_id)
+            const health = healthByAccount.get(accountId)
+
+            return (
+              <article className={styles.healthCard} key={`health-${accountId}`}>
+                <div className={styles.healthCardHeader}>
+                  <div>
+                    <span>Cuenta #{accountId}</span>
+                    <strong>{account.display_name || account.account_email}</strong>
+                    <small>{account.account_email}</small>
+                  </div>
+                  <span className={`${styles.healthBadge} ${healthClass(health?.health_status)}`}>
+                    {healthLabel(health?.health_status)}
+                  </span>
+                </div>
+
+                <div className={styles.healthMetrics}>
+                  <div><span>Requests 1 h</span><strong>{health?.requests_1h ?? 0}</strong></div>
+                  <div><span>Ejecuciones 1 h</span><strong>{health?.runs_1h ?? 0}</strong></div>
+                  <div><span>Éxito 24 h</span><strong>{health ? fmtPct(health.success_rate_24h) : '—'}</strong></div>
+                  <div><span>HTTP 4xx · 1 h</span><strong>{health?.http_4xx_1h ?? 0}</strong></div>
+                  <div><span>HTTP 5xx · 1 h</span><strong>{health?.http_5xx_1h ?? 0}</strong></div>
+                  <div><span>Requests fallidos · 1 h</span><strong>{health?.request_failed_1h ?? 0}</strong></div>
+                  <div><span>Empty response · 1 h</span><strong>{health?.empty_responses_1h ?? 0}</strong></div>
+                  <div><span>Timeouts · 1 h</span><strong>{health?.timeouts_1h ?? 0}</strong></div>
+                </div>
+
+                <div className={styles.healthFooter}>
+                  <span>Último éxito: <strong>{fmtDateTime(health?.last_success_at)}</strong></span>
+                  <span>
+                    Último error: <strong>{fmtDateTime(health?.last_error_at)}</strong>
+                    {health?.last_error_code ? ` · ${health.last_error_code}` : ''}
+                  </span>
+                  <span>Actividad: <strong>{fmtDateTime(health?.last_activity_at)}</strong></span>
+                </div>
+
+                {!health ? (
+                  <div className={styles.healthEmpty}>
+                    Aún no hay telemetría V11 para esta cuenta. Aparecerá con la siguiente búsqueda.
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+
+        <div className={styles.healthNote}>
+          <strong>Importante:</strong> “Requests AIS” cuenta documentos, XHR y fetch del dominio AIS utilizados por el Motor.
+          No cuenta imágenes, CSS ni consultas a Supabase.
+        </div>
+      </section>
+
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <div>
@@ -679,6 +803,9 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     </span>
                     <span className={styles.badge}>{modeLabel(config.search_mode)}</span>
                     {config.search_mode === 'INTELLIGENT' ? <span className={styles.recommended}>Recomendado</span> : null}
+                    <span className={config.auto_confirm_enabled ? styles.autoConfirmOn : styles.autoConfirmOff}>
+                      Auto confirm {config.auto_confirm_enabled ? 'ON' : 'OFF'}
+                    </span>
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
                     {config.ais_target_id ? <span className={styles.badge}>Objetivo AIS #{config.ais_target_id}</span> : null}
                     {targetWasVerified ? (

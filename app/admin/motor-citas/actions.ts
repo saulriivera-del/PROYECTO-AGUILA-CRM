@@ -135,7 +135,7 @@ async function ensureBookingConfig(
       enabled: true,
       search_mode: 'INTELLIGENT',
       auto_verify_enabled: true,
-      auto_confirm_enabled: false,
+      auto_confirm_enabled: true,
       minimum_improvement_days: 1,
       minimum_travel_notice_days: 1,
       allowed_consulates: ['HERMOSILLO'],
