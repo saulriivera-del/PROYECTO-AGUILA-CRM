@@ -1,6 +1,14 @@
 import { requireAuthContext } from '@/lib/auth-context'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
-import { toggleBookingConfig, updateBookingConfig } from './actions'
+import {
+  addAisAccount,
+  createClientFromTarget,
+  linkTargetToExistingClient,
+  requestAisAccountSync,
+  toggleBookingConfig,
+  updateAisPassword,
+  updateBookingConfig,
+} from './actions'
 import OrderedMultiSelect from './OrderedMultiSelect'
 import SearchModeField from './SearchModeField'
 import TimeWindowField from './TimeWindowField'
@@ -88,6 +96,31 @@ function prettyCode(value: string) {
   return option?.label || value
 }
 
+
+function credentialLabel(status?: string | null) {
+  const map: Record<string, string> = {
+    NOT_CONFIGURED: 'Sin credenciales',
+    PENDING_VALIDATION: 'Validación pendiente',
+    VALID: 'Acceso válido',
+    INVALID_CREDENTIALS: 'Credenciales incorrectas',
+    LOGIN_REQUIRED: 'Login requerido',
+    ERROR: 'Error de acceso',
+  }
+  return map[status || ''] || status || 'Sin estado'
+}
+
+function credentialClass(status?: string | null) {
+  if (status === 'VALID') return styles.credentialOk
+  if (status === 'PENDING_VALIDATION') return styles.credentialPending
+  if (status === 'INVALID_CREDENTIALS' || status === 'ERROR') return styles.credentialError
+  if (status === 'LOGIN_REQUIRED') return styles.credentialWarning
+  return styles.credentialNeutral
+}
+
+function targetTypeLabel(type?: string | null) {
+  return type === 'GROUP' ? 'Grupo' : 'Individual'
+}
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   await requireAuthContext()
@@ -99,6 +132,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: windows, error: windowsError },
     { data: configs, error: configsError },
     { data: events, error: eventsError },
+    { data: accounts, error: accountsError },
+    { data: targets, error: targetsError },
+    { data: clients, error: clientsError },
+    { data: syncJobs, error: syncJobsError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -112,15 +149,49 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     supabase.from('vm_booking_events').select(
       'id,event_type,client_id,account_id,consulate,consular_date,consular_time,cas_location,cas_date,source,result_code,message,created_at'
     ).order('created_at', { ascending: false }).limit(20),
+    supabase.from('vm_ais_accounts_dashboard_view').select('*').order('account_id'),
+    supabase.from('vm_ais_account_targets').select(
+      'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active'
+    ).eq('is_active', true).order('account_id').order('display_name'),
+    supabase.from('vm_appointment_clients').select(
+      'id,full_name,visa_type,status,current_appointment_date,current_consulate'
+    ).order('full_name'),
+    supabase.from('vm_ais_account_sync_jobs').select(
+      'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
+    ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
   ])
 
-  const anyError = summaryError || openingsError || windowsError || configsError || eventsError
+  const anyError =
+    summaryError || openingsError || windowsError || configsError || eventsError ||
+    accountsError || targetsError || clientsError || syncJobsError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
     login_required_configs: 0,
     error_configs: 0,
   }
+
+
+  const targetsByAccount = new Map<number, any[]>()
+  for (const target of targets ?? []) {
+    const accountId = Number(target.account_id)
+    targetsByAccount.set(accountId, [
+      ...(targetsByAccount.get(accountId) || []),
+      target,
+    ])
+  }
+
+  const pendingSyncByAccount = new Map<number, any>()
+  for (const job of syncJobs ?? []) {
+    const accountId = Number(job.account_id)
+    if (!pendingSyncByAccount.has(accountId)) {
+      pendingSyncByAccount.set(accountId, job)
+    }
+  }
+
+  const clientById = new Map<number, any>(
+    (clients ?? []).map((client: any) => [Number(client.id), client])
+  )
 
   const consulates = (openings ?? []).map((row: any) => row.consulate)
   const rawSelected = typeof params.consulate === 'string' ? params.consulate.toUpperCase() : ''
@@ -161,6 +232,241 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <article><span>Pausados</span><strong>{summary.paused_configs}</strong></article>
         <article><span>Login requerido</span><strong>{summary.login_required_configs}</strong></article>
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
+      </section>
+
+      <section className={styles.section} id="cuentas-ais">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Accesos y procesos</span>
+            <h2>Cuentas AIS</h2>
+          </div>
+          <p>
+            Registra cuentas, valida el acceso y elige qué solicitante o grupo de cada cuenta quieres trabajar.
+          </p>
+        </div>
+
+        <details className={styles.addAccountCard}>
+          <summary>+ Agregar cuenta AIS</summary>
+          <form action={addAisAccount} className={styles.accountForm}>
+            <label>
+              <span>Nombre interno · opcional</span>
+              <input name="display_name" placeholder="Ej. Familia López" autoComplete="off" />
+            </label>
+
+            <label>
+              <span>Usuario / correo AIS</span>
+              <input
+                name="account_email"
+                type="email"
+                required
+                placeholder="correo@ejemplo.com"
+                autoComplete="username"
+              />
+            </label>
+
+            <label>
+              <span>Contraseña AIS</span>
+              <input
+                name="password"
+                type="password"
+                required
+                autoComplete="new-password"
+                placeholder="••••••••••"
+              />
+              <small>Se cifra en el servidor y nunca vuelve a mostrarse en pantalla.</small>
+            </label>
+
+            <button type="submit" className={styles.primaryButton}>
+              Guardar y validar cuenta
+            </button>
+          </form>
+        </details>
+
+        <div className={styles.accountsList}>
+          {(accounts ?? []).map((account: any) => {
+            const accountId = Number(account.account_id)
+            const accountTargets = targetsByAccount.get(accountId) || []
+            const pendingJob = pendingSyncByAccount.get(accountId)
+
+            return (
+              <details className={styles.accountCard} key={accountId}>
+                <summary className={styles.accountSummary}>
+                  <div>
+                    <div className={styles.badgeRow}>
+                      <span className={`${styles.credentialBadge} ${credentialClass(account.credential_status)}`}>
+                        {credentialLabel(account.credential_status)}
+                      </span>
+                      {pendingJob ? <span className={styles.syncBadge}>Sincronizando / pendiente</span> : null}
+                    </div>
+                    <strong>{account.display_name || account.account_email}</strong>
+                    <small>{account.account_email}</small>
+                  </div>
+
+                  <div className={styles.accountMetric}>
+                    <span>Solicitantes / grupos</span>
+                    <strong>{account.targets_count ?? accountTargets.length ?? 0}</strong>
+                  </div>
+
+                  <div className={styles.accountMetric}>
+                    <span>Búsquedas activas</span>
+                    <strong>{account.active_searches ?? 0}</strong>
+                  </div>
+
+                  <div className={styles.accountMetric}>
+                    <span>Última sincronización</span>
+                    <strong>{account.last_sync_at ? fmtDate(account.last_sync_at) : 'Pendiente'}</strong>
+                  </div>
+                </summary>
+
+                <div className={styles.accountBody}>
+                  {(account.credential_status === 'INVALID_CREDENTIALS' ||
+                    account.credential_status === 'LOGIN_REQUIRED' ||
+                    account.credential_status === 'ERROR') ? (
+                    <div className={styles.credentialAlert}>
+                      <strong>{credentialLabel(account.credential_status)}</strong>
+                      <span>
+                        {account.credential_error_message ||
+                          'La búsqueda de esta cuenta debe permanecer detenida hasta corregir el acceso.'}
+                      </span>
+                    </div>
+                  ) : null}
+
+                  <div className={styles.accountActions}>
+                    <form action={requestAisAccountSync}>
+                      <input type="hidden" name="account_id" value={accountId} />
+                      <button
+                        type="submit"
+                        className={styles.secondaryButton}
+                        disabled={Boolean(pendingJob)}
+                      >
+                        {pendingJob ? 'Sincronización pendiente' : 'Sincronizar cuenta'}
+                      </button>
+                    </form>
+
+                    <details className={styles.passwordDetails}>
+                      <summary>Actualizar contraseña</summary>
+                      <form action={updateAisPassword} className={styles.passwordForm}>
+                        <input type="hidden" name="account_id" value={accountId} />
+                        <input
+                          type="password"
+                          name="password"
+                          required
+                          autoComplete="new-password"
+                          placeholder="Nueva contraseña AIS"
+                        />
+                        <button type="submit" className={styles.secondaryButton}>
+                          Guardar y validar
+                        </button>
+                      </form>
+                    </details>
+                  </div>
+
+                  <div className={styles.targetsHeading}>
+                    <div>
+                      <strong>Solicitantes / grupos de la cuenta</strong>
+                      <small>
+                        El Worker V3 los leerá directamente de AIS al sincronizar.
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className={styles.targetsList}>
+                    {accountTargets.map((target: any) => {
+                      const linkedClient = target.client_id
+                        ? clientById.get(Number(target.client_id))
+                        : null
+
+                      return (
+                        <article className={styles.targetCard} key={target.id}>
+                          <div className={styles.targetTop}>
+                            <div>
+                              <span className={styles.targetType}>{targetTypeLabel(target.target_type)}</span>
+                              <strong>{target.display_name}</strong>
+                              <small>
+                                {target.target_type === 'GROUP'
+                                  ? `${target.member_count || 1} solicitantes`
+                                  : '1 solicitante'}
+                              </small>
+                            </div>
+
+                            <div className={styles.targetAppointment}>
+                              <span>Cita consular actual</span>
+                              <strong>{fmtDate(target.current_consular_date)}</strong>
+                              <small>{target.current_consulate || 'Sin cita detectada'}</small>
+                            </div>
+                          </div>
+
+                          {linkedClient ? (
+                            <div className={styles.targetLinked}>
+                              <span>Vinculado a Proyecto Águila</span>
+                              <strong>{linkedClient.full_name}</strong>
+                              <small>
+                                Ya puedes editar sus reglas abajo en Agendados de citas.
+                              </small>
+                            </div>
+                          ) : (
+                            <div className={styles.targetSetup}>
+                              <form action={linkTargetToExistingClient} className={styles.targetLinkForm}>
+                                <input type="hidden" name="target_id" value={target.id} />
+                                <label>
+                                  <span>Vincular con cliente existente</span>
+                                  <select name="client_id" required defaultValue="">
+                                    <option value="" disabled>Seleccionar cliente...</option>
+                                    {(clients ?? []).map((client: any) => (
+                                      <option key={client.id} value={client.id}>
+                                        {client.full_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <button type="submit" className={styles.primaryButton}>
+                                  Crear configuración
+                                </button>
+                              </form>
+
+                              <div className={styles.orDivider}>o</div>
+
+                              <form action={createClientFromTarget} className={styles.targetLinkForm}>
+                                <input type="hidden" name="target_id" value={target.id} />
+                                <label>
+                                  <span>Crear cliente nuevo</span>
+                                  <input
+                                    name="client_name"
+                                    defaultValue={target.display_name}
+                                    required
+                                  />
+                                </label>
+                                <button type="submit" className={styles.secondaryButton}>
+                                  Crear cliente + configuración
+                                </button>
+                              </form>
+                            </div>
+                          )}
+                        </article>
+                      )
+                    })}
+
+                    {!accountTargets.length ? (
+                      <div className={styles.emptyAccount}>
+                        <strong>Aún no hay solicitantes sincronizados.</strong>
+                        <span>
+                          La cuenta está lista para que Worker V3 valide el acceso y lea los solicitantes/grupos.
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </details>
+            )
+          })}
+
+          {!accounts?.length ? (
+            <div className={styles.emptyAccount}>
+              <strong>No hay cuentas AIS registradas.</strong>
+              <span>Agrega la primera cuenta para comenzar.</span>
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className={styles.section}>
@@ -238,7 +544,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         )}
       </section>
 
-      <section className={styles.section}>
+      <section className={styles.section} id="agendados">
         <div className={styles.sectionHeading}>
           <div>
             <span className={styles.kicker}>Configuración previa</span>
@@ -259,6 +565,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <span className={styles.badge}>{modeLabel(config.search_mode)}</span>
                     {config.search_mode === 'INTELLIGENT' ? <span className={styles.recommended}>Recomendado</span> : null}
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
+                    {config.ais_target_id ? <span className={styles.badge}>Objetivo AIS #{config.ais_target_id}</span> : null}
                   </div>
                   <strong>{config.full_name}</strong>
                   <small>{config.visa_type || 'Visa'} · {config.account_email}</small>
