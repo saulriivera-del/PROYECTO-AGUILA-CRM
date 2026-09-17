@@ -3,10 +3,53 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
+import { isAdministrator } from '@/lib/admin-access'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
 import { encryptVisaCredential } from '@/lib/visa-master-credentials'
 
 const PATH = '/admin/motor-citas'
+
+const OPERATOR_SEARCH_MODES = new Set([
+  'ALERT_ONLY',
+  'STANDARD',
+  'INTELLIGENT',
+])
+
+const ADMIN_SEARCH_MODES = new Set([
+  ...OPERATOR_SEARCH_MODES,
+  'INTENSIVE',
+])
+
+function motorUrl(
+  section: 'cuentas' | 'busquedas' | 'servicios' | 'resumen',
+  params: Record<string, string | number | boolean | null | undefined> = {},
+  hash?: string,
+) {
+  const query = new URLSearchParams({ section })
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined || value === false) continue
+    query.set(key, String(value))
+  }
+
+  return `${PATH}?${query.toString()}${hash ? `#${hash}` : ''}`
+}
+
+async function requireMotorAdministrator(
+  section: 'cuentas' | 'busquedas' | 'servicios' | 'resumen' = 'resumen',
+) {
+  const context = await requireAuthContext()
+
+  if (!isAdministrator(context.role)) {
+    redirect(
+      motorUrl(section, {
+        error: 'Esta función está reservada para administración de Visa Master.',
+      })
+    )
+  }
+
+  return context
+}
 
 function rethrowNextRedirect(error: any) {
   const digest = String(error?.digest || '')
@@ -164,11 +207,11 @@ export async function addAisAccount(formData: FormData) {
   const displayName = text(formData, 'display_name') || null
 
   if (!email || !email.includes('@')) {
-    redirect(`${PATH}?error=${encodeURIComponent('Captura un correo AIS válido.')}`)
+    redirect(motorUrl('cuentas', { error: 'Captura un correo AIS válido.' }))
   }
 
   if (!password) {
-    redirect(`${PATH}?error=${encodeURIComponent('La contraseña AIS es obligatoria.')}`)
+    redirect(motorUrl('cuentas', { error: 'La contraseña AIS es obligatoria.' }))
   }
 
   try {
@@ -222,10 +265,10 @@ export async function addAisAccount(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?account_added=1#cuentas-ais`)
+    redirect(motorUrl('cuentas', { account_added: 1 }, 'cuentas-ais'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo registrar la cuenta AIS.')}`)
+    redirect(motorUrl('cuentas', { error: error?.message || 'No se pudo registrar la cuenta AIS.' }))
   }
 }
 
@@ -237,7 +280,7 @@ export async function updateAisPassword(formData: FormData) {
   const password = text(formData, 'password')
 
   if (!accountId || !password) {
-    redirect(`${PATH}?error=${encodeURIComponent('Cuenta o contraseña inválida.')}`)
+    redirect(motorUrl('cuentas', { error: 'Cuenta o contraseña inválida.' }))
   }
 
   try {
@@ -264,10 +307,10 @@ export async function updateAisPassword(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?credentials_updated=1#cuentas-ais`)
+    redirect(motorUrl('cuentas', { credentials_updated: 1 }, 'cuentas-ais'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo actualizar la contraseña.')}`)
+    redirect(motorUrl('cuentas', { error: error?.message || 'No se pudo actualizar la contraseña.' }))
   }
 }
 
@@ -277,7 +320,7 @@ export async function requestAisAccountSync(formData: FormData) {
   const accountId = numberValue(formData, 'account_id')
 
   if (!accountId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Cuenta AIS inválida.')}`)
+    redirect(motorUrl('cuentas', { error: 'Cuenta AIS inválida.' }))
   }
 
   try {
@@ -291,10 +334,10 @@ export async function requestAisAccountSync(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?sync_requested=1#cuentas-ais`)
+    redirect(motorUrl('cuentas', { sync_requested: 1 }, 'cuentas-ais'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo solicitar la sincronización.')}`)
+    redirect(motorUrl('cuentas', { error: error?.message || 'No se pudo solicitar la sincronización.' }))
   }
 }
 
@@ -306,7 +349,7 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
   const targetId = numberValue(formData, 'target_id')
 
   if (!targetId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Solicitante/grupo AIS inválido.')}#cuentas-ais`)
+    redirect(motorUrl('cuentas', { error: 'Solicitante/grupo AIS inválido.' }, 'cuentas-ais'))
   }
 
   try {
@@ -320,7 +363,7 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
 
     if (['PENDING', 'RUNNING'].includes(String(target.appointment_refresh_status || ''))) {
       revalidatePath(PATH)
-      redirect(`${PATH}?target_refresh_pending=1#cuentas-ais`)
+      redirect(motorUrl('cuentas', { target_refresh_pending: 1 }, 'cuentas-ais'))
     }
 
     const { data: account, error: accountError } = await supabase
@@ -332,10 +375,11 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
     if (accountError) throw new Error(accountError.message)
 
     if (account.credential_status !== 'VALID') {
-      redirect(`${PATH}?error=${encodeURIComponent(
-        account.credential_error_message ||
-        'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de verificar la cita.'
-      )}#cuentas-ais`)
+      redirect(motorUrl('cuentas', {
+        error:
+          account.credential_error_message ||
+          'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de verificar la cita.',
+      }, 'cuentas-ais'))
     }
 
     const now = new Date().toISOString()
@@ -364,12 +408,12 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?target_refresh_requested=1#cuentas-ais`)
+    redirect(motorUrl('cuentas', { target_refresh_requested: 1 }, 'cuentas-ais'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(
-      error?.message || 'No se pudo solicitar la verificación de cita en AIS.'
-    )}#cuentas-ais`)
+    redirect(motorUrl('cuentas', {
+      error: error?.message || 'No se pudo solicitar la verificación de cita en AIS.',
+    }, 'cuentas-ais'))
   }
 }
 
@@ -386,9 +430,9 @@ export async function linkTargetToCrmProcess(formData: FormData) {
   const crmProcessId = text(formData, 'crm_process_id')
 
   if (!targetId || !crmProcessId) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      'Selecciona un solicitante/grupo AIS y un trámite de Proyecto Águila.'
-    )}#cuentas-ais`)
+    redirect(motorUrl('cuentas', {
+      error: 'Selecciona un solicitante/grupo AIS y un trámite de Proyecto Águila.',
+    }, 'cuentas-ais'))
   }
 
   try {
@@ -506,24 +550,24 @@ export async function linkTargetToCrmProcess(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?crm_process_linked=1#cuentas-ais`)
+    redirect(motorUrl('busquedas', { crm_process_linked: 1 }, 'agendados'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(
-      error?.message || 'No se pudo vincular el trámite de Proyecto Águila.'
-    )}#cuentas-ais`)
+    redirect(motorUrl('cuentas', {
+      error: error?.message || 'No se pudo vincular el trámite de Proyecto Águila.',
+    }, 'cuentas-ais'))
   }
 }
 
 export async function createClientFromTarget(formData: FormData) {
-  await requireAuthContext()
+  await requireMotorAdministrator('cuentas')
   const supabaseAdmin = getVisaMasterAdminClient()
 
   const targetId = numberValue(formData, 'target_id')
   const customName = text(formData, 'client_name')
 
   if (!targetId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Tramitante o grupo inválido.')}`)
+    redirect(motorUrl('cuentas', { error: 'Tramitante o grupo inválido.' }, 'cuentas-ais'))
   }
 
   try {
@@ -575,22 +619,50 @@ export async function createClientFromTarget(formData: FormData) {
     )
 
     revalidatePath(PATH)
-    redirect(`${PATH}?client_created=1#agendados`)
+    redirect(motorUrl('busquedas', { client_created: 1 }, 'agendados'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo crear el cliente.')}`)
+    redirect(motorUrl('cuentas', { error: error?.message || 'No se pudo crear el cliente.' }))
   }
 }
 
 export async function updateBookingConfig(formData: FormData) {
-  await requireAuthContext()
+  const context = await requireAuthContext()
+  const admin = isAdministrator(context.role)
   const supabase = getVisaMasterAdminClient()
 
   const id = numberValue(formData, 'booking_config_id')
-  if (!id) redirect(`${PATH}?error=Configuración inválida`)
+  if (!id) redirect(motorUrl('busquedas', { error: 'Configuración inválida' }, 'agendados'))
 
   const allowAnyTime = formData.get('allow_any_time') === 'on'
   const searchMode = text(formData, 'search_mode') || 'INTELLIGENT'
+
+  const { data: currentConfig, error: currentConfigError } = await supabase
+    .from('vm_booking_configs')
+    .select('id,search_mode,intensive_interval_seconds')
+    .eq('id', id)
+    .single()
+
+  if (currentConfigError || !currentConfig) {
+    redirect(motorUrl('busquedas', {
+      error: currentConfigError?.message || 'No se pudo leer la configuración actual.',
+    }, 'agendados'))
+  }
+
+  const allowedModes = admin ? ADMIN_SEARCH_MODES : OPERATOR_SEARCH_MODES
+  const retainingAdminIntensiveMode =
+    !admin
+    && searchMode === 'INTENSIVE'
+    && currentConfig.search_mode === 'INTENSIVE'
+
+  if (!allowedModes.has(searchMode) && !retainingAdminIntensiveMode) {
+    redirect(motorUrl('busquedas', {
+      error:
+        searchMode === 'INTENSIVE'
+          ? 'El modo intensivo solo puede configurarlo un administrador.'
+          : 'Modo de búsqueda no permitido.',
+    }, 'agendados'))
+  }
 
   const payload: any = {
     search_mode: searchMode,
@@ -612,21 +684,25 @@ export async function updateBookingConfig(formData: FormData) {
     intelligent_standard_enabled: searchMode === 'INTELLIGENT',
     intensive_interval_seconds:
       searchMode === 'INTENSIVE'
-        ? Math.max(15, numberValue(formData, 'intensive_interval_seconds', 15))
+        ? (
+            admin
+              ? Math.max(15, numberValue(formData, 'intensive_interval_seconds', 30))
+              : currentConfig.intensive_interval_seconds
+          )
         : null,
     updated_at: new Date().toISOString(),
   }
 
   if (payload.cas_max_days_before < payload.cas_min_days_before) {
-    redirect(`${PATH}?error=El máximo de días CAS no puede ser menor al mínimo`)
+    redirect(motorUrl('busquedas', { error: 'El máximo de días CAS no puede ser menor al mínimo' }, 'agendados'))
   }
 
   if (!payload.allowed_consulates.length) {
-    redirect(`${PATH}?error=Selecciona al menos un consulado permitido`)
+    redirect(motorUrl('busquedas', { error: 'Selecciona al menos un consulado permitido' }, 'agendados'))
   }
 
   if (!payload.allowed_cas_locations.length) {
-    redirect(`${PATH}?error=Selecciona al menos un CAS permitido`)
+    redirect(motorUrl('busquedas', { error: 'Selecciona al menos un CAS permitido' }, 'agendados'))
   }
 
   const { error } = await supabase
@@ -634,10 +710,10 @@ export async function updateBookingConfig(formData: FormData) {
     .update(payload)
     .eq('id', id)
 
-  if (error) redirect(`${PATH}?error=${encodeURIComponent(error.message)}`)
+  if (error) redirect(motorUrl('busquedas', { error: error.message }, 'agendados'))
 
   revalidatePath(PATH)
-  redirect(`${PATH}?updated=1#agendados`)
+  redirect(motorUrl('busquedas', { updated: 1 }, 'agendados'))
 }
 
 
@@ -648,7 +724,7 @@ export async function resumeImprovementSearch(formData: FormData) {
   const id = numberValue(formData, 'booking_config_id')
 
   if (!id) {
-    redirect(`${PATH}?error=${encodeURIComponent('Configuración inválida.')}`)
+    redirect(motorUrl('busquedas', { error: 'Configuración inválida.' }, 'agendados'))
   }
 
   try {
@@ -669,9 +745,9 @@ export async function resumeImprovementSearch(formData: FormData) {
     if (clientError) throw new Error(clientError.message)
 
     if (!client.current_appointment_date) {
-      redirect(`${PATH}?error=${encodeURIComponent(
-        'Este proceso todavía no tiene una cita actual para usar como referencia de mejora.'
-      )}#agendados`)
+      redirect(motorUrl('busquedas', {
+        error: 'Este proceso todavía no tiene una cita actual para usar como referencia de mejora.',
+      }, 'agendados'))
     }
 
     const { data: account, error: accountError } = await supabase
@@ -683,10 +759,11 @@ export async function resumeImprovementSearch(formData: FormData) {
     if (accountError) throw new Error(accountError.message)
 
     if (account.credential_status !== 'VALID') {
-      redirect(`${PATH}?error=${encodeURIComponent(
-        account.credential_error_message ||
-        'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de reactivar la búsqueda.'
-      )}#cuentas-ais`)
+      redirect(motorUrl('busquedas', {
+        error:
+          account.credential_error_message ||
+          'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de reactivar la búsqueda.',
+      }, 'agendados'))
     }
 
     const { error } = await supabase
@@ -701,12 +778,12 @@ export async function resumeImprovementSearch(formData: FormData) {
     if (error) throw new Error(error.message)
 
     revalidatePath(PATH)
-    redirect(`${PATH}?improvement_search=1#agendados`)
+    redirect(motorUrl('busquedas', { improvement_search: 1 }, 'agendados'))
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(
-      error?.message || 'No se pudo reactivar la búsqueda de mejora.'
-    )}#agendados`)
+    redirect(motorUrl('busquedas', {
+      error: error?.message || 'No se pudo reactivar la búsqueda de mejora.',
+    }, 'agendados'))
   }
 }
 
@@ -724,15 +801,15 @@ export async function toggleBookingConfig(formData: FormData) {
       : { operational_status: 'ACTIVE', enabled: true, updated_at: new Date().toISOString() }
 
   const { error } = await supabase.from('vm_booking_configs').update(payload).eq('id', id)
-  if (error) redirect(`${PATH}?error=${encodeURIComponent(error.message)}`)
+  if (error) redirect(motorUrl('busquedas', { error: error.message }, 'agendados'))
 
   revalidatePath(PATH)
-  redirect(`${PATH}?updated=1#agendados`)
+  redirect(motorUrl('busquedas', { updated: 1 }, 'agendados'))
 }
 
 
 export async function requestAgentCommand(formData: FormData) {
-  await requireAuthContext()
+  await requireMotorAdministrator('servicios')
 
   // Tablas V1 nuevas; el esquema real existe tras ejecutar la migración.
   const supabase = getVisaMasterAdminClient() as any
@@ -756,24 +833,18 @@ export async function requestAgentCommand(formData: FormData) {
   ])
 
   if (!agentId) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      'No se recibió el Agent ID.'
-    )}#servicios`)
+    redirect(motorUrl('servicios', { error: String('No se recibió el Agent ID.') }, 'servicios'))
   }
 
   if (!allowedCommands.has(command)) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      'Comando del Agent no permitido.'
-    )}#servicios`)
+    redirect(motorUrl('servicios', { error: String('Comando del Agent no permitido.') }, 'servicios'))
   }
 
   if (
     command !== 'RESTART_ALL'
     && !allowedServices.has(serviceKey)
   ) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      'Servicio del Agent no permitido.'
-    )}#servicios`)
+    redirect(motorUrl('servicios', { error: String('Servicio del Agent no permitido.') }, 'servicios'))
   }
 
   const { data: agent, error: agentError } = await supabase
@@ -783,15 +854,11 @@ export async function requestAgentCommand(formData: FormData) {
     .maybeSingle()
 
   if (agentError) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      agentError.message
-    )}#servicios`)
+    redirect(motorUrl('servicios', { error: String(agentError.message) }, 'servicios'))
   }
 
   if (!agent) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      'El Agent seleccionado ya no existe.'
-    )}#servicios`)
+    redirect(motorUrl('servicios', { error: String('El Agent seleccionado ya no existe.') }, 'servicios'))
   }
 
   const { error } = await supabase
@@ -808,12 +875,10 @@ export async function requestAgentCommand(formData: FormData) {
     })
 
   if (error) {
-    redirect(`${PATH}?error=${encodeURIComponent(
-      error.message
-    )}#servicios`)
+    redirect(motorUrl('servicios', { error: String(error.message) }, 'servicios'))
   }
 
   revalidatePath(PATH)
-  redirect(`${PATH}?agent_command=1#servicios`)
+  redirect(motorUrl('servicios', { agent_command: 1 }, 'servicios'))
 }
 

@@ -1805,6 +1805,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   <SearchModeField
                     initialMode={config.search_mode}
                     initialIntensiveInterval={config.intensive_interval_seconds}
+                    isAdmin={admin}
                   />
 
                   <div className={styles.statusReadOnly}>
