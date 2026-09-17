@@ -234,6 +234,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: clients, error: clientsError },
     { data: syncJobs, error: syncJobsError },
     { data: healthRows, error: healthError },
+    { data: telegramLinks, error: telegramLinksError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -258,11 +259,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
     ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
     supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id'),
+    supabase.from('vm_telegram_links').select(
+      'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at'
+    ).eq('active', true),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError || healthError
+    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -298,6 +302,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
   const healthByAccount = new Map<number, any>(
     (healthRows ?? []).map((row: any) => [Number(row.account_id), row])
+  )
+
+  const telegramLinkByConfig = new Map<number, any>(
+    (telegramLinks ?? []).map((row: any) => [Number(row.booking_config_id), row])
   )
 
   const healthTotals = (healthRows ?? []).reduce(
@@ -912,6 +920,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             const targetWasVerified = Boolean(configTarget?.appointment_verified_at)
             const targetHasAppointment = configTarget?.appointment_verified_has_current === true
             const targetHasNoAppointment = configTarget?.appointment_verified_has_current === false
+            const configTelegramLink = telegramLinkByConfig.get(Number(config.booking_config_id))
 
             const effectiveCurrentDate = targetWasVerified
               ? (targetHasAppointment ? configTarget?.current_consular_date : null)
@@ -934,8 +943,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <span className={config.auto_confirm_enabled ? styles.autoConfirmOn : styles.autoConfirmOff}>
                       Auto confirm {config.auto_confirm_enabled ? 'ON' : 'OFF'}
                     </span>
+                    <span className={styles.badge}>Config #{config.booking_config_id}</span>
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
                     {config.ais_target_id ? <span className={styles.badge}>Objetivo AIS #{config.ais_target_id}</span> : null}
+                    <span className={configTelegramLink ? styles.telegramLinked : styles.telegramPending}>
+                      {configTelegramLink ? 'Telegram vinculado' : 'Telegram sin vincular'}
+                    </span>
                     {targetWasVerified ? (
                       <span className={targetHasAppointment ? styles.aisVerifiedBadge : styles.aisNoAppointmentBadge}>
                         {targetHasAppointment ? 'AIS: cita verificada' : 'AIS: sin cita'}
@@ -1008,6 +1021,33 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     </button>
                   </form>
                 )}
+              </div>
+
+              <div className={styles.telegramPanel}>
+                <div>
+                  <span>Telegram del proceso</span>
+                  {configTelegramLink ? (
+                    <>
+                      <strong>{configTelegramLink.chat_title || `Chat ${configTelegramLink.chat_id}`}</strong>
+                      <small>
+                        Vinculado a Config #{config.booking_config_id}. El bot enviará aquí BOOKED_CONFIRMED, fechas CAS/Consular y el PDF.
+                      </small>
+                    </>
+                  ) : (
+                    <>
+                      <strong>Sin grupo vinculado</strong>
+                      <small>
+                        Agrega el bot al grupo y, desde una cuenta administradora, escribe:{' '}
+                        <code>/vincular {config.booking_config_id}</code>
+                      </small>
+                    </>
+                  )}
+                </div>
+                <div className={styles.telegramHint}>
+                  <span>Comandos</span>
+                  <code>/estado</code>
+                  <code>/configuraciones</code>
+                </div>
               </div>
 
               <form action={updateBookingConfig} className={styles.form}>
