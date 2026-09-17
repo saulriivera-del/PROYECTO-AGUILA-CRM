@@ -7,6 +7,8 @@ export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const context = await requireAuthContext()
+  const admin = isAdministrator(context.role)
+
   const initials = context.fullName
     .split(' ')
     .slice(0, 2)
@@ -26,17 +28,26 @@ export default async function AdminLayout({
         </Link>
 
         <nav className="crm-nav">
+          <span className="nav-divider">Operación</span>
           <Link href="/admin">⌂ Operaciones de hoy</Link>
           <Link href="/admin/prospectos">◎ Prospectos</Link>
           <Link href="/admin/tramites">▤ Trámites</Link>
           <Link href="/admin/cobranza">$ Cobranza</Link>
           <Link href="/admin/agenda">▣ Agenda</Link>
-          <Link href="/admin/oportunidades">⚡ Centro de Oportunidades</Link>
-          {!isAdministrator(context.role) ? <Link href="/admin/mi-meta">🎯 Desempeño</Link> : null}
-          {isAdministrator(context.role) ? (
+
+          {!admin ? <Link href="/admin/mi-meta">🎯 Desempeño</Link> : null}
+
+          <span className="nav-divider">Automatización</span>
+          <Link href="/admin/motor-citas">⚙ Motor de Citas</Link>
+
+          {admin ? (
             <>
+              <Link href="/admin/master-notificador">🔔 Master Notificador</Link>
+
               <span className="nav-divider">Dirección</span>
               <Link href="/admin/insights">📊 Águila Insights</Link>
+
+              <span className="nav-divider">Administración</span>
               <Link href="/admin/configuracion/usuarios">⚙ Usuarios y roles</Link>
               <Link href="/admin/configuracion/herramientas">🛠 Herramientas</Link>
             </>
