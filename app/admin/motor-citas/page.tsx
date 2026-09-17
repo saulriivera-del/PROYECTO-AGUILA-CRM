@@ -3,7 +3,7 @@ import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
 import {
   addAisAccount,
   createClientFromTarget,
-  linkTargetToExistingClient,
+  linkTargetToCrmProcess,
   requestAisAccountSync,
   requestTargetAppointmentRefresh,
   resumeImprovementSearch,
@@ -235,6 +235,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: syncJobs, error: syncJobsError },
     { data: healthRows, error: healthError },
     { data: telegramLinks, error: telegramLinksError },
+    { data: crmMatches, error: crmMatchesError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -262,11 +263,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     supabase.from('vm_telegram_links').select(
       'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at'
     ).eq('active', true),
+    supabase.from('vm_ais_crm_process_match_view').select(
+      'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
+    ).order('crm_client_name').order('service_name'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError
+    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -307,6 +311,15 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
   const telegramLinkByConfig = new Map<number, any>(
     (telegramLinks ?? []).map((row: any) => [Number(row.booking_config_id), row])
   )
+
+  const crmMatchesByAccount = new Map<number, any[]>()
+  for (const match of crmMatches ?? []) {
+    const accountId = Number(match.account_id)
+    crmMatchesByAccount.set(accountId, [
+      ...(crmMatchesByAccount.get(accountId) || []),
+      match,
+    ])
+  }
 
   const healthTotals = (healthRows ?? []).reduce(
     (acc: any, row: any) => {
@@ -360,6 +373,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       {params.target_refresh_pending ? (
         <div className={styles.success}>
           Ese solicitante/grupo ya tiene una verificación AIS pendiente o en proceso.
+        </div>
+      ) : null}
+      {params.crm_process_linked ? (
+        <div className={styles.success}>
+          Trámite de Proyecto Águila vinculado al Motor por correo. La configuración quedó lista para revisión.
         </div>
       ) : null}
       {params.error ? <div className={styles.error}>{String(params.error)}</div> : null}
@@ -428,6 +446,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           {(accounts ?? []).map((account: any) => {
             const accountId = Number(account.account_id)
             const accountTargets = targetsByAccount.get(accountId) || []
+            const accountCrmMatches = crmMatchesByAccount.get(accountId) || []
             const pendingJob = pendingSyncByAccount.get(accountId)
 
             return (
@@ -600,41 +619,94 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                               </small>
                             </div>
                           ) : (
-                            <div className={styles.targetSetup}>
-                              <form action={linkTargetToExistingClient} className={styles.targetLinkForm}>
-                                <input type="hidden" name="target_id" value={target.id} />
-                                <label>
-                                  <span>Vincular con cliente existente</span>
-                                  <select name="client_id" required defaultValue="">
-                                    <option value="" disabled>Seleccionar cliente...</option>
-                                    {(clients ?? []).map((client: any) => (
-                                      <option key={client.id} value={client.id}>
-                                        {client.full_name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <button type="submit" className={styles.primaryButton}>
-                                  Crear configuración
-                                </button>
-                              </form>
+                            <div className={styles.crmMatchPanel}>
+                              <div className={styles.crmMatchHeading}>
+                                <div>
+                                  <span>Asociación con Proyecto Águila</span>
+                                  <strong>
+                                    {accountCrmMatches.length === 1
+                                      ? 'Proceso compatible encontrado por correo'
+                                      : accountCrmMatches.length > 1
+                                        ? `${accountCrmMatches.length} procesos compatibles con este correo`
+                                        : 'Sin proceso compatible por correo'}
+                                  </strong>
+                                  <small>Correo AIS: {account.account_email}</small>
+                                </div>
+                                <span className={
+                                  accountCrmMatches.length
+                                    ? styles.crmMatchOk
+                                    : styles.crmMatchMissing
+                                }>
+                                  {accountCrmMatches.length ? 'Coincidencia CRM' : 'Revisar CRM'}
+                                </span>
+                              </div>
 
-                              <div className={styles.orDivider}>o</div>
-
-                              <form action={createClientFromTarget} className={styles.targetLinkForm}>
-                                <input type="hidden" name="target_id" value={target.id} />
-                                <label>
-                                  <span>Crear cliente interno del Motor</span>
+                              {accountCrmMatches.length === 1 ? (
+                                <form action={linkTargetToCrmProcess} className={styles.crmSingleMatch}>
+                                  <input type="hidden" name="target_id" value={target.id} />
                                   <input
-                                    name="client_name"
-                                    defaultValue={target.display_name}
-                                    required
+                                    type="hidden"
+                                    name="crm_process_id"
+                                    value={accountCrmMatches[0].crm_process_id}
                                   />
-                                </label>
-                                <button type="submit" className={styles.secondaryButton}>
-                                  Crear cliente de prueba + configuración
-                                </button>
-                              </form>
+                                  <div>
+                                    <strong>{accountCrmMatches[0].crm_client_name}</strong>
+                                    <span>{accountCrmMatches[0].service_name}</span>
+                                    <small>
+                                      {accountCrmMatches[0].current_stage
+                                        || accountCrmMatches[0].process_status
+                                        || 'Proceso activo'}
+                                    </small>
+                                  </div>
+                                  <button type="submit" className={styles.primaryButton}>
+                                    Vincular este proceso al Motor
+                                  </button>
+                                </form>
+                              ) : accountCrmMatches.length > 1 ? (
+                                <form action={linkTargetToCrmProcess} className={styles.targetLinkForm}>
+                                  <input type="hidden" name="target_id" value={target.id} />
+                                  <label>
+                                    <span>Este correo tiene más de un trámite compatible</span>
+                                    <select name="crm_process_id" required defaultValue="">
+                                      <option value="" disabled>Seleccionar trámite...</option>
+                                      {accountCrmMatches.map((match: any) => (
+                                        <option key={match.crm_process_id} value={match.crm_process_id}>
+                                          {match.crm_client_name} · {match.service_name} · {match.current_stage || match.process_status || 'Activo'}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <button type="submit" className={styles.primaryButton}>
+                                    Vincular trámite seleccionado
+                                  </button>
+                                </form>
+                              ) : (
+                                <div className={styles.crmNoMatch}>
+                                  <strong>No encontramos un trámite de citas compatible con este correo.</strong>
+                                  <span>
+                                    Revisa que el correo del cliente en Proyecto Águila coincida con el correo AIS
+                                    y que el proceso sea Adelanto de cita o un trámite de visa que utilice citas AIS.
+                                  </span>
+                                </div>
+                              )}
+
+                              <details className={styles.crmTestFallback}>
+                                <summary>Solo para pruebas internas</summary>
+                                <form action={createClientFromTarget} className={styles.targetLinkForm}>
+                                  <input type="hidden" name="target_id" value={target.id} />
+                                  <label>
+                                    <span>Crear cliente interno del Motor</span>
+                                    <input
+                                      name="client_name"
+                                      defaultValue={target.display_name}
+                                      required
+                                    />
+                                  </label>
+                                  <button type="submit" className={styles.secondaryButton}>
+                                    Crear cliente de prueba + configuración
+                                  </button>
+                                </form>
+                              </details>
                             </div>
                           )}
                         </article>

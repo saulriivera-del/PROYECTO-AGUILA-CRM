@@ -374,48 +374,140 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
 }
 
 
-export async function linkTargetToExistingClient(formData: FormData) {
+export async function linkTargetToCrmProcess(formData: FormData) {
   await requireAuthContext()
   const supabase = getVisaMasterAdminClient()
 
   const targetId = numberValue(formData, 'target_id')
-  const clientId = numberValue(formData, 'client_id')
+  const crmProcessId = text(formData, 'crm_process_id')
 
-  if (!targetId || !clientId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Selecciona un tramitante/grupo y un cliente.')}`)
+  if (!targetId || !crmProcessId) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      'Selecciona un solicitante/grupo AIS y un trámite de Proyecto Águila.'
+    )}#cuentas-ais`)
   }
 
   try {
     const { data: target, error: targetError } = await supabase
       .from('vm_ais_account_targets')
-      .select('id,account_id')
+      .select(
+        'id,account_id,display_name,current_consular_date,current_consulate'
+      )
       .eq('id', targetId)
       .single()
 
     if (targetError) throw new Error(targetError.message)
 
-    const { error: linkError } = await supabase
+    const { data: account, error: accountError } = await supabase
+      .from('vm_ais_accounts')
+      .select('id,account_email')
+      .eq('id', Number(target.account_id))
+      .single()
+
+    if (accountError) throw new Error(accountError.message)
+
+    const { data: match, error: matchError } = await supabase
+      .from('vm_ais_crm_process_match_view')
+      .select(
+        'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,' +
+        'crm_process_id,service_name,process_status,current_stage'
+      )
+      .eq('account_id', Number(target.account_id))
+      .eq('crm_process_id', crmProcessId)
+      .single()
+
+    if (matchError || !match) {
+      throw new Error(
+        'El trámite seleccionado ya no coincide con el correo AIS o no es elegible para citas.'
+      )
+    }
+
+    let motorClientId: number
+
+    const { data: existing, error: existingError } = await supabase
+      .from('vm_appointment_clients')
+      .select('id')
+      .eq('crm_process_id', crmProcessId)
+      .limit(1)
+
+    if (existingError) throw new Error(existingError.message)
+
+    if (existing?.length) {
+      motorClientId = Number(existing[0].id)
+
+      const { error: updateClientError } = await supabase
+        .from('vm_appointment_clients')
+        .update({
+          crm_client_id: match.crm_client_id,
+          full_name: match.crm_client_name,
+          visa_type: match.service_name,
+          ais_account_email: String(account.account_email || '').toLowerCase(),
+          status: 'ACTIVE',
+          current_appointment_date: target.current_consular_date || null,
+          current_consulate: target.current_consulate || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', motorClientId)
+
+      if (updateClientError) throw new Error(updateClientError.message)
+    } else {
+      const { data: created, error: createError } = await supabase
+        .from('vm_appointment_clients')
+        .insert({
+          crm_client_id: match.crm_client_id,
+          crm_process_id: match.crm_process_id,
+          full_name: match.crm_client_name || target.display_name || `Cliente AIS ${targetId}`,
+          visa_type: match.service_name || 'VISA',
+          ais_account_email: String(account.account_email || '').toLowerCase(),
+          status: 'ACTIVE',
+          current_appointment_date: target.current_consular_date || null,
+          current_consulate: target.current_consulate || null,
+        })
+        .select('id')
+        .single()
+
+      if (createError) throw new Error(createError.message)
+      motorClientId = Number(created.id)
+    }
+
+    const { error: targetLinkError } = await supabase
       .from('vm_ais_account_targets')
       .update({
-        client_id: clientId,
+        client_id: motorClientId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', targetId)
 
-    if (linkError) throw new Error(linkError.message)
+    if (targetLinkError) throw new Error(targetLinkError.message)
 
     await ensureBookingConfig(
       supabase,
-      clientId,
+      motorClientId,
       Number(target.account_id),
       targetId,
     )
 
+    await supabase.from('vm_ais_account_events').insert({
+      account_id: Number(target.account_id),
+      event_type: 'CRM_PROCESS_LINKED',
+      source: 'WEB',
+      message: `Target #${targetId} vinculado al proceso CRM ${crmProcessId}.`,
+      payload: {
+        target_id: targetId,
+        motor_client_id: motorClientId,
+        crm_client_id: match.crm_client_id,
+        crm_process_id: match.crm_process_id,
+        service_name: match.service_name,
+      },
+    })
+
     revalidatePath(PATH)
-    redirect(`${PATH}?process_created=1#agendados`)
+    redirect(`${PATH}?crm_process_linked=1#cuentas-ais`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo crear la configuración.')}`)
+    redirect(`${PATH}?error=${encodeURIComponent(
+      error?.message || 'No se pudo vincular el trámite de Proyecto Águila.'
+    )}#cuentas-ais`)
   }
 }
 
