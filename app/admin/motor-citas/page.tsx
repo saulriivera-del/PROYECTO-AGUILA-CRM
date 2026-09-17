@@ -224,6 +224,25 @@ function fmtSessionMinutes(value?: string | number | null) {
   return minutes ? `${hours} h ${minutes} min` : `${hours} h`
 }
 
+function fmtSeconds(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return '—'
+  const seconds = Number(value)
+  if (!Number.isFinite(seconds)) return '—'
+  if (seconds < 1) return `${Math.round(seconds * 1000)} ms`
+  return `${seconds.toFixed(seconds < 10 ? 2 : 1)} s`
+}
+
+function modeExperimentLabel(mode?: string | null) {
+  const labels: Record<string, string> = {
+    ALERT_ONLY: 'Solo alertas',
+    STANDARD: 'Standard',
+    INTELLIGENT: 'Intelligent',
+    INTENSIVE: 'Intensive',
+  }
+  return labels[String(mode || '')] || String(mode || '—')
+}
+
+
 function blockLabel(status?: string | null) {
   if (status === 'POSSIBLE') return 'Posible restricción activa'
   if (status === 'RECOVERED') return 'Restricción transitoria recuperada'
@@ -313,6 +332,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: sessionStats, error: sessionStatsError },
     { data: agentRows, error: agentError },
     { data: agentServices, error: agentServicesError },
+    { data: performanceModes, error: performanceModesError },
+    { data: performanceConfigs, error: performanceConfigsError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -349,11 +370,15 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     (supabase as any).from('vm_agent_services_dashboard_view').select('*')
       .order('agent_id')
       .order('service_key'),
+    (supabase as any).from('vm_motor_performance_mode_view').select('*')
+      .order('sort_order'),
+    (supabase as any).from('vm_motor_performance_config_view').select('*')
+      .order('booking_config_id'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError
+    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError || performanceModesError || performanceConfigsError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -494,6 +519,159 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
       </section>
 
+      <section className={styles.section} id="rendimiento">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Experimentos operativos</span>
+            <h2>Rendimiento del Motor</h2>
+          </div>
+          <p>
+            Compara los cuatro modos con telemetría real. Por ahora hay muestra activa en tres; Intensive queda listo para cuando lo probemos.
+          </p>
+        </div>
+
+        <div className={styles.performanceModeGrid}>
+          {(performanceModes ?? []).map((row: any) => {
+            const hasSample =
+              Number(row.search_runs_7d || 0) > 0
+              || Number(row.alert_jobs_7d || 0) > 0
+
+            return (
+              <article className={styles.performanceModeCard} key={row.search_mode}>
+                <div className={styles.performanceModeHead}>
+                  <div>
+                    <span>Modo</span>
+                    <strong>{modeExperimentLabel(row.search_mode)}</strong>
+                  </div>
+                  <span className={hasSample ? styles.sampleActive : styles.sampleEmpty}>
+                    {hasSample ? 'Datos activos' : 'Sin muestra'}
+                  </span>
+                </div>
+
+                <div className={styles.performancePrimary}>
+                  <div>
+                    <span>Búsquedas · 24 h</span>
+                    <strong>{row.search_runs_24h ?? 0}</strong>
+                  </div>
+                  <div>
+                    <span>Requests AIS · 24 h</span>
+                    <strong>{row.ais_requests_24h ?? 0}</strong>
+                  </div>
+                  <div>
+                    <span>Errores · 24 h</span>
+                    <strong>{row.errors_24h ?? 0}</strong>
+                  </div>
+                </div>
+
+                <div className={styles.performanceFunnel}>
+                  <div><span>Fecha</span><strong>{row.consular_dates_found_7d ?? 0}</strong></div>
+                  <div><span>Horario</span><strong>{row.consular_times_found_7d ?? 0}</strong></div>
+                  <div><span>CAS</span><strong>{row.cas_pairs_found_7d ?? 0}</strong></div>
+                  <div><span>Booked</span><strong>{row.booked_confirmed_7d ?? 0}</strong></div>
+                </div>
+
+                <div className={styles.performanceSmall}>
+                  <span>
+                    Clientes activos:
+                    <strong> {row.active_clients ?? 0}</strong>
+                  </span>
+                  <span>
+                    Requests/búsqueda:
+                    <strong> {row.avg_requests_per_search_7d ?? '—'}</strong>
+                  </span>
+                  <span>
+                    Duración promedio:
+                    <strong> {fmtSeconds(row.avg_search_seconds_7d)}</strong>
+                  </span>
+                </div>
+
+                {['ALERT_ONLY', 'INTELLIGENT'].includes(String(row.search_mode)) ? (
+                  <div className={styles.alertPerformance}>
+                    <div>
+                      <span>Alertas · 7 d</span>
+                      <strong>{row.alert_jobs_7d ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>Fecha viva</span>
+                      <strong>{row.alert_date_found_7d ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>Horario</span>
+                      <strong>{row.alert_time_found_7d ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>CAS</span>
+                      <strong>{row.alert_pair_found_7d ?? 0}</strong>
+                    </div>
+                    <div>
+                      <span>Latencia</span>
+                      <strong>{fmtSeconds(row.avg_alert_reaction_seconds_7d)}</strong>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+
+        <div className={styles.performanceConfigList}>
+          {(performanceConfigs ?? []).map((row: any) => (
+            <article className={styles.performanceConfigCard} key={row.booking_config_id}>
+              <div className={styles.performanceConfigIdentity}>
+                <div>
+                  <span>Config #{row.booking_config_id}</span>
+                  <strong>{row.full_name}</strong>
+                  <small>
+                    {modeExperimentLabel(row.search_mode)} ·
+                    {' '}{(row.allowed_consulates || []).join(', ') || 'Sin consulado'}
+                  </small>
+                </div>
+                <span className={row.operational_status === 'ACTIVE' ? styles.sampleActive : styles.sampleEmpty}>
+                  {row.operational_status}
+                </span>
+              </div>
+
+              <div className={styles.performanceConfigMetrics}>
+                <div><span>Búsquedas 24 h</span><strong>{row.search_runs_24h ?? 0}</strong></div>
+                <div><span>Requests 24 h</span><strong>{row.ais_requests_24h ?? 0}</strong></div>
+                <div><span>Errores 24 h</span><strong>{row.errors_24h ?? 0}</strong></div>
+                <div><span>Fechas 7 d</span><strong>{row.consular_dates_found_7d ?? 0}</strong></div>
+                <div><span>Horarios 7 d</span><strong>{row.consular_times_found_7d ?? 0}</strong></div>
+                <div><span>CAS 7 d</span><strong>{row.cas_pairs_found_7d ?? 0}</strong></div>
+                <div><span>Booked 7 d</span><strong>{row.booked_confirmed_7d ?? 0}</strong></div>
+                <div><span>Alertas 7 d</span><strong>{row.alert_jobs_7d ?? 0}</strong></div>
+              </div>
+
+              {Number(row.alert_jobs_7d || 0) > 0 ? (
+                <div className={styles.performanceConfigAlert}>
+                  <span>
+                    Alerta → búsqueda:
+                    <strong> {fmtSeconds(row.avg_alert_reaction_seconds_7d)}</strong>
+                  </span>
+                  <span>
+                    Fecha encontrada:
+                    <strong> {row.alert_date_found_7d ?? 0}</strong>
+                  </span>
+                  <span>
+                    Horario:
+                    <strong> {row.alert_time_found_7d ?? 0}</strong>
+                  </span>
+                  <span>
+                    CAS:
+                    <strong> {row.alert_pair_found_7d ?? 0}</strong>
+                  </span>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+
+        <div className={styles.performanceNote}>
+          Las métricas de fecha/horario y funnel de alertas comienzan a ser más completas desde V15.
+          Los contadores de requests y ejecuciones conservan el histórico ya capturado por V11+.
+        </div>
+      </section>
+
       <section className={styles.section} id="servicios">
         <ServiceAutoRefresh seconds={10} />
 
@@ -603,6 +781,16 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                       Reiniciar servicio
                     </button>
                   </form>
+
+                  <details className={styles.serviceLogDetails}>
+                    <summary>Ver últimas líneas</summary>
+                    <div className={styles.serviceLogMeta}>
+                      Actualizado: {fmtDateTime(service.log_updated_at)}
+                    </div>
+                    <pre className={styles.serviceLog}>
+                      {service.log_tail || 'El Agent todavía no ha publicado líneas de este log.'}
+                    </pre>
+                  </details>
                 </article>
               ))}
             </div>

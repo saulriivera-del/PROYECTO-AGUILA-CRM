@@ -808,3 +808,260 @@ button:disabled{opacity:.5;cursor:not-allowed}
     grid-template-columns:1fr;
   }
 }
+
+
+/* ============================================================
+   V15 - Rendimiento del Motor
+   ============================================================ */
+
+.performanceModeGrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:14px;
+}
+
+.performanceModeCard,
+.performanceConfigCard{
+  border:1px solid #dce6f1;
+  border-radius:14px;
+  background:#fff;
+  padding:13px;
+}
+
+.performanceModeHead,
+.performanceConfigIdentity{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.performanceModeHead>div,
+.performanceConfigIdentity>div{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.performanceModeHead span,
+.performanceConfigIdentity>div>span{
+  color:#73859a;
+  font-size:8px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+
+.performanceModeHead strong,
+.performanceConfigIdentity strong{
+  color:#17375d;
+  font-size:14px;
+}
+
+.performanceConfigIdentity small{
+  color:#6f8298;
+  font-size:9px;
+}
+
+.sampleActive,
+.sampleEmpty{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:8px;
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.sampleActive{
+  background:#e5f7ef;
+  color:#087149;
+}
+
+.sampleEmpty{
+  background:#eef2f7;
+  color:#6b7c90;
+}
+
+.performancePrimary{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;
+  margin-top:11px;
+}
+
+.performancePrimary>div,
+.performanceFunnel>div,
+.alertPerformance>div,
+.performanceConfigMetrics>div{
+  border:1px solid #e3eaf3;
+  background:#f8fafd;
+  border-radius:9px;
+  padding:8px;
+}
+
+.performancePrimary span,
+.performanceFunnel span,
+.alertPerformance span,
+.performanceConfigMetrics span{
+  display:block;
+  color:#77899e;
+  font-size:7px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+
+.performancePrimary strong{
+  display:block;
+  color:#17385f;
+  font-size:16px;
+  margin-top:2px;
+}
+
+.performanceFunnel{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:5px;
+  margin-top:7px;
+}
+
+.performanceFunnel strong,
+.alertPerformance strong,
+.performanceConfigMetrics strong{
+  display:block;
+  margin-top:3px;
+  color:#17385f;
+  font-size:12px;
+}
+
+.performanceSmall{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 10px;
+  margin-top:8px;
+  color:#6e8197;
+  font-size:8px;
+}
+
+.performanceSmall strong{
+  color:#294967;
+}
+
+.alertPerformance{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:5px;
+  margin-top:9px;
+  padding-top:9px;
+  border-top:1px dashed #d9e4ef;
+}
+
+.alertPerformance>div{
+  background:#f6fbff;
+}
+
+.performanceConfigList{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+}
+
+.performanceConfigMetrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:5px;
+  margin-top:10px;
+}
+
+.performanceConfigAlert{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px 12px;
+  margin-top:9px;
+  padding:8px;
+  border-radius:9px;
+  background:#f5faff;
+  color:#6d8198;
+  font-size:8px;
+}
+
+.performanceConfigAlert strong{
+  color:#1d527f;
+}
+
+.performanceNote{
+  margin-top:10px;
+  color:#71849a;
+  font-size:9px;
+  line-height:1.45;
+}
+
+
+/* ============================================================
+   V15 - Logs del Agent
+   ============================================================ */
+
+.serviceLogDetails{
+  border-top:1px dashed #d9e3ee;
+  padding-top:8px;
+}
+
+.serviceLogDetails summary{
+  cursor:pointer;
+  color:#1e5a91;
+  font-size:9px;
+  font-weight:900;
+  user-select:none;
+}
+
+.serviceLogMeta{
+  margin-top:7px;
+  color:#7a8b9e;
+  font-size:8px;
+}
+
+.serviceLog{
+  margin:7px 0 0;
+  max-height:320px;
+  overflow:auto;
+  white-space:pre-wrap;
+  word-break:break-word;
+  border-radius:9px;
+  background:#0f1722;
+  color:#dce7f3;
+  padding:10px;
+  font-size:8px;
+  line-height:1.45;
+  font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@media(max-width:1200px){
+  .performanceModeGrid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .performanceConfigList{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:700px){
+  .performanceModeGrid,
+  .performanceConfigList{
+    grid-template-columns:1fr;
+  }
+
+  .performancePrimary{
+    grid-template-columns:1fr;
+  }
+
+  .performanceFunnel,
+  .performanceConfigMetrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .alertPerformance{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
