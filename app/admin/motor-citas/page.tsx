@@ -260,10 +260,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
     ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
     supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id'),
-    supabase.from('vm_telegram_links').select(
+    (supabase as any).from('vm_telegram_links').select(
       'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at'
     ).eq('active', true),
-    supabase.from('vm_ais_crm_process_match_view').select(
+    (supabase as any).from('vm_ais_crm_process_match_view').select(
       'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
     ).order('crm_client_name').order('service_name'),
   ])

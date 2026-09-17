@@ -376,7 +376,11 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
 
 export async function linkTargetToCrmProcess(formData: FormData) {
   await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+
+  // V13 usa una vista/columnas nuevas que todavía no existen en el
+  // Database type generado de Supabase. El esquema real ya fue migrado.
+  // Limitamos el cast a esta acción para no perder tipado en el resto.
+  const supabase = getVisaMasterAdminClient() as any
 
   const targetId = numberValue(formData, 'target_id')
   const crmProcessId = text(formData, 'crm_process_id')
