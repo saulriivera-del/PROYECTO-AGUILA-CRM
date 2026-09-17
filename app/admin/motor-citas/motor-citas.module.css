@@ -472,7 +472,21 @@ button:disabled{opacity:.5;cursor:not-allowed}
     grid-template-columns:1fr;
   }
 }
-\n\n/* Telegram V1 */\n.telegramLinked,.telegramPending{border-radius:999px;padding:4px 7px;font-size:9px;font-weight:900}\n.telegramLinked{background:#e7f7ef;color:#087149}\n.telegramPending{background:#eef2f7;color:#65778e}\n.telegramPanel{margin:0 16px 14px;border:1px solid #dbe6f3;background:#f8fbff;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:14px}\n.telegramPanel>div:first-child{display:flex;flex-direction:column;gap:3px}\n.telegramPanel span{color:#6f8198;font-size:9px;font-weight:900;text-transform:uppercase}\n.telegramPanel strong{color:#17365c;font-size:12px}\n.telegramPanel small{color:#6b7e95;font-size:10px;line-height:1.45}\n.telegramPanel code,.telegramHint code{background:#edf4fc;border:1px solid #d7e5f4;color:#145ba5;border-radius:6px;padding:3px 6px;font-size:10px}\n.telegramHint{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}\n@media(max-width:800px){.telegramPanel{flex-direction:column;align-items:stretch}.telegramHint{justify-content:flex-start}}\n
+
+
+/* Telegram V1 */
+.telegramLinked,.telegramPending{border-radius:999px;padding:4px 7px;font-size:9px;font-weight:900}
+.telegramLinked{background:#e7f7ef;color:#087149}
+.telegramPending{background:#eef2f7;color:#65778e}
+.telegramPanel{margin:0 16px 14px;border:1px solid #dbe6f3;background:#f8fbff;border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:14px}
+.telegramPanel>div:first-child{display:flex;flex-direction:column;gap:3px}
+.telegramPanel span{color:#6f8198;font-size:9px;font-weight:900;text-transform:uppercase}
+.telegramPanel strong{color:#17365c;font-size:12px}
+.telegramPanel small{color:#6b7e95;font-size:10px;line-height:1.45}
+.telegramPanel code,.telegramHint code{background:#edf4fc;border:1px solid #d7e5f4;color:#145ba5;border-radius:6px;padding:3px 6px;font-size:10px}
+.telegramHint{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:800px){.telegramPanel{flex-direction:column;align-items:stretch}.telegramHint{justify-content:flex-start}}
+
 
 /* V13 — Vinculación CRM por correo + proceso */
 .crmMatchPanel{
