@@ -206,6 +206,22 @@ function fmtDurationSeconds(value?: string | number | null) {
   return parts.slice(0, 2).join(' ')
 }
 
+
+function fmtSessionMinutes(value?: string | number | null) {
+  if (value === null || value === undefined || value === '') return '—'
+
+  const total = Math.max(0, Number(value))
+  if (!Number.isFinite(total)) return '—'
+
+  const rounded = Math.round(total)
+  if (rounded < 60) return `${rounded} min`
+
+  const hours = Math.floor(rounded / 60)
+  const minutes = rounded % 60
+
+  return minutes ? `${hours} h ${minutes} min` : `${hours} h`
+}
+
 function blockLabel(status?: string | null) {
   if (status === 'POSSIBLE') return 'Posible restricción activa'
   if (status === 'RECOVERED') return 'Restricción transitoria recuperada'
@@ -236,6 +252,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: healthRows, error: healthError },
     { data: telegramLinks, error: telegramLinksError },
     { data: crmMatches, error: crmMatchesError },
+    { data: sessionStats, error: sessionStatsError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -266,11 +283,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     (supabase as any).from('vm_ais_crm_process_match_view').select(
       'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
     ).order('crm_client_name').order('service_name'),
+    (supabase as any).from('vm_ais_session_stats_view').select('*').order('account_id'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError
+    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -306,6 +324,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
   const healthByAccount = new Map<number, any>(
     (healthRows ?? []).map((row: any) => [Number(row.account_id), row])
+  )
+
+  const sessionStatsByAccount = new Map<number, any>(
+    (sessionStats ?? []).map((row: any) => [Number(row.account_id), row])
   )
 
   const telegramLinkByConfig = new Map<number, any>(
@@ -759,6 +781,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           {(accounts ?? []).map((account: any) => {
             const accountId = Number(account.account_id)
             const health = healthByAccount.get(accountId)
+            const session = sessionStatsByAccount.get(accountId)
 
             return (
               <article className={styles.healthCard} key={`health-${accountId}`}>
@@ -884,6 +907,67 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     Aún no hay telemetría V11 para esta cuenta. Aparecerá con la siguiente búsqueda.
                   </div>
                 ) : null}
+
+                <div className={styles.sessionTelemetry}>
+                  <div className={styles.healthHistoryTitle}>
+                    <div>
+                      <span>Sesión AIS · V14</span>
+                      <strong>Frecuencia con la que AIS obliga a iniciar sesión otra vez</strong>
+                    </div>
+                    <span className={styles.sessionSampleBadge}>
+                      {session?.forced_relogins_7d
+                        ? `${session.forced_relogins_7d} cierre(s) · 7 d`
+                        : 'Recolectando muestra'}
+                    </span>
+                  </div>
+
+                  <div className={styles.healthHistoryGrid}>
+                    <div>
+                      <span>Promedio entre cierres · 7 d</span>
+                      <strong>{fmtSessionMinutes(session?.avg_session_minutes_7d)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Mediana · 7 d</span>
+                      <strong>{fmtSessionMinutes(session?.median_session_minutes_7d)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Última duración observada</span>
+                      <strong>{fmtSessionMinutes(session?.last_session_minutes)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Sesión actual</span>
+                      <strong>{fmtSessionMinutes(session?.current_session_age_minutes)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Reinicios sesión · 24 h</span>
+                      <strong>{session?.forced_relogins_24h ?? 0}</strong>
+                    </div>
+
+                    <div>
+                      <span>Reinicios sesión · total V14</span>
+                      <strong>{session?.forced_relogins_total ?? 0}</strong>
+                    </div>
+
+                    <div>
+                      <span>Último cierre detectado</span>
+                      <strong>{fmtDateTime(session?.last_session_expired_at)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Último login correcto</span>
+                      <strong>{fmtDateTime(session?.last_login_success_at)}</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.sessionFootnote}>
+                    El primer login observado por V14 no cuenta como cierre.
+                    Con 3 o más cierres la referencia empieza a ser mucho más útil.
+                  </div>
+                </div>
               </article>
             )
           })}
