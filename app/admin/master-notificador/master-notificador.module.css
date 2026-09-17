@@ -271,13 +271,13 @@
   overflow:auto;
 }
 
-table{
+.tableWrap table{
   width:100%;
   border-collapse:collapse;
   font-size:9px;
 }
 
-th{
+.tableWrap th{
   text-align:left;
   color:#71839a;
   font-size:8px;
@@ -286,13 +286,13 @@ th{
   border-bottom:1px solid #dce5ee;
 }
 
-td{
+.tableWrap td{
   padding:9px 8px;
   border-bottom:1px solid #edf1f5;
   color:#536d87;
 }
 
-td strong{
+.tableWrap td strong{
   color:#173a61;
 }
 
