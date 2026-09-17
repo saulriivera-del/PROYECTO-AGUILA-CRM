@@ -1,5 +1,6 @@
 import { requireAuthContext } from '@/lib/auth-context'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
+import { isAdministrator } from '@/lib/admin-access'
 import {
   addAisAccount,
   createClientFromTarget,
@@ -313,8 +314,64 @@ function serviceKeyLabel(key?: string | null) {
 
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
-  await requireAuthContext()
+  const context = await requireAuthContext()
+  const admin = isAdministrator(context.role)
   const supabase = getVisaMasterAdminClient()
+
+  const requestedSection =
+    typeof params.section === 'string'
+      ? params.section.toLowerCase()
+      : 'resumen'
+
+  const operatorSections = ['resumen', 'cuentas', 'busquedas']
+  const adminSections = [
+    ...operatorSections,
+    'rendimiento',
+    'servicios',
+    'salud',
+    'inteligencia',
+    'historial',
+  ]
+
+  const allowedSections = admin ? adminSections : operatorSections
+  const selectedSection = allowedSections.includes(requestedSection)
+    ? requestedSection
+    : 'resumen'
+
+  const sectionMeta: Record<string, { title: string; description: string }> = {
+    resumen: {
+      title: 'Resumen operativo',
+      description: 'Estado general del Motor y búsquedas configuradas.',
+    },
+    cuentas: {
+      title: 'Cuentas AIS',
+      description: 'Alta, validación, sincronización y vinculación con Proyecto Águila.',
+    },
+    busquedas: {
+      title: 'Clientes y búsquedas',
+      description: 'Configura fechas, consulados, CAS y activa o pausa cada búsqueda.',
+    },
+    rendimiento: {
+      title: 'Rendimiento del Motor',
+      description: 'Comparativa técnica de modos y consumo operativo.',
+    },
+    servicios: {
+      title: 'Servicios Visa Master',
+      description: 'Agent, procesos locales, reinicios y logs de infraestructura.',
+    },
+    salud: {
+      title: 'Salud AIS',
+      description: 'Telemetría, errores, posibles restricciones y sesiones.',
+    },
+    inteligencia: {
+      title: 'Inteligencia de aperturas',
+      description: 'Histórico y patrones de movimiento por consulado.',
+    },
+    historial: {
+      title: 'Historial del Motor',
+      description: 'Auditoría técnica de detecciones, intentos, agendados y errores.',
+    },
+  }
 
   const [
     { data: summaryRows, error: summaryError },
@@ -336,17 +393,23 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: performanceConfigs, error: performanceConfigsError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
-    supabase.from('vm_openings_30d_by_consulate_view').select('*')
-      .order('detections_last_7d', { ascending: false })
-      .order('distinct_available_dates', { ascending: false }),
-    supabase.from('vm_opening_best_windows_view').select('*')
-      .order('consulate')
-      .order('detections', { ascending: false }),
+    admin
+      ? supabase.from('vm_openings_30d_by_consulate_view').select('*')
+          .order('detections_last_7d', { ascending: false })
+          .order('distinct_available_dates', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      ? supabase.from('vm_opening_best_windows_view').select('*')
+          .order('consulate')
+          .order('detections', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
     supabase.from('vm_booking_config_dashboard_view').select('*')
       .order('booking_config_id'),
-    supabase.from('vm_booking_events').select(
-      'id,event_type,client_id,account_id,consulate,consular_date,consular_time,cas_location,cas_date,source,result_code,message,created_at'
-    ).order('created_at', { ascending: false }).limit(20),
+    admin
+      ? supabase.from('vm_booking_events').select(
+          'id,event_type,client_id,account_id,consulate,consular_date,consular_time,cas_location,cas_date,source,result_code,message,created_at'
+        ).order('created_at', { ascending: false }).limit(20)
+      : Promise.resolve({ data: [], error: null }),
     supabase.from('vm_ais_accounts_dashboard_view').select('*').order('account_id'),
     supabase.from('vm_ais_account_targets').select(
       'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active,appointment_refresh_status,appointment_refresh_requested_at,appointment_refresh_started_at,appointment_refresh_finished_at,appointment_refresh_error_code,appointment_refresh_error_message,appointment_verified_has_current,appointment_verified_at'
@@ -357,23 +420,35 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     supabase.from('vm_ais_account_sync_jobs').select(
       'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
     ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
-    supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id'),
+    admin
+      ? supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id')
+      : Promise.resolve({ data: [], error: null }),
     (supabase as any).from('vm_telegram_links').select(
       'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at'
     ).eq('active', true),
     (supabase as any).from('vm_ais_crm_process_match_view').select(
       'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
     ).order('crm_client_name').order('service_name'),
-    (supabase as any).from('vm_ais_session_stats_view').select('*').order('account_id'),
-    (supabase as any).from('vm_agent_dashboard_view').select('*')
-      .order('last_heartbeat_at', { ascending: false }),
-    (supabase as any).from('vm_agent_services_dashboard_view').select('*')
-      .order('agent_id')
-      .order('service_key'),
-    (supabase as any).from('vm_motor_performance_mode_view').select('*')
-      .order('sort_order'),
-    (supabase as any).from('vm_motor_performance_config_view').select('*')
-      .order('booking_config_id'),
+    admin
+      ? (supabase as any).from('vm_ais_session_stats_view').select('*').order('account_id')
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      ? (supabase as any).from('vm_agent_dashboard_view').select('*')
+          .order('last_heartbeat_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      ? (supabase as any).from('vm_agent_services_dashboard_view').select('*')
+          .order('agent_id')
+          .order('service_key')
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      ? (supabase as any).from('vm_motor_performance_mode_view').select('*')
+          .order('sort_order')
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      ? (supabase as any).from('vm_motor_performance_config_view').select('*')
+          .order('booking_config_id')
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   const anyError =
@@ -471,13 +546,107 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <div>
           <span className={styles.eyebrow}>Visa Master · Proyecto Águila</span>
           <h1>Motor de Citas</h1>
-          <p>Configura por anticipado qué citas puede tomar el motor y analiza el comportamiento de cada consulado.</p>
+          <p>{sectionMeta[selectedSection]?.description}</p>
         </div>
-        <div className={styles.headerStatus}>
-          <span className={styles.liveDot} />
-          Configuración operativa
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: '10px',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <form
+            method="get"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: '8px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                fontSize: '12px',
+                fontWeight: 700,
+              }}
+            >
+              <span>Sección</span>
+              <select
+                name="section"
+                defaultValue={selectedSection}
+                style={{
+                  minWidth: '220px',
+                  border: '1px solid #cbd9e8',
+                  borderRadius: '10px',
+                  padding: '9px 11px',
+                  background: '#fff',
+                  color: '#173b64',
+                  fontWeight: 700,
+                }}
+              >
+                <option value="resumen">Resumen operativo</option>
+                <option value="cuentas">Cuentas AIS</option>
+                <option value="busquedas">Clientes y búsquedas</option>
+
+                {admin ? (
+                  <>
+                    <option value="rendimiento">Rendimiento del Motor · Admin</option>
+                    <option value="servicios">Servicios / Agent / Logs · Admin</option>
+                    <option value="salud">Salud AIS · Admin</option>
+                    <option value="inteligencia">Inteligencia de aperturas · Admin</option>
+                    <option value="historial">Historial técnico · Admin</option>
+                  </>
+                ) : null}
+              </select>
+            </label>
+
+            <button
+              type="submit"
+              style={{
+                border: 0,
+                borderRadius: '10px',
+                padding: '10px 15px',
+                background: '#1769d2',
+                color: '#fff',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              Ver sección
+            </button>
+          </form>
+
+          <div className={styles.headerStatus}>
+            <span className={styles.liveDot} />
+            {admin ? 'Administrador' : 'Operación'}
+          </div>
         </div>
       </header>
+
+      <div
+        style={{
+          margin: '0 0 14px',
+          padding: '11px 14px',
+          border: '1px solid #dce7f2',
+          borderRadius: '12px',
+          background: '#f8fbff',
+        }}
+      >
+        <strong style={{ color: '#173b64' }}>
+          {sectionMeta[selectedSection]?.title}
+        </strong>
+        {!admin ? (
+          <span style={{ marginLeft: '8px', color: '#71859d', fontSize: '12px' }}>
+            · Vista operativa
+          </span>
+        ) : null}
+      </div>
 
       {params.updated ? <div className={styles.success}>Configuración actualizada.</div> : null}
       {params.agent_command ? (
@@ -512,13 +681,19 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
       ) : null}
 
+      {selectedSection === 'resumen' ? (
+        <>
       <section className={styles.summaryGrid}>
         <article><span>Procesos activos</span><strong>{summary.active_configs}</strong></article>
         <article><span>Pausados</span><strong>{summary.paused_configs}</strong></article>
         <article><span>Login requerido</span><strong>{summary.login_required_configs}</strong></article>
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
       </section>
+        </>
+      ) : null}
 
+      {admin && selectedSection === 'rendimiento' ? (
+        <>
       <section className={styles.section} id="rendimiento">
         <div className={styles.sectionHeading}>
           <div>
@@ -671,7 +846,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           Los contadores de requests y ejecuciones conservan el histórico ya capturado por V11+.
         </div>
       </section>
+        </>
+      ) : null}
 
+      {admin && selectedSection === 'servicios' ? (
+        <>
       <section className={styles.section} id="servicios">
         <ServiceAutoRefresh seconds={10} />
 
@@ -803,7 +982,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           </>
         )}
       </section>
+        </>
+      ) : null}
 
+      {selectedSection === 'cuentas' ? (
+        <>
       <section className={styles.section} id="cuentas-ais">
         <div className={styles.sectionHeading}>
           <div>
@@ -868,14 +1051,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                         {credentialLabel(account.credential_status)}
                       </span>
                       {pendingJob ? <span className={styles.syncBadge}>Sincronizando / pendiente</span> : null}
-                      {(() => {
+                      {admin ? (() => {
                         const health = healthByAccount.get(accountId)
                         return (
                           <span className={`${styles.healthBadge} ${healthClass(health?.health_status)}`}>
                             {healthLabel(health?.health_status)}
                           </span>
                         )
-                      })()}
+                      })() : null}
                     </div>
                     <strong>{account.display_name || account.account_email}</strong>
                     <small>{account.account_email}</small>
@@ -1100,23 +1283,25 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                                 </div>
                               )}
 
-                              <details className={styles.crmTestFallback}>
-                                <summary>Solo para pruebas internas</summary>
-                                <form action={createClientFromTarget} className={styles.targetLinkForm}>
-                                  <input type="hidden" name="target_id" value={target.id} />
-                                  <label>
-                                    <span>Crear cliente interno del Motor</span>
-                                    <input
-                                      name="client_name"
-                                      defaultValue={target.display_name}
-                                      required
-                                    />
-                                  </label>
-                                  <button type="submit" className={styles.secondaryButton}>
-                                    Crear cliente de prueba + configuración
-                                  </button>
-                                </form>
-                              </details>
+                              {admin ? (
+                                <details className={styles.crmTestFallback}>
+                                  <summary>Solo para pruebas internas</summary>
+                                  <form action={createClientFromTarget} className={styles.targetLinkForm}>
+                                    <input type="hidden" name="target_id" value={target.id} />
+                                    <label>
+                                      <span>Crear cliente interno del Motor</span>
+                                      <input
+                                        name="client_name"
+                                        defaultValue={target.display_name}
+                                        required
+                                      />
+                                    </label>
+                                    <button type="submit" className={styles.secondaryButton}>
+                                      Crear cliente de prueba + configuración
+                                    </button>
+                                  </form>
+                                </details>
+                              ) : null}
                             </div>
                           )}
                         </article>
@@ -1145,7 +1330,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           ) : null}
         </div>
       </section>
+        </>
+      ) : null}
 
+      {admin && selectedSection === 'salud' ? (
+        <>
       <section className={styles.section} id="salud-ais">
         <div className={styles.sectionHeading}>
           <div>
@@ -1370,7 +1559,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           Si después vuelve a existir una ejecución exitosa, el episodio queda como recuperado.
         </div>
       </section>
+        </>
+      ) : null}
 
+      {admin && selectedSection === 'inteligencia' ? (
+        <>
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <div>
@@ -1379,6 +1572,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           </div>
 
           <form method="get" className={styles.consulatePicker}>
+            <input type="hidden" name="section" value="inteligencia" />
             <label>
               <span>Consulado</span>
               <select name="consulate" defaultValue={selectedConsulate}>
@@ -1445,7 +1639,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           <div className={styles.empty}>Todavía no hay aperturas dentro de los próximos 30 días.</div>
         )}
       </section>
+        </>
+      ) : null}
 
+      {selectedSection === 'busquedas' ? (
+        <>
       <section className={styles.section} id="agendados">
         <div className={styles.sectionHeading}>
           <div>
@@ -1484,9 +1682,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     </span>
                     <span className={styles.badge}>{modeLabel(config.search_mode)}</span>
                     {config.search_mode === 'INTELLIGENT' ? <span className={styles.recommended}>Recomendado</span> : null}
-                    <span className={config.auto_confirm_enabled ? styles.autoConfirmOn : styles.autoConfirmOff}>
-                      Auto confirm {config.auto_confirm_enabled ? 'ON' : 'OFF'}
-                    </span>
+                    {admin ? (
+                      <span className={config.auto_confirm_enabled ? styles.autoConfirmOn : styles.autoConfirmOff}>
+                        Auto confirm {config.auto_confirm_enabled ? 'ON' : 'OFF'}
+                      </span>
+                    ) : null}
                     <span className={styles.badge}>Config #{config.booking_config_id}</span>
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
                     {config.ais_target_id ? <span className={styles.badge}>Objetivo AIS #{config.ais_target_id}</span> : null}
@@ -1567,6 +1767,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                 )}
               </div>
 
+              {admin ? (
+                <>
               <div className={styles.telegramPanel}>
                 <div>
                   <span>Telegram del proceso</span>
@@ -1593,6 +1795,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   <code>/configuraciones</code>
                 </div>
               </div>
+                </>
+              ) : null}
 
               <form action={updateBookingConfig} className={styles.form}>
                 <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
@@ -1714,7 +1918,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           })}
         </div>
       </section>
+        </>
+      ) : null}
 
+      {admin && selectedSection === 'historial' ? (
+        <>
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <div>
@@ -1744,6 +1952,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           {!events?.length ? <div className={styles.empty}>El historial comenzará a llenarse al conectar el Worker con vm_booking_events.</div> : null}
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   )
 }
