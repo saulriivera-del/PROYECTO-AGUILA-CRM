@@ -6,6 +6,7 @@ import {
   linkTargetToCrmProcess,
   requestAisAccountSync,
   requestTargetAppointmentRefresh,
+  requestAgentCommand,
   resumeImprovementSearch,
   toggleBookingConfig,
   updateAisPassword,
@@ -14,6 +15,7 @@ import {
 import OrderedMultiSelect from './OrderedMultiSelect'
 import SearchModeField from './SearchModeField'
 import TimeWindowField from './TimeWindowField'
+import ServiceAutoRefresh from './ServiceAutoRefresh'
 import styles from './motor-citas.module.css'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -234,6 +236,62 @@ function blockClass(status?: string | null) {
   return styles.blockNone
 }
 
+
+function serviceStatusLabel(status?: string | null) {
+  const map: Record<string, string> = {
+    ONLINE: 'En línea',
+    RUNNING: 'En línea',
+    STARTING: 'Iniciando',
+    RESTARTING: 'Reiniciando',
+    STOPPING: 'Deteniendo',
+    STOPPED: 'Detenido',
+    CRASHED: 'Caído',
+    ERROR: 'Error',
+    STALE: 'Sin heartbeat',
+    AGENT_OFFLINE: 'Agent desconectado',
+    OFFLINE: 'Desconectado',
+  }
+
+  return map[String(status || '')] || String(status || 'Sin datos')
+}
+
+function serviceStatusClass(status?: string | null) {
+  if (status === 'ONLINE' || status === 'RUNNING') {
+    return styles.serviceOnline
+  }
+
+  if (
+    status === 'STARTING'
+    || status === 'RESTARTING'
+  ) {
+    return styles.serviceWarning
+  }
+
+  if (
+    status === 'CRASHED'
+    || status === 'ERROR'
+    || status === 'STALE'
+    || status === 'AGENT_OFFLINE'
+    || status === 'OFFLINE'
+  ) {
+    return styles.serviceOffline
+  }
+
+  return styles.serviceNeutral
+}
+
+function serviceKeyLabel(key?: string | null) {
+  const map: Record<string, string> = {
+    account_worker: 'Worker de cuentas',
+    orchestrator: 'Orquestador de citas',
+    master_notifier: 'Master Notificador',
+    telegram_bot: 'Telegram Bot',
+  }
+
+  return map[String(key || '')] || String(key || 'Servicio')
+}
+
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
   await requireAuthContext()
@@ -253,6 +311,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: telegramLinks, error: telegramLinksError },
     { data: crmMatches, error: crmMatchesError },
     { data: sessionStats, error: sessionStatsError },
+    { data: agentRows, error: agentError },
+    { data: agentServices, error: agentServicesError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -284,11 +344,16 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
     ).order('crm_client_name').order('service_name'),
     (supabase as any).from('vm_ais_session_stats_view').select('*').order('account_id'),
+    (supabase as any).from('vm_agent_dashboard_view').select('*')
+      .order('last_heartbeat_at', { ascending: false }),
+    (supabase as any).from('vm_agent_services_dashboard_view').select('*')
+      .order('agent_id')
+      .order('service_key'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError
+    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -367,6 +432,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     .filter((row: any) => row.consulate === selectedConsulate)
     .slice(0, 5)
 
+  const activeAgent = (agentRows ?? [])[0] || null
+
+  const activeAgentServices = activeAgent
+    ? (agentServices ?? []).filter(
+        (row: any) => row.agent_id === activeAgent.agent_id
+      )
+    : []
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -382,6 +455,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       </header>
 
       {params.updated ? <div className={styles.success}>Configuración actualizada.</div> : null}
+      {params.agent_command ? (
+        <div className={styles.success}>
+          Comando enviado al Visa Master Agent. El panel se actualizará automáticamente.
+        </div>
+      ) : null}
       {params.improvement_search ? (
         <div className={styles.success}>
           Búsqueda de mejora reactivada. La cita actual se conserva como referencia hasta que AIS confirme una nueva.
@@ -414,6 +492,128 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <article><span>Pausados</span><strong>{summary.paused_configs}</strong></article>
         <article><span>Login requerido</span><strong>{summary.login_required_configs}</strong></article>
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
+      </section>
+
+      <section className={styles.section} id="servicios">
+        <ServiceAutoRefresh seconds={10} />
+
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Infraestructura local</span>
+            <h2>Servicios Visa Master</h2>
+          </div>
+          <p>
+            El Agent mantiene vivos los procesos de la oficina y permite reiniciarlos desde Proyecto Águila.
+          </p>
+        </div>
+
+        {!activeAgent ? (
+          <div className={styles.agentEmpty}>
+            <strong>Visa Master Agent todavía no conectado.</strong>
+            <span>
+              Ejecuta <code>visa_master_agent_v1.py</code> en la PC de la oficina después de instalar la migración V1.
+            </span>
+          </div>
+        ) : (
+          <>
+            <div className={styles.agentHeader}>
+              <div>
+                <span>Agent activo</span>
+                <strong>{activeAgent.hostname || activeAgent.agent_id}</strong>
+                <small>
+                  {activeAgent.agent_id} · {activeAgent.agent_version || 'V1'} ·
+                  heartbeat hace {activeAgent.heartbeat_age_seconds ?? '—'} s
+                </small>
+              </div>
+
+              <div className={styles.agentHeaderActions}>
+                <span
+                  className={
+                    activeAgent.effective_status === 'ONLINE'
+                      ? styles.serviceOnline
+                      : styles.serviceOffline
+                  }
+                >
+                  {serviceStatusLabel(activeAgent.effective_status)}
+                </span>
+
+                <form action={requestAgentCommand}>
+                  <input type="hidden" name="agent_id" value={activeAgent.agent_id} />
+                  <input type="hidden" name="command" value="RESTART_ALL" />
+                  <button type="submit" className={styles.restartAllButton}>
+                    Reiniciar todos
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div className={styles.serviceGrid}>
+              {activeAgentServices.map((service: any) => (
+                <article
+                  key={`${service.agent_id}-${service.service_key}`}
+                  className={styles.serviceCard}
+                >
+                  <div className={styles.serviceCardTop}>
+                    <div>
+                      <span>{serviceKeyLabel(service.service_key)}</span>
+                      <strong>
+                        PID {service.pid || '—'}
+                      </strong>
+                    </div>
+
+                    <span className={serviceStatusClass(service.effective_status)}>
+                      {serviceStatusLabel(service.effective_status)}
+                    </span>
+                  </div>
+
+                  <div className={styles.serviceMeta}>
+                    <span>
+                      Heartbeat:
+                      <strong>
+                        {' '}
+                        {service.heartbeat_age_seconds === null
+                          || service.heartbeat_age_seconds === undefined
+                          ? '—'
+                          : `${service.heartbeat_age_seconds} s`}
+                      </strong>
+                    </span>
+
+                    <span>
+                      Reinicios:
+                      <strong> {service.restart_count ?? 0}</strong>
+                    </span>
+
+                    <span>
+                      Último inicio:
+                      <strong> {fmtDateTime(service.started_at)}</strong>
+                    </span>
+                  </div>
+
+                  {service.last_error ? (
+                    <div className={styles.serviceError}>
+                      {String(service.last_error)}
+                    </div>
+                  ) : null}
+
+                  <form action={requestAgentCommand}>
+                    <input type="hidden" name="agent_id" value={activeAgent.agent_id} />
+                    <input type="hidden" name="service_key" value={service.service_key} />
+                    <input type="hidden" name="command" value="RESTART_SERVICE" />
+                    <button type="submit" className={styles.serviceRestartButton}>
+                      Reiniciar servicio
+                    </button>
+                  </form>
+                </article>
+              ))}
+            </div>
+
+            <div className={styles.agentFootnote}>
+              El Agent reinicia automáticamente un proceso si se cae.
+              Si Windows entra en suspensión, ningún proceso puede continuar;
+              configura la PC para que pueda apagar pantalla pero no suspenderse.
+            </div>
+          </>
+        )}
       </section>
 
       <section className={styles.section} id="cuentas-ais">

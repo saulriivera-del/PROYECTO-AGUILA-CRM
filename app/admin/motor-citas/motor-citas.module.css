@@ -606,3 +606,205 @@ button:disabled{opacity:.5;cursor:not-allowed}
   font-size:9px;
   line-height:1.45;
 }
+
+
+/* Visa Master Agent V1 */
+.agentEmpty{
+  border:1px dashed #c8d7e8;
+  border-radius:14px;
+  padding:16px;
+  background:#f8fbff;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+.agentEmpty strong{
+  color:#183659;
+  font-size:13px;
+}
+.agentEmpty span{
+  color:#6e8198;
+  font-size:11px;
+}
+.agentEmpty code{
+  background:#edf4fc;
+  border-radius:5px;
+  padding:2px 5px;
+}
+
+.agentHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  border:1px solid #dce7f3;
+  background:#f8fbff;
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:12px;
+}
+.agentHeader>div:first-child{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.agentHeader>div:first-child>span{
+  color:#6d8098;
+  font-size:9px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.agentHeader>div:first-child>strong{
+  color:#16365c;
+  font-size:15px;
+}
+.agentHeader small{
+  color:#71849c;
+  font-size:10px;
+}
+
+.agentHeaderActions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.serviceOnline,
+.serviceWarning,
+.serviceOffline,
+.serviceNeutral{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 8px;
+  font-size:9px;
+  font-weight:900;
+  white-space:nowrap;
+}
+.serviceOnline{
+  background:#e5f7ef;
+  color:#087149;
+}
+.serviceWarning{
+  background:#fff1ca;
+  color:#875800;
+}
+.serviceOffline{
+  background:#ffe2df;
+  color:#a3312b;
+}
+.serviceNeutral{
+  background:#edf2f7;
+  color:#63768c;
+}
+
+.restartAllButton{
+  border:1px solid #bfd1e6;
+  background:#173f70;
+  color:#fff;
+  border-radius:9px;
+  padding:8px 11px;
+  font-size:10px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.serviceGrid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.serviceCard{
+  border:1px solid #dde7f2;
+  background:#fff;
+  border-radius:14px;
+  padding:13px;
+  display:flex;
+  flex-direction:column;
+  gap:11px;
+}
+
+.serviceCardTop{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+}
+.serviceCardTop>div{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.serviceCardTop>div>span{
+  color:#17365c;
+  font-size:11px;
+  font-weight:900;
+}
+.serviceCardTop>div>strong{
+  color:#7b8ca0;
+  font-size:9px;
+  font-weight:800;
+}
+
+.serviceMeta{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  color:#6d8096;
+  font-size:9px;
+}
+.serviceMeta strong{
+  color:#294867;
+}
+
+.serviceError{
+  border:1px solid #f0c7c3;
+  background:#fff5f4;
+  color:#9c3932;
+  border-radius:8px;
+  padding:7px;
+  font-size:9px;
+  line-height:1.35;
+  word-break:break-word;
+}
+
+.serviceRestartButton{
+  width:100%;
+  border:1px solid #c7d7e9;
+  background:#f7fbff;
+  color:#1c558e;
+  border-radius:9px;
+  padding:8px;
+  font-size:9px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.agentFootnote{
+  margin-top:10px;
+  color:#72849a;
+  font-size:9px;
+  line-height:1.45;
+}
+
+@media(max-width:1100px){
+  .serviceGrid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:680px){
+  .agentHeader{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .agentHeaderActions{
+    justify-content:flex-start;
+  }
+  .serviceGrid{
+    grid-template-columns:1fr;
+  }
+}

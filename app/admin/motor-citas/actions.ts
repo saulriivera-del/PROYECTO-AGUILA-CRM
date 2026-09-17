@@ -729,3 +729,91 @@ export async function toggleBookingConfig(formData: FormData) {
   revalidatePath(PATH)
   redirect(`${PATH}?updated=1#agendados`)
 }
+
+
+export async function requestAgentCommand(formData: FormData) {
+  await requireAuthContext()
+
+  // Tablas V1 nuevas; el esquema real existe tras ejecutar la migración.
+  const supabase = getVisaMasterAdminClient() as any
+
+  const agentId = text(formData, 'agent_id')
+  const serviceKey = text(formData, 'service_key')
+  const command = text(formData, 'command')
+
+  const allowedCommands = new Set([
+    'RESTART_SERVICE',
+    'RESTART_ALL',
+    'START_SERVICE',
+    'STOP_SERVICE',
+  ])
+
+  const allowedServices = new Set([
+    'account_worker',
+    'orchestrator',
+    'master_notifier',
+    'telegram_bot',
+  ])
+
+  if (!agentId) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      'No se recibió el Agent ID.'
+    )}#servicios`)
+  }
+
+  if (!allowedCommands.has(command)) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      'Comando del Agent no permitido.'
+    )}#servicios`)
+  }
+
+  if (
+    command !== 'RESTART_ALL'
+    && !allowedServices.has(serviceKey)
+  ) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      'Servicio del Agent no permitido.'
+    )}#servicios`)
+  }
+
+  const { data: agent, error: agentError } = await supabase
+    .from('vm_agent_instances')
+    .select('agent_id,last_heartbeat_at')
+    .eq('agent_id', agentId)
+    .maybeSingle()
+
+  if (agentError) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      agentError.message
+    )}#servicios`)
+  }
+
+  if (!agent) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      'El Agent seleccionado ya no existe.'
+    )}#servicios`)
+  }
+
+  const { error } = await supabase
+    .from('vm_agent_commands')
+    .insert({
+      agent_id: agentId,
+      service_key:
+        command === 'RESTART_ALL'
+          ? null
+          : serviceKey,
+      command,
+      status: 'PENDING',
+      updated_at: new Date().toISOString(),
+    })
+
+  if (error) {
+    redirect(`${PATH}?error=${encodeURIComponent(
+      error.message
+    )}#servicios`)
+  }
+
+  revalidatePath(PATH)
+  redirect(`${PATH}?agent_command=1#servicios`)
+}
+
