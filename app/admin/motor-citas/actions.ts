@@ -731,6 +731,152 @@ export async function toggleBookingConfig(formData: FormData) {
 }
 
 
+function subtractIsoDays(value: string, days: number) {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() - days)
+  return date.toISOString().slice(0, 10)
+}
+
+async function autoConfirmPreflight(
+  supabase: ReturnType<typeof getVisaMasterAdminClient>,
+  bookingConfigId: number,
+) {
+  const db = supabase as any
+  const issues: string[] = []
+
+  const { data: config, error: configError } = await db
+    .from('vm_booking_configs')
+    .select('*')
+    .eq('id', bookingConfigId)
+    .single()
+
+  if (configError || !config) {
+    throw new Error(configError?.message || 'No existe la configuración de agendado.')
+  }
+
+  const [{ data: client, error: clientError }, { data: account, error: accountError }] = await Promise.all([
+    db.from('vm_appointment_clients')
+      .select('id,current_appointment_date,current_consulate')
+      .eq('id', Number(config.client_id))
+      .single(),
+    db.from('vm_ais_accounts')
+      .select('id,credential_status,credential_error_message,schedule_id')
+      .eq('id', Number(config.account_id))
+      .single(),
+  ])
+
+  if (clientError || !client) {
+    throw new Error(clientError?.message || 'No se encontró el cliente del proceso.')
+  }
+
+  if (accountError || !account) {
+    throw new Error(accountError?.message || 'No se encontró la cuenta AIS del proceso.')
+  }
+
+  let target: any = null
+  if (config.ais_target_id) {
+    const { data, error } = await db
+      .from('vm_ais_account_targets')
+      .select('id,is_active,external_target_id,raw_summary,current_consular_date,current_consulate,appointment_verified_has_current,appointment_verified_at')
+      .eq('id', Number(config.ais_target_id))
+      .maybeSingle()
+
+    if (error) throw new Error(error.message)
+    target = data
+  }
+
+  if (String(account.credential_status || '') !== 'VALID') {
+    issues.push(
+      account.credential_error_message
+        ? `Acceso AIS: ${account.credential_error_message}`
+        : 'Acceso AIS: la credencial no está validada.'
+    )
+  }
+
+  if (!target || target.is_active === false) {
+    issues.push('Objetivo AIS: falta un target activo vinculado al trámite.')
+  }
+
+  const rawSummary = target?.raw_summary && typeof target.raw_summary === 'object'
+    ? target.raw_summary
+    : {}
+  const targetSchedule = rawSummary?.schedule_id
+  const externalTarget = String(target?.external_target_id || '')
+  const scheduleDetected = Boolean(
+    account.schedule_id
+    || targetSchedule
+    || /schedule:\d+/i.test(externalTarget)
+  )
+
+  if (!scheduleDetected) {
+    issues.push('Schedule AIS: no se encontró schedule_id para este proceso.')
+  }
+
+  const targetWasVerified = Boolean(target?.appointment_verified_at)
+  const targetHasAppointment = target?.appointment_verified_has_current === true
+
+  if (!targetWasVerified) {
+    issues.push('Estado AIS: verifica primero si el target tiene una cita actual.')
+  }
+
+  if (targetWasVerified && targetHasAppointment && !target?.current_consular_date) {
+    issues.push('Cita actual: AIS indica que existe cita, pero falta la fecha consular sincronizada.')
+  }
+
+  const effectiveCurrentDate = targetWasVerified
+    ? (targetHasAppointment ? target?.current_consular_date : null)
+    : client.current_appointment_date
+
+  const dateFrom = String(config.acceptable_date_from || '').slice(0, 10)
+  const dateTo = String(config.acceptable_date_to || '').slice(0, 10)
+
+  if (!dateFrom || !dateTo || dateFrom > dateTo) {
+    issues.push('Rango: configura una fecha inicial y final válidas.')
+  } else if (effectiveCurrentDate) {
+    const improvementDays = Math.max(1, Number(config.minimum_improvement_days || 0))
+    const cutoff = subtractIsoDays(String(effectiveCurrentDate), improvementDays)
+    const lastCandidate = dateTo < cutoff ? dateTo : cutoff
+
+    if (dateFrom > lastCandidate) {
+      issues.push(
+        `Mejora: el rango no contiene una fecha que mejore la cita actual ${String(effectiveCurrentDate).slice(0, 10)} por al menos ${improvementDays} día(s).`
+      )
+    }
+  }
+
+  const consulates = Array.isArray(config.allowed_consulates) ? config.allowed_consulates : []
+  if (!consulates.length) {
+    issues.push('Consulados: selecciona al menos un consulado permitido.')
+  }
+
+  const casLocations = Array.isArray(config.allowed_cas_locations) ? config.allowed_cas_locations : []
+  if (!casLocations.length) {
+    issues.push('CAS: selecciona al menos una ubicación permitida.')
+  }
+
+  const casMin = Number(config.cas_min_days_before)
+  const casMax = Number(config.cas_max_days_before)
+  if (!Number.isFinite(casMin) || !Number.isFinite(casMax) || casMin < 0 || casMax < casMin) {
+    issues.push('Ventana CAS: los días mínimos/máximos no son válidos.')
+  }
+
+  if (!config.allow_any_time && (!config.allowed_time_from || !config.allowed_time_to)) {
+    issues.push('Horario: define un rango horario o habilita cualquier horario.')
+  }
+
+  const validModes = new Set(['ALERT_ONLY', 'STANDARD', 'INTENSIVE', 'INTELLIGENT'])
+  if (!validModes.has(String(config.search_mode || '').toUpperCase())) {
+    issues.push('Modo: la configuración de búsqueda no es válida.')
+  }
+
+  return {
+    ready: issues.length === 0,
+    issues,
+    config,
+  }
+}
+
+
 export async function setAutoConfirmState(formData: FormData) {
   await requireAuthContext()
   const supabase = getVisaMasterAdminClient()
@@ -746,6 +892,28 @@ export async function setAutoConfirmState(formData: FormData) {
 
   const armed = next === 'ARMED'
 
+  if (armed) {
+    try {
+      const preflight = await autoConfirmPreflight(supabase, id)
+
+      if (!preflight.ready) {
+        const detail = preflight.issues.slice(0, 5).join(' · ')
+        const suffix = preflight.issues.length > 5
+          ? ` · +${preflight.issues.length - 5} pendiente(s)`
+          : ''
+
+        redirect(`${PATH}?section=preflight&error=${encodeURIComponent(
+          `Preflight incompleto. ${detail}${suffix}`
+        )}#preflight-${id}`)
+      }
+    } catch (error: any) {
+      rethrowNextRedirect(error)
+      redirect(`${PATH}?section=preflight&error=${encodeURIComponent(
+        error?.message || 'No se pudo completar el Preflight.'
+      )}#preflight-${id}`)
+    }
+  }
+
   const { error } = await supabase
     .from('vm_booking_configs')
     .update({
@@ -755,13 +923,12 @@ export async function setAutoConfirmState(formData: FormData) {
     .eq('id', id)
 
   if (error) {
-    redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error.message)}#agendados`)
+    redirect(`${PATH}?section=preflight&error=${encodeURIComponent(error.message)}#preflight-${id}`)
   }
 
   revalidatePath(PATH)
-  redirect(`${PATH}?section=agendados&updated=1#agendados`)
+  redirect(`${PATH}?section=preflight&updated=1#preflight-${id}`)
 }
-
 
 export async function requestAgentCommand(formData: FormData) {
   await requireAuthContext()

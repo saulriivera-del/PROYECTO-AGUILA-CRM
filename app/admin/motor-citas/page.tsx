@@ -24,6 +24,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 const SECTION_OPTIONS = [
   { key: 'resumen', label: 'Resumen' },
   { key: 'agendados', label: 'Agendados' },
+  { key: 'preflight', label: 'Preflight' },
   { key: 'cuentas-ais', label: 'Cuentas AIS' },
   { key: 'servicios', label: 'Servicios' },
   { key: 'rendimiento', label: 'Rendimiento' },
@@ -326,6 +327,193 @@ function serviceKeyLabel(key?: string | null) {
 }
 
 
+type PreflightCheck = {
+  key: string
+  label: string
+  ok: boolean
+  detail: string
+  blocking: boolean
+}
+
+function subtractIsoDays(value: string, days: number) {
+  const date = new Date(`${value.slice(0, 10)}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() - days)
+  return date.toISOString().slice(0, 10)
+}
+
+function buildBookingPreflight(config: any, account: any, target: any) {
+  const checks: PreflightCheck[] = []
+
+  const targetWasVerified = Boolean(target?.appointment_verified_at)
+  const targetHasAppointment = target?.appointment_verified_has_current === true
+  const targetHasNoAppointment = target?.appointment_verified_has_current === false
+
+  const effectiveCurrentDate = targetWasVerified
+    ? (targetHasAppointment ? target?.current_consular_date : null)
+    : config.current_appointment_date
+
+  const accountValid = String(account?.credential_status || '') === 'VALID'
+  checks.push({
+    key: 'credential',
+    label: 'Acceso AIS',
+    ok: accountValid,
+    detail: accountValid
+      ? 'Credencial validada.'
+      : `Estado: ${account?.credential_status || 'sin validar'}.`,
+    blocking: true,
+  })
+
+  const targetLinked = Boolean(config.ais_target_id && target)
+  checks.push({
+    key: 'target',
+    label: 'Objetivo AIS',
+    ok: targetLinked,
+    detail: targetLinked
+      ? `Target #${target.id} vinculado.`
+      : 'Falta vincular el solicitante/grupo AIS.',
+    blocking: true,
+  })
+
+  const hasScheduleHint = Boolean(
+    account?.schedule_id
+    || /^schedule:\d+$/i.test(String(target?.external_target_id || ''))
+    || /schedule:\d+/i.test(String(target?.external_target_id || ''))
+  )
+  checks.push({
+    key: 'schedule',
+    label: 'Schedule AIS',
+    ok: hasScheduleHint,
+    detail: hasScheduleHint
+      ? 'Schedule detectado para el proceso.'
+      : 'No se ve un schedule_id utilizable desde el panel.',
+    blocking: true,
+  })
+
+  checks.push({
+    key: 'appointment_verified',
+    label: 'Estado de cita en AIS',
+    ok: targetWasVerified,
+    detail: targetWasVerified
+      ? (targetHasAppointment
+          ? `Cita verificada${target?.current_consular_date ? `: ${target.current_consular_date}` : ''}.`
+          : 'AIS verificado: actualmente sin cita.')
+      : 'Falta verificar el estado real de la cita en AIS.',
+    blocking: true,
+  })
+
+  if (targetWasVerified && targetHasAppointment && !target?.current_consular_date) {
+    checks.push({
+      key: 'appointment_date',
+      label: 'Fecha de cita actual',
+      ok: false,
+      detail: 'AIS indica que existe cita, pero no hay fecha consular sincronizada.',
+      blocking: true,
+    })
+  }
+
+  const dateFrom = String(config.acceptable_date_from || '').slice(0, 10)
+  const dateTo = String(config.acceptable_date_to || '').slice(0, 10)
+  const rangeValid = Boolean(dateFrom && dateTo && dateFrom <= dateTo)
+  checks.push({
+    key: 'range',
+    label: 'Rango de búsqueda',
+    ok: rangeValid,
+    detail: rangeValid
+      ? `${dateFrom} → ${dateTo}`
+      : 'Captura un rango de fechas válido.',
+    blocking: true,
+  })
+
+  if (rangeValid && effectiveCurrentDate) {
+    const improvementDays = Math.max(1, Number(config.minimum_improvement_days || 0))
+    const cutoff = subtractIsoDays(String(effectiveCurrentDate), improvementDays)
+    const lastCandidate = dateTo < cutoff ? dateTo : cutoff
+    const hasImprovementCandidate = dateFrom <= lastCandidate
+
+    checks.push({
+      key: 'improvement',
+      label: 'Mejora real disponible en el rango',
+      ok: hasImprovementCandidate,
+      detail: hasImprovementCandidate
+        ? `La nueva consular deberá ser ${cutoff} o anterior.`
+        : `El rango no contiene fechas que mejoren la cita actual (${String(effectiveCurrentDate).slice(0, 10)}).`,
+      blocking: true,
+    })
+  }
+
+  const consulates = Array.isArray(config.allowed_consulates) ? config.allowed_consulates : []
+  checks.push({
+    key: 'consulates',
+    label: 'Consulados',
+    ok: consulates.length > 0,
+    detail: consulates.length
+      ? `${consulates.length} permitido(s).`
+      : 'Selecciona al menos un consulado.',
+    blocking: true,
+  })
+
+  const casLocations = Array.isArray(config.allowed_cas_locations) ? config.allowed_cas_locations : []
+  checks.push({
+    key: 'cas_locations',
+    label: 'CAS',
+    ok: casLocations.length > 0,
+    detail: casLocations.length
+      ? `${casLocations.length} ubicación(es) permitida(s).`
+      : 'Selecciona al menos un CAS.',
+    blocking: true,
+  })
+
+  const casMin = Number(config.cas_min_days_before)
+  const casMax = Number(config.cas_max_days_before)
+  const casWindowValid = Number.isFinite(casMin) && Number.isFinite(casMax) && casMin >= 0 && casMax >= casMin
+  checks.push({
+    key: 'cas_window',
+    label: 'Ventana CAS',
+    ok: casWindowValid,
+    detail: casWindowValid
+      ? `${casMin}–${casMax} días antes de Consular.`
+      : 'La ventana CAS es inválida.',
+    blocking: true,
+  })
+
+  const timeWindowValid = Boolean(
+    config.allow_any_time
+    || (config.allowed_time_from && config.allowed_time_to)
+  )
+  checks.push({
+    key: 'time_window',
+    label: 'Horario consular',
+    ok: timeWindowValid,
+    detail: config.allow_any_time
+      ? 'Cualquier horario permitido.'
+      : (timeWindowValid
+          ? `${config.allowed_time_from} → ${config.allowed_time_to}`
+          : 'Falta configurar el horario permitido.'),
+    blocking: true,
+  })
+
+  const validModes = new Set(['ALERT_ONLY', 'STANDARD', 'INTENSIVE', 'INTELLIGENT'])
+  const modeOk = validModes.has(String(config.search_mode || '').toUpperCase())
+  checks.push({
+    key: 'mode',
+    label: 'Modo de búsqueda',
+    ok: modeOk,
+    detail: modeOk ? modeLabel(config.search_mode) : 'Modo de búsqueda no reconocido.',
+    blocking: true,
+  })
+
+  const blocking = checks.filter((item) => item.blocking && !item.ok)
+
+  return {
+    checks,
+    blocking,
+    ready: blocking.length === 0,
+    effectiveCurrentDate,
+    targetHasNoAppointment,
+  }
+}
+
+
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
 
@@ -419,6 +607,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
   const targetById = new Map<number, any>(
     (targets ?? []).map((target: any) => [Number(target.id), target])
+  )
+
+  const accountById = new Map<number, any>(
+    (accounts ?? []).map((account: any) => [Number(account.account_id ?? account.id), account])
   )
 
   const pendingSyncByAccount = new Map<number, any>()
@@ -901,6 +1093,135 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             </div>
           </>
         )}
+      </section>
+      ) : null}
+
+      {selectedSection === 'preflight' ? (
+      <section className={styles.section} id="preflight">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Control antes de LIVE</span>
+            <h2>Preflight de clientes</h2>
+          </div>
+          <p>
+            Revisa que cuenta, target, cita, fechas y reglas estén listas antes de armar una confirmación automática.
+          </p>
+        </div>
+
+        <div className={styles.configList}>
+          {(configs ?? []).map((config: any) => {
+            const target = config.ais_target_id
+              ? targetById.get(Number(config.ais_target_id))
+              : null
+            const account = accountById.get(Number(config.account_id))
+            const telegramLink = telegramLinkByConfig.get(Number(config.booking_config_id))
+            const preflight = buildBookingPreflight(config, account, target)
+
+            return (
+              <details
+                className={styles.configCard}
+                key={`preflight-${config.booking_config_id}`}
+                id={`preflight-${config.booking_config_id}`}
+                open={!preflight.ready || config.auto_confirm_enabled}
+              >
+                <summary>
+                  <div className={styles.clientBlock}>
+                    <div className={styles.badgeRow}>
+                      <span className={preflight.ready ? styles.autoConfirmOn : styles.autoConfirmOff}>
+                        {preflight.ready ? 'PREFLIGHT LISTO' : `PREFLIGHT: ${preflight.blocking.length} PENDIENTE(S)`}
+                      </span>
+                      <span className={config.auto_confirm_enabled ? styles.autoConfirmOn : styles.autoConfirmOff}>
+                        {config.auto_confirm_enabled ? 'ARMADO EN ÁGUILA' : 'DRY RUN / DESARMADO'}
+                      </span>
+                      <span className={styles.badge}>Config #{config.booking_config_id}</span>
+                      <span className={styles.badge}>Cuenta #{config.account_id}</span>
+                    </div>
+                    <strong>{config.full_name}</strong>
+                    <small>{config.account_email}</small>
+                  </div>
+
+                  <div className={styles.currentAppointment}>
+                    <span>Cita efectiva</span>
+                    <strong>{fmtDate(preflight.effectiveCurrentDate)}</strong>
+                    <small>
+                      {target?.appointment_verified_at
+                        ? (target?.appointment_verified_has_current === false ? 'AIS verificado: sin cita' : target?.current_consulate || 'AIS verificado')
+                        : 'Pendiente verificar AIS'}
+                    </small>
+                  </div>
+
+                  <div className={styles.rulePreview}>
+                    <span>Rango</span>
+                    <strong>{fmtDate(config.acceptable_date_from)} → {fmtDate(config.acceptable_date_to)}</strong>
+                    <small>Mejora mínima: {Math.max(1, Number(config.minimum_improvement_days || 0))} día(s)</small>
+                  </div>
+
+                  <div className={styles.rulePreview}>
+                    <span>Estado LIVE</span>
+                    <strong>{config.auto_confirm_enabled ? 'ARMADO' : 'BLOQUEADO'}</strong>
+                    <small>El seguro maestro local VM_LIVE_BOOKING_ENABLED se valida al ejecutar.</small>
+                  </div>
+                </summary>
+
+                <div className={styles.badgeRow}>
+                  {preflight.checks.map((check) => (
+                    <span
+                      key={check.key}
+                      className={check.ok ? styles.aisVerifiedBadge : styles.aisNoAppointmentBadge}
+                      title={check.detail}
+                    >
+                      {check.ok ? '✓' : '✕'} {check.label}
+                    </span>
+                  ))}
+                  <span className={telegramLink ? styles.telegramLinked : styles.telegramPending}>
+                    {telegramLink ? 'Telegram vinculado' : 'Telegram sin vincular'}
+                  </span>
+                </div>
+
+                <div className={styles.improvementAction}>
+                  <div>
+                    <strong>{preflight.ready ? 'Configuración lista para armar' : 'Completa los requisitos pendientes'}</strong>
+                    <span>
+                      {preflight.ready
+                        ? 'Proyecto Águila permitirá ARMAR este proceso. El Worker todavía exige el seguro maestro local antes de cualquier submit.'
+                        : preflight.blocking.map((item) => `${item.label}: ${item.detail}`).join(' · ')}
+                    </span>
+                  </div>
+
+                  <div className={styles.topOperationalActions}>
+                    {!target?.appointment_verified_at && target?.id ? (
+                      <a href="?section=cuentas-ais#cuentas-ais" className={styles.secondaryButton}>
+                        Verificar cita AIS
+                      </a>
+                    ) : null}
+
+                    <a href="?section=agendados#agendados" className={styles.secondaryButton}>
+                      Editar reglas
+                    </a>
+
+                    <form action={setAutoConfirmState}>
+                      <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
+                      <input
+                        type="hidden"
+                        name="next_state"
+                        value={config.auto_confirm_enabled ? 'DISARMED' : 'ARMED'}
+                      />
+                      <button
+                        type="submit"
+                        disabled={!config.auto_confirm_enabled && !preflight.ready}
+                        className={config.auto_confirm_enabled ? styles.secondaryButton : styles.startButton}
+                      >
+                        {config.auto_confirm_enabled ? 'Desarmar' : 'Armar para LIVE'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </details>
+            )
+          })}
+
+          {!configs?.length ? <div className={styles.empty}>Todavía no hay configuraciones para revisar.</div> : null}
+        </div>
       </section>
       ) : null}
 
@@ -1572,6 +1893,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             const targetHasAppointment = configTarget?.appointment_verified_has_current === true
             const targetHasNoAppointment = configTarget?.appointment_verified_has_current === false
             const configTelegramLink = telegramLinkByConfig.get(Number(config.booking_config_id))
+            const configAccount = accountById.get(Number(config.account_id))
+            const configPreflight = buildBookingPreflight(config, configAccount, configTarget)
 
             const effectiveCurrentDate = targetWasVerified
               ? (targetHasAppointment ? configTarget?.current_consular_date : null)
@@ -1676,6 +1999,28 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
 
               <div className={styles.improvementAction}>
                 <div>
+                  <strong>Preflight LIVE</strong>
+                  <span>
+                    {configPreflight.ready
+                      ? 'LISTO: la configuración cumple los requisitos del panel para poder armar el agendado automático.'
+                      : `NO LISTO: faltan ${configPreflight.blocking.length} requisito(s) antes de permitir LIVE.`}
+                  </span>
+                  {!configPreflight.ready ? (
+                    <small>
+                      {configPreflight.blocking.map((item) => item.label).join(' · ')}
+                    </small>
+                  ) : null}
+                </div>
+                <a
+                  href={`?section=preflight#preflight-${config.booking_config_id}`}
+                  className={styles.secondaryButton}
+                >
+                  Ver Preflight
+                </a>
+              </div>
+
+              <div className={styles.improvementAction}>
+                <div>
                   <strong>Agendado automático</strong>
                   <span>
                     {config.auto_confirm_enabled
@@ -1692,6 +2037,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   />
                   <button
                     type="submit"
+                    disabled={!config.auto_confirm_enabled && !configPreflight.ready}
+                    title={!config.auto_confirm_enabled && !configPreflight.ready ? 'Completa el Preflight antes de armar.' : undefined}
                     className={config.auto_confirm_enabled ? styles.secondaryButton : styles.startButton}
                   >
                     {config.auto_confirm_enabled
