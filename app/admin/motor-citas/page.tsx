@@ -25,6 +25,7 @@ const SECTION_OPTIONS = [
   { key: 'resumen', label: 'Resumen' },
   { key: 'agendados', label: 'Agendados' },
   { key: 'preflight', label: 'Preflight' },
+  { key: 'incidencias', label: 'Incidencias' },
   { key: 'cuentas-ais', label: 'Cuentas AIS' },
   { key: 'servicios', label: 'Servicios' },
   { key: 'rendimiento', label: 'Rendimiento' },
@@ -341,7 +342,7 @@ function subtractIsoDays(value: string, days: number) {
   return date.toISOString().slice(0, 10)
 }
 
-function buildBookingPreflight(config: any, account: any, target: any) {
+function buildBookingPreflight(config: any, account: any, target: any, telegramLink: any = null) {
   const checks: PreflightCheck[] = []
 
   const targetWasVerified = Boolean(target?.appointment_verified_at)
@@ -492,6 +493,17 @@ function buildBookingPreflight(config: any, account: any, target: any) {
     blocking: true,
   })
 
+  const telegramLinked = Boolean(telegramLink?.active)
+  checks.push({
+    key: 'telegram',
+    label: 'Telegram privado',
+    ok: telegramLinked,
+    detail: telegramLinked
+      ? `Vinculado a ${telegramLink.chat_title || `Chat ${telegramLink.chat_id}`}.`
+      : `Falta vincular el grupo interno. En Telegram usa /vincular ${config.booking_config_id}.`,
+    blocking: true,
+  })
+
   const validModes = new Set(['ALERT_ONLY', 'STANDARD', 'INTENSIVE', 'INTELLIGENT'])
   const modeOk = validModes.has(String(config.search_mode || '').toUpperCase())
   checks.push({
@@ -543,6 +555,13 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: agentServices, error: agentServicesError },
     { data: performanceModes, error: performanceModesError },
     { data: performanceConfigs, error: performanceConfigsError },
+    { data: aisJobs, error: aisJobsError },
+    { data: telegramOutbox, error: telegramOutboxError },
+    { data: availabilityOutbox, error: availabilityOutboxError },
+    { data: promoPublications, error: promoPublicationsError },
+    { data: availabilityPublications, error: availabilityPublicationsError },
+    { data: notifierSources, error: notifierSourcesError },
+    { data: botMasterDetections, error: botMasterDetectionsError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -583,11 +602,28 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       .order('sort_order'),
     (supabase as any).from('vm_motor_performance_config_view').select('*')
       .order('booking_config_id'),
+    (supabase as any).from('vm_ais_jobs').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_telegram_outbox').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_bot_master_availability_outbox').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_bot_master_promo_publications').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_bot_master_availability_publications').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_notifier_sources').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_appointment_detections')
+      .select('id,source,consulate,available_date,detected_at')
+      .eq('source', 'BOT MASTER')
+      .order('id', { ascending: false }).limit(30),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
-    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError || performanceModesError || performanceConfigsError
+    accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError || performanceModesError || performanceConfigsError ||
+    aisJobsError || telegramOutboxError || availabilityOutboxError || promoPublicationsError || availabilityPublicationsError || notifierSourcesError || botMasterDetectionsError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -678,17 +714,218 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       )
     : []
 
+  const ageMinutes = (value?: string | null) => {
+    if (!value) return null
+    const millis = Date.now() - new Date(value).getTime()
+    return Number.isFinite(millis) ? Math.max(0, millis / 60000) : null
+  }
+
+  const rowTimestamp = (row: any) =>
+    row?.updated_at || row?.created_at || row?.detected_at || row?.started_at || row?.scheduled_at || null
+
+  type Incident = {
+    severity: 'CRITICAL' | 'WARNING' | 'INFO'
+    title: string
+    detail: string
+    source: string
+  }
+
+  const incidents: Incident[] = []
+  const expectedServiceKeys = new Set([
+    'account_worker',
+    'orchestrator',
+    'master_notifier',
+    'telegram_bot',
+    'booking_publisher',
+  ])
+
+  if (!activeAgent || !['ONLINE', 'RUNNING'].includes(String(activeAgent.effective_status || ''))) {
+    incidents.push({
+      severity: 'CRITICAL',
+      title: 'Visa Master Agent desconectado',
+      detail: 'Proyecto Águila no está recibiendo heartbeat normal del Agent.',
+      source: 'Infraestructura',
+    })
+  }
+
+  for (const service of activeAgentServices) {
+    if (!expectedServiceKeys.has(String(service.service_key || ''))) continue
+    const effective = String(service.effective_status || '')
+    const desired = String(service.desired_state || 'RUNNING')
+    if (desired !== 'STOPPED' && ['CRASHED', 'ERROR', 'STALE', 'AGENT_OFFLINE', 'OFFLINE'].includes(effective)) {
+      incidents.push({
+        severity: 'CRITICAL',
+        title: `${serviceKeyLabel(service.service_key)} fuera de servicio`,
+        detail: service.last_error || `Estado reportado: ${serviceStatusLabel(effective)}.`,
+        source: 'Servicios',
+      })
+    } else if (desired === 'STOPPED') {
+      incidents.push({
+        severity: 'INFO',
+        title: `${serviceKeyLabel(service.service_key)} detenido intencionalmente`,
+        detail: 'El Agent conserva este estado hasta que lo inicies desde Servicios.',
+        source: 'Servicios',
+      })
+    }
+  }
+
+  for (const account of accounts ?? []) {
+    const credential = String(account.credential_status || '')
+    if (['INVALID_CREDENTIALS', 'ERROR'].includes(credential)) {
+      incidents.push({
+        severity: 'CRITICAL',
+        title: `Cuenta AIS con error · ${account.account_email || `#${account.account_id}`}`,
+        detail: account.credential_error_message || credentialLabel(credential),
+        source: 'AIS',
+      })
+    } else if (credential === 'LOGIN_REQUIRED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `AIS requiere login · ${account.account_email || `#${account.account_id}`}`,
+        detail: 'La cuenta no debe ejecutar búsqueda LIVE hasta restaurar la sesión.',
+        source: 'AIS',
+      })
+    }
+  }
+
+  for (const config of configs ?? []) {
+    if (!telegramLinkByConfig.has(Number(config.booking_config_id))) {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Telegram sin vincular · ${config.full_name}`,
+        detail: `En el grupo privado escribe /vincular ${config.booking_config_id}. Sin este enlace, BOOKED_CONFIRMED no puede llegar al chat del trámite.`,
+        source: 'Telegram privado',
+      })
+    }
+  }
+
+  for (const job of aisJobs ?? []) {
+    const status = String(job.status || '')
+    const age = ageMinutes(rowTimestamp(job))
+    if (status === 'RUNNING' && age !== null && age > 15) {
+      incidents.push({
+        severity: 'CRITICAL',
+        title: `Job AIS #${job.id} atorado`,
+        detail: `Lleva aproximadamente ${Math.round(age)} min en RUNNING. ${job.result_message || ''}`.trim(),
+        source: 'Cola AIS',
+      })
+    } else if (status === 'FAILED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Job AIS #${job.id} falló`,
+        detail: `${job.result_code || 'FAILED'} · ${job.result_message || 'Sin detalle.'}`,
+        source: 'Cola AIS',
+      })
+    }
+  }
+
+  for (const row of telegramOutbox ?? []) {
+    const status = String(row.status || '')
+    const age = ageMinutes(rowTimestamp(row))
+    if (status === 'FAILED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Telegram privado falló · outbox #${row.id}`,
+        detail: `${row.event_type || 'Evento'} para Config #${row.booking_config_id || '—'} no fue enviado.`,
+        source: 'Telegram privado',
+      })
+    } else if (status === 'PENDING' && age !== null && age > 5) {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Telegram privado pendiente · outbox #${row.id}`,
+        detail: `Lleva ${Math.round(age)} min pendiente. Revisa Telegram Bot en Servicios.`,
+        source: 'Telegram privado',
+      })
+    }
+  }
+
+  for (const row of availabilityOutbox ?? []) {
+    const status = String(row.status || '')
+    const age = ageMinutes(rowTimestamp(row))
+    if (status === 'FAILED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Alerta pública Bot Master falló · #${row.id}`,
+        detail: `${row.consulate || 'Consulado'} ${row.available_date || ''} · ${row.last_error || 'Se reintentará automáticamente.'}`,
+        source: 'Master Notificador',
+      })
+    } else if (status === 'PENDING' && age !== null && age > 5) {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Alerta pública Bot Master pendiente · #${row.id}`,
+        detail: `Lleva ${Math.round(age)} min sin publicarse. Revisa Publicador Bot Master.`,
+        source: 'Master Notificador',
+      })
+    }
+  }
+
+  for (const row of promoPublications ?? []) {
+    if (String(row.status || '') === 'FAILED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Publicación BOOKED_CONFIRMED falló · #${row.id}`,
+        detail: row.error_message || 'El Publicador reintentará el destino pendiente.',
+        source: 'Publicador Bot Master',
+      })
+    }
+  }
+
+  for (const row of availabilityPublications ?? []) {
+    if (String(row.status || '') === 'FAILED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Destino de apertura falló · #${row.id}`,
+        detail: row.error_message || 'La apertura será reintentada.',
+        source: 'Publicador Bot Master',
+      })
+    }
+  }
+
+  for (const health of healthRows ?? []) {
+    if (String(health.health_status || '') === 'DEGRADED') {
+      incidents.push({
+        severity: 'WARNING',
+        title: `Salud AIS degradada · Cuenta #${health.account_id}`,
+        detail: `Errores 1 h: ${health.errors_1h || 0} · timeouts: ${health.timeouts_1h || 0} · empty: ${health.empty_responses_1h || 0}.`,
+        source: 'Salud AIS',
+      })
+    }
+  }
+
+  const criticalIncidents = incidents.filter((item) => item.severity === 'CRITICAL')
+  const warningIncidents = incidents.filter((item) => item.severity === 'WARNING')
+  const infoIncidents = incidents.filter((item) => item.severity === 'INFO')
+
+  const semaphore = criticalIncidents.length
+    ? { label: 'INCIDENCIA CRÍTICA', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.10)', border: 'rgba(239, 68, 68, 0.38)' }
+    : warningIncidents.length
+      ? { label: 'ATENCIÓN REQUERIDA', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.10)', border: 'rgba(245, 158, 11, 0.38)' }
+      : { label: 'OPERACIÓN NORMAL', color: '#10b981', bg: 'rgba(16, 185, 129, 0.10)', border: 'rgba(16, 185, 129, 0.38)' }
+
+  const botMasterSource = (notifierSources ?? []).find(
+    (row: any) => String(row.source_key || '') === 'BOT_MASTER_AIS'
+  )
+  const lastBotMasterDetection = (botMasterDetections ?? [])[0] || null
+  const expectedServices = activeAgentServices.filter((row: any) => expectedServiceKeys.has(String(row.service_key || '')))
+  const onlineServices = expectedServices.filter((row: any) => ['ONLINE', 'RUNNING'].includes(String(row.effective_status || ''))).length
+  const validAccounts = (accounts ?? []).filter((row: any) => String(row.credential_status || '') === 'VALID').length
+  const linkedConfigs = (configs ?? []).filter((row: any) => telegramLinkByConfig.has(Number(row.booking_config_id))).length
+  const pendingPublicAlerts = (availabilityOutbox ?? []).filter((row: any) => ['PENDING', 'FAILED'].includes(String(row.status || ''))).length
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
           <span className={styles.eyebrow}>Visa Master · Proyecto Águila</span>
           <h1>Motor de Citas</h1>
-          <p>Configura por anticipado qué citas puede tomar el motor y analiza el comportamiento de cada consulado.</p>
+          <p>Configura por anticipado qué citas puede tomar el motor, vigila incidencias y analiza el comportamiento de cada consulado.</p>
         </div>
-        <div className={styles.headerStatus}>
-          <span className={styles.liveDot} />
-          Configuración operativa
+        <div
+          className={styles.headerStatus}
+          style={{ borderColor: semaphore.border, background: semaphore.bg, color: semaphore.color }}
+        >
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: semaphore.color, display: 'inline-block' }} />
+          {semaphore.label}
         </div>
       </header>
 
@@ -724,6 +961,36 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           No pude leer una o más vistas del Motor de Citas.
         </div>
       ) : null}
+
+      <section
+        style={{
+          margin: '18px 0 8px',
+          padding: '18px 20px',
+          borderRadius: '18px',
+          border: `1px solid ${semaphore.border}`,
+          background: semaphore.bg,
+          display: 'grid',
+          gap: '14px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.08em', color: semaphore.color }}>SEMÁFORO GENERAL</span>
+            <h2 style={{ margin: '4px 0 0' }}>Bot Master · {semaphore.label}</h2>
+          </div>
+          <a href="/admin/motor-citas?section=incidencias" style={{ color: 'inherit', fontWeight: 800, textDecoration: 'underline' }}>
+            Ver {criticalIncidents.length + warningIncidents.length} incidencia(s)
+          </a>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 10 }}>
+          <div><span>Servicios</span><strong style={{ display: 'block', fontSize: 22 }}>{onlineServices}/{expectedServices.length || 5}</strong></div>
+          <div><span>Cuentas AIS válidas</span><strong style={{ display: 'block', fontSize: 22 }}>{validAccounts}/{accounts?.length || 0}</strong></div>
+          <div><span>Telegram vinculado</span><strong style={{ display: 'block', fontSize: 22 }}>{linkedConfigs}/{configs?.length || 0}</strong></div>
+          <div><span>Alertas públicas pendientes</span><strong style={{ display: 'block', fontSize: 22 }}>{pendingPublicAlerts}</strong></div>
+          <div><span>Fuente propia</span><strong style={{ display: 'block', fontSize: 18 }}>{botMasterSource ? 'BOT MASTER ✓' : 'Sin observación aún'}</strong></div>
+        </div>
+      </section>
 
       <nav
         aria-label="Secciones del Motor de Citas"
@@ -780,6 +1047,84 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         <article><span>Pausados</span><strong>{summary.paused_configs}</strong></article>
         <article><span>Login requerido</span><strong>{summary.login_required_configs}</strong></article>
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
+      </section>
+      ) : null}
+
+      {selectedSection === 'incidencias' ? (
+      <section className={styles.section} id="incidencias">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Watchdog operativo</span>
+            <h2>Incidencias de Bot Master</h2>
+          </div>
+          <p>
+            Consolida Agent, servicios, AIS, Telegram privado, alertas públicas y publicaciones confirmadas.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 18 }}>
+          <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(239,68,68,.28)' }}>
+            <span>Críticas</span><strong style={{ display: 'block', fontSize: 28 }}>{criticalIncidents.length}</strong>
+          </article>
+          <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(245,158,11,.28)' }}>
+            <span>Advertencias</span><strong style={{ display: 'block', fontSize: 28 }}>{warningIncidents.length}</strong>
+          </article>
+          <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(148,163,184,.28)' }}>
+            <span>Informativas</span><strong style={{ display: 'block', fontSize: 28 }}>{infoIncidents.length}</strong>
+          </article>
+          <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(16,185,129,.28)' }}>
+            <span>Última detección Bot Master</span>
+            <strong style={{ display: 'block', fontSize: 16 }}>{lastBotMasterDetection ? fmtDateTime(lastBotMasterDetection.detected_at) : 'Aún sin detecciones V3.32'}</strong>
+          </article>
+        </div>
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          {incidents.length ? incidents.map((incident, index) => {
+            const color = incident.severity === 'CRITICAL' ? '#ef4444' : incident.severity === 'WARNING' ? '#f59e0b' : '#94a3b8'
+            return (
+              <article
+                key={`${incident.source}-${incident.title}-${index}`}
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: 14,
+                  border: `1px solid ${color}55`,
+                  background: `${color}0D`,
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(110px, 150px) 1fr',
+                  gap: 14,
+                }}
+              >
+                <div>
+                  <strong style={{ color }}>{incident.severity}</strong>
+                  <span style={{ display: 'block', marginTop: 4 }}>{incident.source}</span>
+                </div>
+                <div>
+                  <strong>{incident.title}</strong>
+                  <span style={{ display: 'block', marginTop: 4 }}>{incident.detail}</span>
+                </div>
+              </article>
+            )
+          }) : (
+            <div style={{ padding: 20, borderRadius: 16, border: '1px solid rgba(16,185,129,.28)', background: 'rgba(16,185,129,.06)' }}>
+              <strong>Sin incidencias operativas.</strong>
+              <span style={{ display: 'block', marginTop: 6 }}>Agent, AIS y colas principales se ven normales.</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 20, padding: 16, borderRadius: 14, border: '1px solid rgba(148,163,184,.22)' }}>
+          <strong>Sensor propio de aperturas</strong>
+          <span style={{ display: 'block', marginTop: 6 }}>
+            {botMasterSource
+              ? `${botMasterSource.display_name || 'Bot Master · Buscador AIS'} está registrado como fuente propia.`
+              : 'Se registrará automáticamente como BOT MASTER en la primera fecha visible que detecte V3.32.'}
+          </span>
+          {lastBotMasterDetection ? (
+            <span style={{ display: 'block', marginTop: 6 }}>
+              Última observación: {lastBotMasterDetection.consulate} · {fmtDate(lastBotMasterDetection.available_date)} · {fmtDateTime(lastBotMasterDetection.detected_at)}
+            </span>
+          ) : null}
+        </div>
       </section>
       ) : null}
 
@@ -1115,7 +1460,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               : null
             const account = accountById.get(Number(config.account_id))
             const telegramLink = telegramLinkByConfig.get(Number(config.booking_config_id))
-            const preflight = buildBookingPreflight(config, account, target)
+            const preflight = buildBookingPreflight(config, account, target, telegramLink)
 
             return (
               <details
@@ -1173,10 +1518,27 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                       {check.ok ? '✓' : '✕'} {check.label}
                     </span>
                   ))}
-                  <span className={telegramLink ? styles.telegramLinked : styles.telegramPending}>
-                    {telegramLink ? 'Telegram vinculado' : 'Telegram sin vincular'}
-                  </span>
                 </div>
+
+                {!telegramLink ? (
+                  <div
+                    style={{
+                      margin: '12px 0',
+                      padding: '14px 16px',
+                      borderRadius: '14px',
+                      border: '1px solid rgba(245, 158, 11, 0.38)',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      display: 'grid',
+                      gap: '6px',
+                    }}
+                  >
+                    <strong>Telegram requerido antes de LIVE</strong>
+                    <span>
+                      Agrega Bot Master al grupo privado del trámite y escribe <code>/vincular {config.booking_config_id}</code>.
+                      Después actualiza esta pantalla. No uses un canal público para esta vinculación.
+                    </span>
+                  </div>
+                ) : null}
 
                 <div className={styles.improvementAction}>
                   <div>
@@ -1894,7 +2256,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             const targetHasNoAppointment = configTarget?.appointment_verified_has_current === false
             const configTelegramLink = telegramLinkByConfig.get(Number(config.booking_config_id))
             const configAccount = accountById.get(Number(config.account_id))
-            const configPreflight = buildBookingPreflight(config, configAccount, configTarget)
+            const configPreflight = buildBookingPreflight(config, configAccount, configTarget, configTelegramLink)
 
             const effectiveCurrentDate = targetWasVerified
               ? (targetHasAppointment ? configTarget?.current_consular_date : null)

@@ -135,7 +135,7 @@ async function ensureBookingConfig(
       enabled: true,
       search_mode: 'INTELLIGENT',
       auto_verify_enabled: true,
-      auto_confirm_enabled: true,
+      auto_confirm_enabled: false,
       minimum_improvement_days: 1,
       minimum_travel_notice_days: 1,
       allowed_consulates: ['HERMOSILLO'],
@@ -867,6 +867,21 @@ async function autoConfirmPreflight(
   const validModes = new Set(['ALERT_ONLY', 'STANDARD', 'INTENSIVE', 'INTELLIGENT'])
   if (!validModes.has(String(config.search_mode || '').toUpperCase())) {
     issues.push('Modo: la configuración de búsqueda no es válida.')
+  }
+
+  const { data: telegramLinks, error: telegramLinkError } = await db
+    .from('vm_telegram_links')
+    .select('id,chat_id,chat_title,active')
+    .eq('booking_config_id', bookingConfigId)
+    .eq('active', true)
+    .limit(1)
+
+  if (telegramLinkError) {
+    throw new Error(telegramLinkError.message)
+  }
+
+  if (!telegramLinks?.length) {
+    issues.push(`Telegram privado: falta vincular el grupo. En Telegram usa /vincular ${bookingConfigId}.`)
   }
 
   return {
