@@ -27,6 +27,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>
 const SECTION_OPTIONS = [
   { key: 'resumen', label: 'Resumen' },
   { key: 'agendados', label: 'Agendados' },
+  { key: 'auditoria', label: 'Auditoría' },
   { key: 'preflight', label: 'Preflight' },
   { key: 'incidencias', label: 'Incidencias' },
   { key: 'organizaciones', label: 'Organizaciones' },
@@ -547,6 +548,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: windows, error: windowsError },
     { data: configs, error: configsError },
     { data: events, error: eventsError },
+    { data: sessionEvents, error: sessionEventsError },
+    { data: healthRuns, error: healthRunsError },
     { data: accounts, error: accountsError },
     { data: targets, error: targetsError },
     { data: clients, error: clientsError },
@@ -581,8 +584,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     supabase.from('vm_booking_config_dashboard_view').select('*')
       .order('booking_config_id'),
     supabase.from('vm_booking_events').select(
-      'id,event_type,client_id,account_id,consulate,consular_date,consular_time,cas_location,cas_date,source,result_code,message,created_at'
-    ).order('created_at', { ascending: false }).limit(20),
+      'id,booking_config_id,event_type,client_id,account_id,consulate,consular_date,consular_time,cas_location,cas_date,cas_time,source,result_code,message,payload,created_at'
+    ).order('created_at', { ascending: false }).limit(300),
+    (supabase as any).from('vm_ais_session_events').select('*')
+      .order('occurred_at', { ascending: false }).limit(300),
+    (supabase as any).from('vm_ais_health_runs').select('*')
+      .order('id', { ascending: false }).limit(500),
     supabase.from('vm_ais_accounts_dashboard_view').select('*').order('account_id'),
     supabase.from('vm_ais_account_targets').select(
       'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active,appointment_refresh_status,appointment_refresh_requested_at,appointment_refresh_started_at,appointment_refresh_finished_at,appointment_refresh_error_code,appointment_refresh_error_message,appointment_verified_has_current,appointment_verified_at'
@@ -611,13 +618,13 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     (supabase as any).from('vm_motor_performance_config_view').select('*')
       .order('booking_config_id'),
     (supabase as any).from('vm_ais_jobs').select('*')
-      .order('id', { ascending: false }).limit(100),
+      .order('id', { ascending: false }).limit(300),
     (supabase as any).from('vm_telegram_outbox').select('*')
-      .order('id', { ascending: false }).limit(100),
+      .order('id', { ascending: false }).limit(300),
     (supabase as any).from('vm_bot_master_availability_outbox').select('*')
       .order('id', { ascending: false }).limit(100),
     (supabase as any).from('vm_bot_master_promo_publications').select('*')
-      .order('id', { ascending: false }).limit(100),
+      .order('id', { ascending: false }).limit(300),
     (supabase as any).from('vm_bot_master_availability_publications').select('*')
       .order('id', { ascending: false }).limit(100),
     (supabase as any).from('vm_notifier_sources').select('*')
@@ -637,7 +644,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
   ])
 
   const anyError =
-    summaryError || openingsError || windowsError || configsError || eventsError ||
+    summaryError || openingsError || windowsError || configsError || eventsError || sessionEventsError || healthRunsError ||
     accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError || performanceModesError || performanceConfigsError ||
     aisJobsError || telegramOutboxError || availabilityOutboxError || promoPublicationsError || availabilityPublicationsError || notifierSourcesError || botMasterDetectionsError ||
     organizationsError || organizationUsersError || onboardingRequestsError || organizationConfigsError
@@ -694,6 +701,288 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       telegramLinkByConfig.set(configId, row)
     }
   }
+
+
+  // ------------------------------------------------------------------
+  // Auditoría / Timeline por trámite V3.35
+  // ------------------------------------------------------------------
+  const rawAuditConfigId = typeof params.audit_config === 'string'
+    ? Number(params.audit_config)
+    : 0
+
+  const auditConfig =
+    (configs ?? []).find((row: any) => Number(row.booking_config_id) === rawAuditConfigId)
+    || (configs ?? [])[0]
+    || null
+
+  const auditConfigId = auditConfig ? Number(auditConfig.booking_config_id) : 0
+  const auditTarget = auditConfig?.ais_target_id ? targetById.get(Number(auditConfig.ais_target_id)) : null
+  const auditEventIdentity = (events ?? []).find((row: any) => Number(row.booking_config_id || 0) === auditConfigId)
+  const auditClientId = Number(auditConfig?.client_id || auditTarget?.client_id || auditEventIdentity?.client_id || 0)
+  const auditAccountId = auditConfig ? Number(auditConfig.account_id) : 0
+  const auditTelegramLink = auditConfigId ? telegramLinkByConfig.get(auditConfigId) : null
+
+  type AuditTone = 'GOOD' | 'INFO' | 'WARNING' | 'CRITICAL'
+  type AuditEntry = {
+    at: string
+    tone: AuditTone
+    title: string
+    detail: string
+    source: string
+    code?: string | null
+    ref?: string | null
+  }
+
+  const auditEntries: AuditEntry[] = []
+  const auditBookingEventIds = new Set<number>()
+
+  const auditToneForCode = (code?: string | null, eventType?: string | null): AuditTone => {
+    const value = String(code || eventType || '').toUpperCase()
+    if (
+      value.includes('BOOKING_CONFIRMATION_UNCERTAIN')
+      || value.includes('SUBMIT_FAILED')
+      || value.includes('INVALID_CREDENTIAL')
+      || value.includes('LOGIN_FAILED')
+      || value === 'ERROR'
+    ) return 'CRITICAL'
+
+    if (
+      value.includes('SITE_MAINTENANCE')
+      || value.includes('TRANSIENT')
+      || value.includes('TIMEOUT')
+      || value.includes('NO_LONGER_AVAILABLE')
+      || value.includes('DATE_NO_LONGER_SELECTABLE')
+      || value.includes('LOGIN_REQUIRED')
+      || value.includes('FAILED')
+    ) return 'WARNING'
+
+    if (
+      value.includes('BOOKED_CONFIRMED')
+      || value.includes('DRY_RUN_VERIFIED')
+      || value.includes('LIVE_ARMED_VERIFIED')
+      || value.includes('PAIR_COMPATIBLE')
+      || value.includes('CONSULAR_TIME_FOUND')
+      || value.includes('LOGIN_SUCCESS')
+      || value === 'SENT'
+      || value === 'COMPLETED'
+    ) return 'GOOD'
+
+    return 'INFO'
+  }
+
+  const auditTitleForBookingEvent = (row: any) => {
+    const code = String(row.result_code || '').toUpperCase()
+    const eventType = String(row.event_type || '').toUpperCase()
+    const map: Record<string, string> = {
+      CONSULAR_DATES_FOUND: 'Fechas consulares detectadas',
+      CONSULAR_TIME_FOUND: 'Horario consular encontrado',
+      PAIR_COMPATIBLE: 'Consular + CAS compatibles',
+      DRY_RUN_VERIFIED: 'Combinación verificada · DRY RUN',
+      LIVE_ARMED_VERIFIED: 'Combinación verificada · LIVE armado',
+      BOOKED_CONFIRMED: 'Cita confirmada en AIS',
+      NO_COMPATIBLE_PAIR: 'Sin combinación compatible',
+      DATE_NO_LONGER_SELECTABLE: 'La fecha dejó de estar disponible',
+      NO_LONGER_AVAILABLE: 'La combinación dejó de estar disponible',
+      SITE_MAINTENANCE: 'AIS en mantenimiento',
+      LOGIN_REQUIRED: 'AIS solicitó iniciar sesión',
+      BOOKING_CONFIRMATION_UNCERTAIN: 'Resultado de agendado incierto',
+    }
+    return map[code] || map[eventType] || row.event_type || code || 'Evento del Motor'
+  }
+
+  const auditAppointmentDetail = (row: any) => {
+    const parts: string[] = []
+    if (row.consulate && row.consular_date) {
+      parts.push(`Consular ${row.consulate} · ${fmtDate(row.consular_date)} ${fmtTime(row.consular_time)}`)
+    } else if (row.consulate) {
+      parts.push(`Consulado ${row.consulate}`)
+    }
+    if (row.cas_location && row.cas_date) {
+      parts.push(`CAS ${row.cas_location} · ${fmtDate(row.cas_date)} ${fmtTime(row.cas_time)}`)
+    }
+    return parts.join(' · ')
+  }
+
+  if (auditConfig) {
+    for (const row of events ?? []) {
+      if (Number(row.booking_config_id || 0) !== auditConfigId) continue
+      auditBookingEventIds.add(Number(row.id))
+      const appointment = auditAppointmentDetail(row)
+      auditEntries.push({
+        at: row.created_at,
+        tone: auditToneForCode(row.result_code, row.event_type),
+        title: auditTitleForBookingEvent(row),
+        detail: [row.message, appointment].filter(Boolean).join(' · ') || 'Evento registrado por el Motor.',
+        source: 'Motor AIS',
+        code: row.result_code,
+        ref: `Evento #${row.id}`,
+      })
+    }
+
+    for (const run of healthRuns ?? []) {
+      if (Number(run.booking_config_id || 0) !== auditConfigId) continue
+
+      const trigger = run.trigger_label || run.run_type || 'SEARCH'
+      if (run.started_at) {
+        auditEntries.push({
+          at: run.started_at,
+          tone: 'INFO',
+          title: `Búsqueda AIS iniciada · ${trigger}`,
+          detail: `Run #${run.id} · Cuenta #${run.account_id || auditAccountId}.`,
+          source: 'Motor AIS',
+          code: run.run_type || 'SEARCH',
+          ref: `Run #${run.id}`,
+        })
+      }
+
+      if (run.finished_at) {
+        const status = String(run.status || '').toUpperCase()
+        const resultCode = String(run.result_code || status || '')
+        const tone: AuditTone = status === 'ERROR' || status === 'FAILED'
+          ? 'WARNING'
+          : status === 'NO_MATCH'
+            ? 'INFO'
+            : 'GOOD'
+        const requests = Number(run.ais_request_count || 0)
+        const responses = Number(run.ais_response_count || 0)
+        const durationMs = Number(run.duration_ms || 0)
+        const durationText = durationMs > 0 ? `${(durationMs / 1000).toFixed(1)} s` : '—'
+        auditEntries.push({
+          at: run.finished_at,
+          tone,
+          title: status === 'NO_MATCH'
+            ? 'Búsqueda finalizada · sin combinación compatible'
+            : tone === 'WARNING'
+              ? 'Búsqueda AIS terminó con incidencia'
+              : 'Búsqueda AIS finalizada',
+          detail: `${trigger} · ${requests} request(s) / ${responses} respuesta(s) · duración ${durationText}.`,
+          source: 'Motor AIS',
+          code: resultCode,
+          ref: `Run #${run.id}`,
+        })
+      }
+    }
+
+    for (const job of aisJobs ?? []) {
+      if (Number(job.client_id || 0) !== auditClientId || Number(job.account_id || 0) !== auditAccountId) continue
+
+      const target = [job.trigger_consulate || job.consulate, job.trigger_available_date || job.target_date]
+        .filter(Boolean)
+        .join(' · ')
+
+      auditEntries.push({
+        at: job.created_at,
+        tone: 'INFO',
+        title: `Alerta recibida · ${job.trigger_source || 'Motor'}`,
+        detail: target ? `Objetivo ${target}. Job creado y puesto en cola.` : 'Job creado y puesto en cola.',
+        source: 'Cola AIS',
+        code: job.search_mode,
+        ref: `Job #${job.id}`,
+      })
+
+      if (job.claimed_at || job.started_at) {
+        auditEntries.push({
+          at: job.claimed_at || job.started_at,
+          tone: 'INFO',
+          title: 'Motor tomó el Job',
+          detail: `Intento ${Number(job.attempt_count || 1)}. ${target ? `Objetivo ${target}.` : ''}`.trim(),
+          source: 'Orquestador',
+          code: 'RUNNING',
+          ref: `Job #${job.id}`,
+        })
+      }
+
+      const terminalAt = job.completed_at || job.finished_at || (
+        ['COMPLETED', 'FAILED', 'EXPIRED', 'RETRY_LATER'].includes(String(job.status || '').toUpperCase())
+          ? job.updated_at
+          : null
+      )
+      if (terminalAt) {
+        const status = String(job.status || '').toUpperCase()
+        const code = String(job.result_code || status)
+        const isBackoff = code.includes('BACKOFF') || status === 'RETRY_LATER'
+        auditEntries.push({
+          at: terminalAt,
+          tone: isBackoff ? 'INFO' : auditToneForCode(code, status),
+          title: isBackoff
+            ? 'Motor entró en backoff temporal'
+            : status === 'COMPLETED'
+              ? 'Job completado'
+              : status === 'EXPIRED'
+                ? 'Alerta expirada'
+                : 'Job terminó con incidencia',
+          detail: job.result_message || code || status,
+          source: 'Cola AIS',
+          code,
+          ref: `Job #${job.id}`,
+        })
+      }
+    }
+
+    for (const row of sessionEvents ?? []) {
+      const sameConfig = Number(row.booking_config_id || 0) === auditConfigId
+      const sameClient = Number(row.client_id || 0) === auditClientId && Number(row.account_id || 0) === auditAccountId
+      if (!sameConfig && !sameClient) continue
+
+      const type = String(row.event_type || '').toUpperCase()
+      const titleMap: Record<string, string> = {
+        LOGIN_SUCCESS: 'Sesión AIS restaurada',
+        SESSION_EXPIRED: 'AIS cerró la sesión',
+        INITIAL_LOGIN_REQUIRED: 'AIS requiere primer inicio de sesión',
+        LOGIN_FAILED: 'Falló el inicio de sesión AIS',
+      }
+      auditEntries.push({
+        at: row.occurred_at || row.created_at,
+        tone: auditToneForCode(row.result_code, row.event_type),
+        title: titleMap[type] || `Sesión AIS · ${row.event_type || 'evento'}`,
+        detail: row.message || row.result_code || 'Evento de sesión AIS.',
+        source: 'Sesión AIS',
+        code: row.result_code,
+        ref: row.id ? `Sesión #${row.id}` : null,
+      })
+    }
+
+    for (const row of telegramOutbox ?? []) {
+      if (Number(row.booking_config_id || 0) !== auditConfigId) continue
+      const status = String(row.status || '').toUpperCase()
+      const at = row.sent_at || row.updated_at || row.created_at
+      const title = status === 'SENT'
+        ? 'Telegram privado enviado'
+        : status === 'FAILED'
+          ? 'Telegram privado falló'
+          : 'Telegram privado encolado'
+      auditEntries.push({
+        at,
+        tone: status === 'FAILED' ? 'WARNING' : status === 'SENT' ? 'GOOD' : 'INFO',
+        title,
+        detail: `${row.event_type || 'Notificación'} · ${auditTelegramLink?.chat_title || `Chat ${row.chat_id || 'de la organización'}`}${row.error_message ? ` · ${row.error_message}` : ''}`,
+        source: 'Telegram privado',
+        code: status,
+        ref: `Outbox #${row.id}`,
+      })
+    }
+
+    for (const row of promoPublications ?? []) {
+      if (!auditBookingEventIds.has(Number(row.booking_event_id || 0))) continue
+      const status = String(row.status || '').toUpperCase()
+      auditEntries.push({
+        at: row.sent_at || row.updated_at || row.created_at,
+        tone: status === 'FAILED' ? 'WARNING' : status === 'SENT' ? 'GOOD' : 'INFO',
+        title: status === 'SENT' ? 'BOOKED_CONFIRMED publicado' : status === 'FAILED' ? 'Publicación pública falló' : 'Publicación pública pendiente',
+        detail: row.error_message || `Destino público #${row.destination_id || '—'}.`,
+        source: 'Publicador Bot Master',
+        code: status,
+        ref: `Publicación #${row.id}`,
+      })
+    }
+  }
+
+  auditEntries.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime())
+
+  const auditPairCount = auditEntries.filter((row) => String(row.code || '').includes('PAIR_COMPATIBLE')).length
+  const auditBookedCount = auditEntries.filter((row) => String(row.code || '').includes('BOOKED_CONFIRMED')).length
+  const auditWarningCount = auditEntries.filter((row) => row.tone === 'WARNING' || row.tone === 'CRITICAL').length
+  const auditLastActivity = auditEntries[0]?.at || null
 
   const organizationUsersByOrg = new Map<number, any[]>()
   for (const user of organizationUsers ?? []) {
@@ -1320,11 +1609,15 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             item.key === 'aperturas' && selectedConsulate
               ? `&consulate=${encodeURIComponent(selectedConsulate)}`
               : ''
+          const preserveAuditConfig =
+            item.key === 'auditoria' && auditConfigId
+              ? `&audit_config=${auditConfigId}`
+              : ''
 
           return (
             <a
               key={item.key}
-              href={`/admin/motor-citas?section=${item.key}${preserveConsulate}`}
+              href={`/admin/motor-citas?section=${item.key}${preserveConsulate}${preserveAuditConfig}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -2855,6 +3148,25 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                 </form>
               </div>
 
+              <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '4px 0 14px' }}>
+                <a
+                  href={`/admin/motor-citas?section=auditoria&audit_config=${config.booking_config_id}`}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    minHeight: 38,
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: '1px solid rgba(59,130,246,.30)',
+                    textDecoration: 'none',
+                    fontWeight: 750,
+                    color: 'inherit',
+                  }}
+                >
+                  Ver auditoría completa →
+                </a>
+              </div>
+
               <div className={styles.telegramPanel}>
                 <div>
                   <span>Telegram del proceso</span>
@@ -3000,6 +3312,170 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             )
           })}
         </div>
+      </section>
+      ) : null}
+
+      {selectedSection === 'auditoria' ? (
+      <section className={styles.section} id="auditoria">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Trazabilidad por trámite</span>
+            <h2>Auditoría / Timeline</h2>
+          </div>
+          <p>
+            Une Motor AIS, Master Notificador, sesiones, Telegram y publicaciones para reconstruir qué pasó con cada trámite sin abrir logs de Python.
+          </p>
+        </div>
+
+        <form
+          method="get"
+          action="/admin/motor-citas"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'end',
+            gap: 12,
+            padding: 16,
+            marginBottom: 18,
+            borderRadius: 16,
+            border: '1px solid rgba(148,163,184,.24)',
+          }}
+        >
+          <input type="hidden" name="section" value="auditoria" />
+          <label style={{ display: 'grid', gap: 6, minWidth: 280, flex: '1 1 320px' }}>
+            <span>Trámite</span>
+            <select name="audit_config" defaultValue={auditConfigId || ''} style={{ minHeight: 42 }}>
+              {(configs ?? []).map((config: any) => (
+                <option key={config.booking_config_id} value={config.booking_config_id}>
+                  {config.full_name} · Config #{config.booking_config_id} · Cuenta #{config.account_id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className={styles.primaryButton}>Ver auditoría</button>
+        </form>
+
+        {!auditConfig ? (
+          <div className={styles.empty}>Todavía no existen configuraciones para auditar.</div>
+        ) : (
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))',
+                gap: 12,
+                marginBottom: 18,
+              }}
+            >
+              <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(59,130,246,.24)' }}>
+                <span>Trámite</span>
+                <strong style={{ display: 'block', fontSize: 20 }}>{auditConfig.full_name}</strong>
+                <small>Config #{auditConfigId} · Cuenta #{auditAccountId}</small>
+              </article>
+              <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(148,163,184,.24)' }}>
+                <span>Última actividad</span>
+                <strong style={{ display: 'block', fontSize: 16 }}>{auditLastActivity ? fmtDateTime(auditLastActivity) : 'Sin actividad'}</strong>
+                <small>{auditEntries.length} evento(s) reconstruidos</small>
+              </article>
+              <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(16,185,129,.24)' }}>
+                <span>Pares Consular + CAS</span>
+                <strong style={{ display: 'block', fontSize: 28 }}>{auditPairCount}</strong>
+                <small>Combinaciones compatibles detectadas</small>
+              </article>
+              <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(16,185,129,.24)' }}>
+                <span>Citas confirmadas</span>
+                <strong style={{ display: 'block', fontSize: 28 }}>{auditBookedCount}</strong>
+                <small>BOOKED_CONFIRMED</small>
+              </article>
+              <article style={{ padding: 16, borderRadius: 14, border: `1px solid ${auditWarningCount ? 'rgba(245,158,11,.34)' : 'rgba(16,185,129,.24)'}` }}>
+                <span>Incidencias en timeline</span>
+                <strong style={{ display: 'block', fontSize: 28 }}>{auditWarningCount}</strong>
+                <small>Warnings + críticas dentro del histórico cargado</small>
+              </article>
+              <article style={{ padding: 16, borderRadius: 14, border: `1px solid ${auditTelegramLink ? 'rgba(16,185,129,.24)' : 'rgba(245,158,11,.34)'}` }}>
+                <span>Telegram organización</span>
+                <strong style={{ display: 'block', fontSize: 16 }}>{auditTelegramLink ? 'Vinculado' : 'Sin vincular'}</strong>
+                <small>{auditTelegramLink?.chat_title || 'Sin grupo heredado'}</small>
+              </article>
+            </div>
+
+            <div style={{ display: 'grid', gap: 0 }}>
+              {auditEntries.slice(0, 150).map((entry, index) => {
+                const toneColor = entry.tone === 'CRITICAL'
+                  ? '#ef4444'
+                  : entry.tone === 'WARNING'
+                    ? '#f59e0b'
+                    : entry.tone === 'GOOD'
+                      ? '#10b981'
+                      : '#60a5fa'
+                return (
+                  <article
+                    key={`${entry.at}-${entry.source}-${entry.ref || index}-${index}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '128px 28px minmax(0, 1fr)',
+                      gap: 10,
+                      minHeight: 92,
+                    }}
+                  >
+                    <time style={{ paddingTop: 15, textAlign: 'right', fontSize: 13, opacity: .78 }}>
+                      {fmtDateTime(entry.at)}
+                    </time>
+                    <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          bottom: index === Math.min(auditEntries.length, 150) - 1 ? '50%' : 0,
+                          width: 2,
+                          background: 'rgba(148,163,184,.22)',
+                        }}
+                      />
+                      <span
+                        style={{
+                          zIndex: 1,
+                          width: 13,
+                          height: 13,
+                          marginTop: 20,
+                          borderRadius: 999,
+                          background: toneColor,
+                          boxShadow: `0 0 0 4px ${toneColor}22`,
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        marginBottom: 10,
+                        padding: '13px 15px',
+                        borderRadius: 14,
+                        border: `1px solid ${toneColor}33`,
+                        background: `${toneColor}0b`,
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <strong>{entry.title}</strong>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: toneColor }}>{entry.tone}</span>
+                        {entry.code ? <code style={{ fontSize: 11 }}>{entry.code}</code> : null}
+                      </div>
+                      <p style={{ margin: '7px 0 5px', lineHeight: 1.5 }}>{entry.detail}</p>
+                      <small>{entry.source}{entry.ref ? ` · ${entry.ref}` : ''}</small>
+                    </div>
+                  </article>
+                )
+              })}
+              {!auditEntries.length ? (
+                <div className={styles.empty}>
+                  Aún no hay eventos para este trámite. En cuanto el Motor, AIS o Telegram actúen, aparecerán aquí cronológicamente.
+                </div>
+              ) : null}
+              {auditEntries.length > 150 ? (
+                <div className={styles.empty}>
+                  Se muestran los 150 eventos más recientes de {auditEntries.length}. El Historial conserva la vista técnica global.
+                </div>
+              ) : null}
+            </div>
+          </>
+        )}
       </section>
       ) : null}
 
