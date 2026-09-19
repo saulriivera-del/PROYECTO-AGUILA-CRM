@@ -827,8 +827,8 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       incidents.push({
         severity: 'WARNING',
         title: `Telegram sin vincular · ${config.full_name}`,
-        detail: `En el grupo privado escribe /vincular ${config.booking_config_id}. Sin este enlace, BOOKED_CONFIRMED no puede llegar al chat del trámite.`,
-        source: 'Telegram privado',
+        detail: 'La organización todavía no tiene un grupo Telegram principal vinculado. Vincúlalo una sola vez desde Organizaciones; todos sus trámites heredarán ese grupo.',
+        source: 'Telegram de organización',
       })
     }
   }
@@ -1678,10 +1678,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                       gap: '6px',
                     }}
                   >
-                    <strong>Telegram requerido antes de LIVE</strong>
+                    <strong>Telegram de organización requerido antes de LIVE</strong>
                     <span>
-                      Agrega Bot Master al grupo privado del trámite y escribe <code>/vincular {config.booking_config_id}</code>.
-                      Después actualiza esta pantalla. No uses un canal público para esta vinculación.
+                      Vincula una sola vez el grupo privado de la agencia/cliente desde la sección <b>Organizaciones</b>
+                      con <code>/vincular_agencia CODIGO</code>. Este trámite y los futuros heredarán ese grupo automáticamente.
                     </span>
                   </div>
                 ) : null}
