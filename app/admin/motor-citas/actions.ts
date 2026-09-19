@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
 import { encryptVisaCredential } from '@/lib/visa-master-credentials'
+import { randomBytes } from 'crypto'
 
 const PATH = '/admin/motor-citas'
 
@@ -98,12 +99,37 @@ async function saveEncryptedPassword(
   if (error) throw new Error(error.message)
 }
 
+function slugify(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+}
+
+async function organizationForClient(
+  supabase: ReturnType<typeof getVisaMasterAdminClient>,
+  clientId: number,
+) {
+  const { data, error } = await supabase
+    .from('vm_appointment_clients')
+    .select('organization_id')
+    .eq('id', clientId)
+    .single()
+  if (error) throw new Error(error.message)
+  return data?.organization_id ? Number(data.organization_id) : null
+}
+
 async function ensureBookingConfig(
   supabase: ReturnType<typeof getVisaMasterAdminClient>,
   clientId: number,
   accountId: number,
   targetId: number,
 ) {
+  const organizationId = await organizationForClient(supabase, clientId)
+
   const { data: existing, error: existingError } = await supabase
     .from('vm_booking_configs')
     .select('id')
@@ -118,6 +144,7 @@ async function ensureBookingConfig(
       .from('vm_booking_configs')
       .update({
         ais_target_id: targetId,
+        organization_id: organizationId,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing[0].id)
@@ -131,6 +158,7 @@ async function ensureBookingConfig(
     .insert({
       client_id: clientId,
       account_id: accountId,
+      organization_id: organizationId,
       ais_target_id: targetId,
       enabled: true,
       search_mode: 'INTELLIGENT',
@@ -404,7 +432,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
 
     const { data: account, error: accountError } = await supabase
       .from('vm_ais_accounts')
-      .select('id,account_email')
+      .select('id,account_email,organization_id')
       .eq('id', Number(target.account_id))
       .single()
 
@@ -443,6 +471,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
         .from('vm_appointment_clients')
         .update({
           crm_client_id: match.crm_client_id,
+          organization_id: target.organization_id || account.organization_id || null,
           full_name: match.crm_client_name,
           visa_type: match.service_name,
           ais_account_email: String(account.account_email || '').toLowerCase(),
@@ -460,6 +489,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
         .insert({
           crm_client_id: match.crm_client_id,
           crm_process_id: match.crm_process_id,
+          organization_id: target.organization_id || account.organization_id || null,
           full_name: match.crm_client_name || target.display_name || `Cliente AIS ${targetId}`,
           visa_type: match.service_name || 'VISA',
           ais_account_email: String(account.account_email || '').toLowerCase(),
@@ -529,7 +559,7 @@ export async function createClientFromTarget(formData: FormData) {
   try {
     const { data: target, error: targetError } = await supabaseAdmin
       .from('vm_ais_account_targets')
-      .select('id,account_id,display_name,current_consular_date,current_consulate')
+      .select('id,account_id,organization_id,display_name,current_consular_date,current_consulate')
       .eq('id', targetId)
       .single()
 
@@ -544,6 +574,7 @@ export async function createClientFromTarget(formData: FormData) {
     const { data: client, error: clientError } = await supabaseAdmin
       .from('vm_appointment_clients')
       .insert({
+        organization_id: target.organization_id || null,
         full_name: fullName || `Cliente AIS ${targetId}`,
         visa_type: 'B1/B2',
         status: 'ACTIVE',
@@ -871,9 +902,10 @@ async function autoConfirmPreflight(
 
   const { data: telegramLinks, error: telegramLinkError } = await db
     .from('vm_telegram_links')
-    .select('id,chat_id,chat_title,active')
+    .select('id,chat_id,chat_title,active,organization_id,link_source')
     .eq('booking_config_id', bookingConfigId)
     .eq('active', true)
+    .eq('link_source', 'ORGANIZATION')
     .limit(1)
 
   if (telegramLinkError) {
@@ -881,7 +913,7 @@ async function autoConfirmPreflight(
   }
 
   if (!telegramLinks?.length) {
-    issues.push(`Telegram privado: falta vincular el grupo. En Telegram usa /vincular ${bookingConfigId}.`)
+    issues.push('Telegram privado: la organización todavía no tiene un grupo principal vinculado.')
   }
 
   return {
@@ -891,6 +923,74 @@ async function autoConfirmPreflight(
   }
 }
 
+
+export async function createBotMasterOrganization(formData: FormData) {
+  await requireAuthContext()
+  const supabase = getVisaMasterAdminClient() as any
+  const name = text(formData, 'organization_name')
+  const type = text(formData, 'organization_type') || 'AGENCY'
+  const requestedSlug = text(formData, 'organization_slug')
+  const slug = slugify(requestedSlug || name)
+  if (!name || !slug) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent('Nombre de organización inválido.')}#organizaciones`)
+  }
+  const allowed = new Set(['AGENCY', 'DIRECT_CLIENT'])
+  if (!allowed.has(type)) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent('Tipo de organización inválido.')}#organizaciones`)
+  }
+  const { error } = await supabase.from('vm_organizations').insert({
+    name,
+    slug,
+    organization_type: type,
+    status: 'ACTIVE',
+    is_internal: false,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent(error.message)}#organizaciones`)
+  }
+  revalidatePath(PATH)
+  redirect(`${PATH}?section=organizaciones&organization_created=1#organizaciones`)
+}
+
+export async function generateOrganizationTelegramCode(formData: FormData) {
+  await requireAuthContext()
+  const supabase = getVisaMasterAdminClient() as any
+  const organizationId = numberValue(formData, 'organization_id')
+  if (!organizationId) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent('Organización inválida.')}#organizaciones`)
+  }
+  const code = randomBytes(6).toString('hex').toUpperCase()
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { error } = await supabase.from('vm_organizations').update({
+    telegram_link_code: code,
+    telegram_link_code_expires_at: expires,
+    updated_at: new Date().toISOString(),
+  }).eq('id', organizationId)
+  if (error) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent(error.message)}#organizaciones`)
+  }
+  revalidatePath(PATH)
+  redirect(`${PATH}?section=organizaciones&telegram_code=1#organization-${organizationId}`)
+}
+
+export async function unlinkOrganizationTelegram(formData: FormData) {
+  await requireAuthContext()
+  const supabase = getVisaMasterAdminClient() as any
+  const organizationId = numberValue(formData, 'organization_id')
+  if (!organizationId) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent('Organización inválida.')}#organizaciones`)
+  }
+  const { error } = await supabase.from('vm_organization_telegram_chats').update({
+    active: false,
+    updated_at: new Date().toISOString(),
+  }).eq('organization_id', organizationId).eq('active', true)
+  if (error) {
+    redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent(error.message)}#organizaciones`)
+  }
+  revalidatePath(PATH)
+  redirect(`${PATH}?section=organizaciones&telegram_unlinked=1#organization-${organizationId}`)
+}
 
 export async function setAutoConfirmState(formData: FormData) {
   await requireAuthContext()

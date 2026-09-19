@@ -7,6 +7,9 @@ import {
   requestAisAccountSync,
   requestTargetAppointmentRefresh,
   requestAgentCommand,
+  createBotMasterOrganization,
+  generateOrganizationTelegramCode,
+  unlinkOrganizationTelegram,
   resumeImprovementSearch,
   setAutoConfirmState,
   toggleBookingConfig,
@@ -26,6 +29,7 @@ const SECTION_OPTIONS = [
   { key: 'agendados', label: 'Agendados' },
   { key: 'preflight', label: 'Preflight' },
   { key: 'incidencias', label: 'Incidencias' },
+  { key: 'organizaciones', label: 'Organizaciones' },
   { key: 'cuentas-ais', label: 'Cuentas AIS' },
   { key: 'servicios', label: 'Servicios' },
   { key: 'rendimiento', label: 'Rendimiento' },
@@ -493,14 +497,14 @@ function buildBookingPreflight(config: any, account: any, target: any, telegramL
     blocking: true,
   })
 
-  const telegramLinked = Boolean(telegramLink?.active)
+  const telegramLinked = Boolean(telegramLink?.active && telegramLink?.link_source === 'ORGANIZATION')
   checks.push({
     key: 'telegram',
     label: 'Telegram privado',
     ok: telegramLinked,
     detail: telegramLinked
       ? `Vinculado a ${telegramLink.chat_title || `Chat ${telegramLink.chat_id}`}.`
-      : `Falta vincular el grupo interno. En Telegram usa /vincular ${config.booking_config_id}.`,
+      : 'La organización todavía no tiene un grupo principal de Telegram vinculado.',
     blocking: true,
   })
 
@@ -562,6 +566,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: availabilityPublications, error: availabilityPublicationsError },
     { data: notifierSources, error: notifierSourcesError },
     { data: botMasterDetections, error: botMasterDetectionsError },
+    { data: organizations, error: organizationsError },
+    { data: organizationUsers, error: organizationUsersError },
+    { data: onboardingRequests, error: onboardingRequestsError },
+    { data: organizationConfigs, error: organizationConfigsError },
   ] = await Promise.all([
     supabase.from('vm_booking_engine_summary_view').select('*').limit(1),
     supabase.from('vm_openings_30d_by_consulate_view').select('*')
@@ -580,14 +588,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active,appointment_refresh_status,appointment_refresh_requested_at,appointment_refresh_started_at,appointment_refresh_finished_at,appointment_refresh_error_code,appointment_refresh_error_message,appointment_verified_has_current,appointment_verified_at'
     ).eq('is_active', true).order('account_id').order('display_name'),
     supabase.from('vm_appointment_clients').select(
-      'id,full_name,visa_type,status,current_appointment_date,current_consulate'
+      'id,organization_id,full_name,visa_type,status,current_appointment_date,current_consulate,ais_account_email'
     ).order('full_name'),
     supabase.from('vm_ais_account_sync_jobs').select(
       'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
     ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
     supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id'),
     (supabase as any).from('vm_telegram_links').select(
-      'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at'
+      'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at,organization_id,link_source'
     ).eq('active', true),
     (supabase as any).from('vm_ais_crm_process_match_view').select(
       'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
@@ -618,12 +626,21 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       .select('id,source,consulate,available_date,detected_at')
       .eq('source', 'BOT MASTER')
       .order('id', { ascending: false }).limit(30),
+    (supabase as any).from('vm_organization_dashboard_view').select('*')
+      .order('is_internal', { ascending: false }).order('name'),
+    (supabase as any).from('vm_organization_users').select('*')
+      .eq('active', true).order('organization_id').order('id'),
+    (supabase as any).from('vm_client_onboarding_requests').select('*')
+      .order('id', { ascending: false }).limit(100),
+    (supabase as any).from('vm_booking_configs').select('id,organization_id,client_id,operational_status,auto_confirm_enabled')
+      .order('id'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError ||
     accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError || performanceModesError || performanceConfigsError ||
-    aisJobsError || telegramOutboxError || availabilityOutboxError || promoPublicationsError || availabilityPublicationsError || notifierSourcesError || botMasterDetectionsError
+    aisJobsError || telegramOutboxError || availabilityOutboxError || promoPublicationsError || availabilityPublicationsError || notifierSourcesError || botMasterDetectionsError ||
+    organizationsError || organizationUsersError || onboardingRequestsError || organizationConfigsError
   const summary = summaryRows?.[0] || {
     active_configs: 0,
     paused_configs: 0,
@@ -669,9 +686,26 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     (sessionStats ?? []).map((row: any) => [Number(row.account_id), row])
   )
 
-  const telegramLinkByConfig = new Map<number, any>(
-    (telegramLinks ?? []).map((row: any) => [Number(row.booking_config_id), row])
-  )
+  const telegramLinkByConfig = new Map<number, any>()
+  for (const row of telegramLinks ?? []) {
+    const configId = Number(row.booking_config_id)
+    const current = telegramLinkByConfig.get(configId)
+    if (!current || row.link_source === 'ORGANIZATION') {
+      telegramLinkByConfig.set(configId, row)
+    }
+  }
+
+  const organizationUsersByOrg = new Map<number, any[]>()
+  for (const user of organizationUsers ?? []) {
+    const orgId = Number(user.organization_id)
+    organizationUsersByOrg.set(orgId, [...(organizationUsersByOrg.get(orgId) || []), user])
+  }
+
+  const onboardingByOrg = new Map<number, any[]>()
+  for (const request of onboardingRequests ?? []) {
+    const orgId = Number(request.organization_id)
+    onboardingByOrg.set(orgId, [...(onboardingByOrg.get(orgId) || []), request])
+  }
 
   const crmMatchesByAccount = new Map<number, any[]>()
   for (const match of crmMatches ?? []) {
@@ -1124,6 +1158,118 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               Última observación: {lastBotMasterDetection.consulate} · {fmtDate(lastBotMasterDetection.available_date)} · {fmtDateTime(lastBotMasterDetection.detected_at)}
             </span>
           ) : null}
+        </div>
+      </section>
+      ) : null}
+
+      {selectedSection === 'organizaciones' ? (
+      <section className={styles.section} id="organizaciones">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Multiagencia / SaaS</span>
+            <h2>Organizaciones y Telegram</h2>
+          </div>
+          <p>
+            Cada agencia vincula un solo grupo. Todos sus clientes actuales y futuros heredan ese grupo y los permisos se controlan por usuario.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gap: 14, marginBottom: 22 }}>
+          {(organizations ?? []).map((org: any) => {
+            const users = organizationUsersByOrg.get(Number(org.id)) || []
+            const pending = (onboardingByOrg.get(Number(org.id)) || []).filter((r: any) => r.status === 'PENDING_AIS')
+            return (
+              <article
+                key={org.id}
+                id={`organization-${org.id}`}
+                style={{ padding: 18, borderRadius: 16, border: '1px solid rgba(148,163,184,.24)', display: 'grid', gap: 14 }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: 12, opacity: .7 }}>{org.is_internal ? 'INTERNO' : org.organization_type}</span>
+                    <strong style={{ display: 'block', fontSize: 21 }}>{org.name}</strong>
+                    <small>Org #{org.id} · {org.slug}</small>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <strong style={{ display: 'block' }}>{org.telegram_chat_id ? '✓ Telegram vinculado' : 'Telegram pendiente'}</strong>
+                    <small>{org.telegram_chat_title || 'Sin grupo principal'}</small>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                  <div><span>Clientes</span><strong style={{ display: 'block', fontSize: 22 }}>{org.client_count || 0}</strong></div>
+                  <div><span>Motores</span><strong style={{ display: 'block', fontSize: 22 }}>{org.config_count || 0}</strong></div>
+                  <div><span>Usuarios</span><strong style={{ display: 'block', fontSize: 22 }}>{org.user_count || 0}</strong></div>
+                  <div><span>Altas pendientes</span><strong style={{ display: 'block', fontSize: 22 }}>{org.pending_onboarding_count || 0}</strong></div>
+                </div>
+
+                {org.telegram_chat_id ? (
+                  <div style={{ padding: 12, borderRadius: 12, background: 'rgba(16,185,129,.07)', border: '1px solid rgba(16,185,129,.22)' }}>
+                    <strong>Grupo principal: {org.telegram_chat_title || org.telegram_chat_id}</strong>
+                    <span style={{ display: 'block', marginTop: 4 }}>
+                      Las nuevas configuraciones de esta organización se vinculan automáticamente; ya no se usa /vincular por cliente.
+                    </span>
+                    <form action={unlinkOrganizationTelegram} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="organization_id" value={org.id} />
+                      <button type="submit" className={styles.secondaryButton}>Desvincular grupo</button>
+                    </form>
+                  </div>
+                ) : (
+                  <div style={{ padding: 12, borderRadius: 12, background: 'rgba(245,158,11,.07)', border: '1px solid rgba(245,158,11,.22)' }}>
+                    {org.telegram_link_code ? (
+                      <>
+                        <strong>Código temporal: <code>{org.telegram_link_code}</code></strong>
+                        <span style={{ display: 'block', marginTop: 6 }}>
+                          En el grupo privado agrega Bot Master y escribe: <code>/vincular_agencia {org.telegram_link_code}</code>
+                        </span>
+                        <small>Vence: {fmtDateTime(org.telegram_link_code_expires_at)}</small>
+                      </>
+                    ) : (
+                      <span>Genera un código de un solo uso para vincular el grupo de esta organización.</span>
+                    )}
+                    <form action={generateOrganizationTelegramCode} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="organization_id" value={org.id} />
+                      <button type="submit" className={styles.primaryButton}>Generar código Telegram</button>
+                    </form>
+                  </div>
+                )}
+
+                {users.length ? (
+                  <div>
+                    <strong>Usuarios autorizados</strong>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      {users.map((u: any) => (
+                        <span key={u.id} className={styles.badge}>
+                          {u.display_name || u.telegram_username || u.telegram_user_id} · {u.role}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {pending.length ? (
+                  <div>
+                    <strong>Altas desde Telegram pendientes de AIS</strong>
+                    {pending.slice(0, 8).map((r: any) => (
+                      <span key={r.id} style={{ display: 'block', marginTop: 5 }}>
+                        #{r.id} · {r.full_name} · {r.ais_email || 'sin correo'} · {r.visa_type || 'Visa'}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            )
+          })}
+        </div>
+
+        <div style={{ padding: 18, borderRadius: 16, border: '1px solid rgba(59,130,246,.24)' }}>
+          <strong style={{ fontSize: 18 }}>Nueva agencia / cliente comercial</strong>
+          <form action={createBotMasterOrganization} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10, marginTop: 12, alignItems: 'end' }}>
+            <label><span>Nombre</span><input name="organization_name" required placeholder="Ej. Agencia Sonora Visas" /></label>
+            <label><span>Slug opcional</span><input name="organization_slug" placeholder="agencia-sonora" /></label>
+            <label><span>Tipo</span><select name="organization_type" defaultValue="AGENCY"><option value="AGENCY">Agencia</option><option value="DIRECT_CLIENT">Cliente directo</option></select></label>
+            <button type="submit" className={styles.primaryButton}>Crear organización</button>
+          </form>
         </div>
       </section>
       ) : null}
@@ -2417,15 +2563,14 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <>
                       <strong>{configTelegramLink.chat_title || `Chat ${configTelegramLink.chat_id}`}</strong>
                       <small>
-                        Vinculado a Config #{config.booking_config_id}. El bot enviará aquí BOOKED_CONFIRMED, fechas CAS/Consular y el PDF.
+                        Heredado de la organización{configTelegramLink.link_source === 'ORGANIZATION' ? '' : ' (vínculo legado)'}. El bot enviará aquí aperturas, combinaciones y BOOKED_CONFIRMED.
                       </small>
                     </>
                   ) : (
                     <>
                       <strong>Sin grupo vinculado</strong>
                       <small>
-                        Agrega el bot al grupo y, desde una cuenta administradora, escribe:{' '}
-                        <code>/vincular {config.booking_config_id}</code>
+                        Vincula el grupo principal de la organización una sola vez desde la sección Organizaciones.
                       </small>
                     </>
                   )}
