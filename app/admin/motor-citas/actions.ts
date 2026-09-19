@@ -164,11 +164,11 @@ export async function addAisAccount(formData: FormData) {
   const displayName = text(formData, 'display_name') || null
 
   if (!email || !email.includes('@')) {
-    redirect(`${PATH}?error=${encodeURIComponent('Captura un correo AIS válido.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Captura un correo AIS válido.')}`)
   }
 
   if (!password) {
-    redirect(`${PATH}?error=${encodeURIComponent('La contraseña AIS es obligatoria.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('La contraseña AIS es obligatoria.')}`)
   }
 
   try {
@@ -222,10 +222,10 @@ export async function addAisAccount(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?account_added=1#cuentas-ais`)
+    redirect(`${PATH}?section=cuentas-ais&account_added=1#cuentas-ais`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo registrar la cuenta AIS.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(error?.message || 'No se pudo registrar la cuenta AIS.')}`)
   }
 }
 
@@ -237,7 +237,7 @@ export async function updateAisPassword(formData: FormData) {
   const password = text(formData, 'password')
 
   if (!accountId || !password) {
-    redirect(`${PATH}?error=${encodeURIComponent('Cuenta o contraseña inválida.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Cuenta o contraseña inválida.')}`)
   }
 
   try {
@@ -264,10 +264,10 @@ export async function updateAisPassword(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?credentials_updated=1#cuentas-ais`)
+    redirect(`${PATH}?section=cuentas-ais&credentials_updated=1#cuentas-ais`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo actualizar la contraseña.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(error?.message || 'No se pudo actualizar la contraseña.')}`)
   }
 }
 
@@ -277,7 +277,7 @@ export async function requestAisAccountSync(formData: FormData) {
   const accountId = numberValue(formData, 'account_id')
 
   if (!accountId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Cuenta AIS inválida.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Cuenta AIS inválida.')}`)
   }
 
   try {
@@ -291,10 +291,10 @@ export async function requestAisAccountSync(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?sync_requested=1#cuentas-ais`)
+    redirect(`${PATH}?section=cuentas-ais&sync_requested=1#cuentas-ais`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo solicitar la sincronización.')}`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(error?.message || 'No se pudo solicitar la sincronización.')}`)
   }
 }
 
@@ -306,7 +306,7 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
   const targetId = numberValue(formData, 'target_id')
 
   if (!targetId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Solicitante/grupo AIS inválido.')}#cuentas-ais`)
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Solicitante/grupo AIS inválido.')}#cuentas-ais`)
   }
 
   try {
@@ -320,7 +320,7 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
 
     if (['PENDING', 'RUNNING'].includes(String(target.appointment_refresh_status || ''))) {
       revalidatePath(PATH)
-      redirect(`${PATH}?target_refresh_pending=1#cuentas-ais`)
+      redirect(`${PATH}?section=cuentas-ais&target_refresh_pending=1#cuentas-ais`)
     }
 
     const { data: account, error: accountError } = await supabase
@@ -332,7 +332,7 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
     if (accountError) throw new Error(accountError.message)
 
     if (account.credential_status !== 'VALID') {
-      redirect(`${PATH}?error=${encodeURIComponent(
+      redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(
         account.credential_error_message ||
         'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de verificar la cita.'
       )}#cuentas-ais`)
@@ -364,10 +364,10 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?target_refresh_requested=1#cuentas-ais`)
+    redirect(`${PATH}?section=cuentas-ais&target_refresh_requested=1#cuentas-ais`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(
       error?.message || 'No se pudo solicitar la verificación de cita en AIS.'
     )}#cuentas-ais`)
   }
@@ -386,7 +386,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
   const crmProcessId = text(formData, 'crm_process_id')
 
   if (!targetId || !crmProcessId) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(
       'Selecciona un solicitante/grupo AIS y un trámite de Proyecto Águila.'
     )}#cuentas-ais`)
   }
@@ -506,10 +506,10 @@ export async function linkTargetToCrmProcess(formData: FormData) {
     })
 
     revalidatePath(PATH)
-    redirect(`${PATH}?crm_process_linked=1#cuentas-ais`)
+    redirect(`${PATH}?section=cuentas-ais&crm_process_linked=1#cuentas-ais`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent(
       error?.message || 'No se pudo vincular el trámite de Proyecto Águila.'
     )}#cuentas-ais`)
   }
@@ -523,7 +523,7 @@ export async function createClientFromTarget(formData: FormData) {
   const customName = text(formData, 'client_name')
 
   if (!targetId) {
-    redirect(`${PATH}?error=${encodeURIComponent('Tramitante o grupo inválido.')}`)
+    redirect(`${PATH}?section=agendados&error=${encodeURIComponent('Tramitante o grupo inválido.')}`)
   }
 
   try {
@@ -575,10 +575,10 @@ export async function createClientFromTarget(formData: FormData) {
     )
 
     revalidatePath(PATH)
-    redirect(`${PATH}?client_created=1#agendados`)
+    redirect(`${PATH}?section=agendados&client_created=1#agendados`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(error?.message || 'No se pudo crear el cliente.')}`)
+    redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error?.message || 'No se pudo crear el cliente.')}`)
   }
 }
 
@@ -587,7 +587,7 @@ export async function updateBookingConfig(formData: FormData) {
   const supabase = getVisaMasterAdminClient()
 
   const id = numberValue(formData, 'booking_config_id')
-  if (!id) redirect(`${PATH}?error=Configuración inválida`)
+  if (!id) redirect(`${PATH}?section=agendados&error=Configuración inválida`)
 
   const allowAnyTime = formData.get('allow_any_time') === 'on'
   const searchMode = text(formData, 'search_mode') || 'INTELLIGENT'
@@ -618,15 +618,15 @@ export async function updateBookingConfig(formData: FormData) {
   }
 
   if (payload.cas_max_days_before < payload.cas_min_days_before) {
-    redirect(`${PATH}?error=El máximo de días CAS no puede ser menor al mínimo`)
+    redirect(`${PATH}?section=agendados&error=El máximo de días CAS no puede ser menor al mínimo`)
   }
 
   if (!payload.allowed_consulates.length) {
-    redirect(`${PATH}?error=Selecciona al menos un consulado permitido`)
+    redirect(`${PATH}?section=agendados&error=Selecciona al menos un consulado permitido`)
   }
 
   if (!payload.allowed_cas_locations.length) {
-    redirect(`${PATH}?error=Selecciona al menos un CAS permitido`)
+    redirect(`${PATH}?section=agendados&error=Selecciona al menos un CAS permitido`)
   }
 
   const { error } = await supabase
@@ -634,10 +634,10 @@ export async function updateBookingConfig(formData: FormData) {
     .update(payload)
     .eq('id', id)
 
-  if (error) redirect(`${PATH}?error=${encodeURIComponent(error.message)}`)
+  if (error) redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error.message)}`)
 
   revalidatePath(PATH)
-  redirect(`${PATH}?updated=1#agendados`)
+  redirect(`${PATH}?section=agendados&updated=1#agendados`)
 }
 
 
@@ -648,7 +648,7 @@ export async function resumeImprovementSearch(formData: FormData) {
   const id = numberValue(formData, 'booking_config_id')
 
   if (!id) {
-    redirect(`${PATH}?error=${encodeURIComponent('Configuración inválida.')}`)
+    redirect(`${PATH}?section=agendados&error=${encodeURIComponent('Configuración inválida.')}`)
   }
 
   try {
@@ -669,7 +669,7 @@ export async function resumeImprovementSearch(formData: FormData) {
     if (clientError) throw new Error(clientError.message)
 
     if (!client.current_appointment_date) {
-      redirect(`${PATH}?error=${encodeURIComponent(
+      redirect(`${PATH}?section=agendados&error=${encodeURIComponent(
         'Este proceso todavía no tiene una cita actual para usar como referencia de mejora.'
       )}#agendados`)
     }
@@ -683,7 +683,7 @@ export async function resumeImprovementSearch(formData: FormData) {
     if (accountError) throw new Error(accountError.message)
 
     if (account.credential_status !== 'VALID') {
-      redirect(`${PATH}?error=${encodeURIComponent(
+      redirect(`${PATH}?section=agendados&error=${encodeURIComponent(
         account.credential_error_message ||
         'La cuenta AIS no tiene acceso válido. Corrige el acceso antes de reactivar la búsqueda.'
       )}#cuentas-ais`)
@@ -701,10 +701,10 @@ export async function resumeImprovementSearch(formData: FormData) {
     if (error) throw new Error(error.message)
 
     revalidatePath(PATH)
-    redirect(`${PATH}?improvement_search=1#agendados`)
+    redirect(`${PATH}?section=agendados&improvement_search=1#agendados`)
   } catch (error: any) {
     rethrowNextRedirect(error)
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=agendados&error=${encodeURIComponent(
       error?.message || 'No se pudo reactivar la búsqueda de mejora.'
     )}#agendados`)
   }
@@ -724,10 +724,10 @@ export async function toggleBookingConfig(formData: FormData) {
       : { operational_status: 'ACTIVE', enabled: true, updated_at: new Date().toISOString() }
 
   const { error } = await supabase.from('vm_booking_configs').update(payload).eq('id', id)
-  if (error) redirect(`${PATH}?error=${encodeURIComponent(error.message)}`)
+  if (error) redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error.message)}`)
 
   revalidatePath(PATH)
-  redirect(`${PATH}?updated=1#agendados`)
+  redirect(`${PATH}?section=agendados&updated=1#agendados`)
 }
 
 
@@ -757,13 +757,13 @@ export async function requestAgentCommand(formData: FormData) {
   ])
 
   if (!agentId) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=servicios&error=${encodeURIComponent(
       'No se recibió el Agent ID.'
     )}#servicios`)
   }
 
   if (!allowedCommands.has(command)) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=servicios&error=${encodeURIComponent(
       'Comando del Agent no permitido.'
     )}#servicios`)
   }
@@ -772,7 +772,7 @@ export async function requestAgentCommand(formData: FormData) {
     command !== 'RESTART_ALL'
     && !allowedServices.has(serviceKey)
   ) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=servicios&error=${encodeURIComponent(
       'Servicio del Agent no permitido.'
     )}#servicios`)
   }
@@ -784,13 +784,13 @@ export async function requestAgentCommand(formData: FormData) {
     .maybeSingle()
 
   if (agentError) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=servicios&error=${encodeURIComponent(
       agentError.message
     )}#servicios`)
   }
 
   if (!agent) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=servicios&error=${encodeURIComponent(
       'El Agent seleccionado ya no existe.'
     )}#servicios`)
   }
@@ -809,11 +809,11 @@ export async function requestAgentCommand(formData: FormData) {
     })
 
   if (error) {
-    redirect(`${PATH}?error=${encodeURIComponent(
+    redirect(`${PATH}?section=servicios&error=${encodeURIComponent(
       error.message
     )}#servicios`)
   }
 
   revalidatePath(PATH)
-  redirect(`${PATH}?agent_command=1#servicios`)
+  redirect(`${PATH}?section=servicios&agent_command=1#servicios`)
 }

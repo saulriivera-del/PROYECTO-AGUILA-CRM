@@ -1,0 +1,25 @@
+PROYECTO ÁGUILA · MOTOR DE CITAS V2.2 · SECCIONES
+
+Reemplaza únicamente estos archivos en:
+app/admin/motor-citas/
+
+1) page_motor_citas_v2_2_sections.tsx  ->  page.tsx
+2) actions_motor_citas_v2_2_sections.ts -> actions.ts
+
+Esta versión conserva los controles del Visa Master Agent:
+- Iniciar servicio
+- Detener servicio
+- Reiniciar servicio
+- Publicador Bot Master
+
+Y vuelve a separar la interfaz en vistas:
+- Resumen
+- Agendados
+- Cuentas AIS
+- Servicios
+- Rendimiento
+- Salud AIS
+- Aperturas
+- Historial
+
+No necesitas modificar de nuevo el Agent V1.3.1 para este cambio.

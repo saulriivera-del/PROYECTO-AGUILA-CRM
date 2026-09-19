@@ -20,6 +20,19 @@ import styles from './motor-citas.module.css'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 
+const SECTION_OPTIONS = [
+  { key: 'resumen', label: 'Resumen' },
+  { key: 'agendados', label: 'Agendados' },
+  { key: 'cuentas-ais', label: 'Cuentas AIS' },
+  { key: 'servicios', label: 'Servicios' },
+  { key: 'rendimiento', label: 'Rendimiento' },
+  { key: 'salud-ais', label: 'Salud AIS' },
+  { key: 'aperturas', label: 'Aperturas' },
+  { key: 'historial', label: 'Historial' },
+] as const
+
+type SectionKey = typeof SECTION_OPTIONS[number]['key']
+
 const CONSULATE_OPTIONS = [
   { value: 'CIUDAD JUAREZ', label: 'Ciudad Juárez' },
   { value: 'GUADALAJARA', label: 'Guadalajara' },
@@ -314,6 +327,12 @@ function serviceKeyLabel(key?: string | null) {
 
 export default async function MotorCitasPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams
+
+  const rawSection = typeof params.section === 'string' ? params.section : 'resumen'
+  const selectedSection: SectionKey = SECTION_OPTIONS.some((item) => item.key === rawSection)
+    ? rawSection as SectionKey
+    : 'resumen'
+
   await requireAuthContext()
   const supabase = getVisaMasterAdminClient()
 
@@ -513,13 +532,65 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
       ) : null}
 
+      <nav
+        aria-label="Secciones del Motor de Citas"
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '10px',
+          margin: '18px 0 26px',
+          padding: '10px',
+          border: '1px solid rgba(148, 163, 184, 0.22)',
+          borderRadius: '16px',
+          background: 'rgba(15, 23, 42, 0.38)',
+        }}
+      >
+        {SECTION_OPTIONS.map((item) => {
+          const active = selectedSection === item.key
+          const preserveConsulate =
+            item.key === 'aperturas' && selectedConsulate
+              ? `&consulate=${encodeURIComponent(selectedConsulate)}`
+              : ''
+
+          return (
+            <a
+              key={item.key}
+              href={`/admin/motor-citas?section=${item.key}${preserveConsulate}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: '40px',
+                padding: '9px 14px',
+                borderRadius: '11px',
+                border: active
+                  ? '1px solid rgba(250, 204, 21, 0.75)'
+                  : '1px solid rgba(148, 163, 184, 0.20)',
+                background: active
+                  ? 'rgba(250, 204, 21, 0.13)'
+                  : 'rgba(15, 23, 42, 0.28)',
+                color: 'inherit',
+                fontWeight: active ? 800 : 650,
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {item.label}
+            </a>
+          )
+        })}
+      </nav>
+
+      {selectedSection === 'resumen' ? (
       <section className={styles.summaryGrid}>
         <article><span>Procesos activos</span><strong>{summary.active_configs}</strong></article>
         <article><span>Pausados</span><strong>{summary.paused_configs}</strong></article>
         <article><span>Login requerido</span><strong>{summary.login_required_configs}</strong></article>
         <article><span>Con error</span><strong>{summary.error_configs}</strong></article>
       </section>
+      ) : null}
 
+      {selectedSection === 'rendimiento' ? (
       <section className={styles.section} id="rendimiento">
         <div className={styles.sectionHeading}>
           <div>
@@ -672,7 +743,9 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           Los contadores de requests y ejecuciones conservan el histórico ya capturado por V11+.
         </div>
       </section>
+      ) : null}
 
+      {selectedSection === 'servicios' ? (
       <section className={styles.section} id="servicios">
         <ServiceAutoRefresh seconds={10} />
 
@@ -828,7 +901,9 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           </>
         )}
       </section>
+      ) : null}
 
+      {selectedSection === 'cuentas-ais' ? (
       <section className={styles.section} id="cuentas-ais">
         <div className={styles.sectionHeading}>
           <div>
@@ -1169,7 +1244,9 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           ) : null}
         </div>
       </section>
+      ) : null}
 
+      {selectedSection === 'salud-ais' ? (
       <section className={styles.section} id="salud-ais">
         <div className={styles.sectionHeading}>
           <div>
@@ -1394,8 +1471,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           Si después vuelve a existir una ejecución exitosa, el episodio queda como recuperado.
         </div>
       </section>
+      ) : null}
 
-      <section className={styles.section}>
+      {selectedSection === 'aperturas' ? (
+      <section className={styles.section} id="aperturas">
         <div className={styles.sectionHeading}>
           <div>
             <span className={styles.kicker}>Inteligencia de aperturas</span>
@@ -1403,6 +1482,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           </div>
 
           <form method="get" className={styles.consulatePicker}>
+            <input type="hidden" name="section" value="aperturas" />
             <label>
               <span>Consulado</span>
               <select name="consulate" defaultValue={selectedConsulate}>
@@ -1469,7 +1549,9 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           <div className={styles.empty}>Todavía no hay aperturas dentro de los próximos 30 días.</div>
         )}
       </section>
+      ) : null}
 
+      {selectedSection === 'agendados' ? (
       <section className={styles.section} id="agendados">
         <div className={styles.sectionHeading}>
           <div>
@@ -1738,8 +1820,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           })}
         </div>
       </section>
+      ) : null}
 
-      <section className={styles.section}>
+      {selectedSection === 'historial' ? (
+      <section className={styles.section} id="historial">
         <div className={styles.sectionHeading}>
           <div>
             <span className={styles.kicker}>Auditoría</span>
@@ -1768,6 +1852,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           {!events?.length ? <div className={styles.empty}>El historial comenzará a llenarse al conectar el Worker con vm_booking_events.</div> : null}
         </div>
       </section>
+      ) : null}
     </div>
   )
 }
