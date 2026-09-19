@@ -833,24 +833,257 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     }
   }
 
+  // ------------------------------------------------------------------
+  // Incidencias AIS inteligentes
+  //
+  // Regla operativa:
+  // - BACKOFF / RETRY_LATER: protección normal, no es una incidencia.
+  // - Falla transitoria + éxito posterior: auto-resuelta y oculta.
+  // - 1 falla transitoria sin recuperación: INFO.
+  // - 2-3 fallas consecutivas: WARNING.
+  // - 4+ fallas consecutivas o >15 min sin recuperar: CRITICAL.
+  // - Credenciales / submit incierto: CRITICAL inmediato.
+  // ------------------------------------------------------------------
+
+  const SUCCESS_JOB_STATUSES = new Set(['COMPLETED', 'SUCCEEDED'])
+  const BACKOFF_CODES = new Set([
+    'BACKOFF',
+    'BACKOFF_EXPIRED',
+    'RETRY_LATER',
+  ])
+
+  const jobText = (job: any) =>
+    `${job?.result_code || ''} ${job?.result_message || ''}`.toUpperCase()
+
+  const isCredentialJobFailure = (job: any) => {
+    const raw = jobText(job)
+    return [
+      'INVALID_CREDENTIALS',
+      'PASSWORD_NOT_CONFIGURED',
+      'LOGIN_REQUIRED',
+      'AUTH_FAILED',
+      'ACCOUNT_NOT_FOUND',
+    ].some((token) => raw.includes(token))
+  }
+
+  const isBookingCriticalFailure = (job: any) => {
+    const raw = jobText(job)
+    return [
+      'BOOKING_UNCERTAIN',
+      'SUBMIT_FAILED',
+      'CONFIRMATION_NOT_FOUND',
+      'CONFIRMATION_MISSING',
+      'POST_SUBMIT',
+    ].some((token) => raw.includes(token))
+  }
+
+  const isTransientJobFailure = (job: any) => {
+    const raw = jobText(job)
+    return [
+      'TRANSIENT_ERROR',
+      'ERR_CONNECTION_REFUSED',
+      'ERR_EMPTY_RESPONSE',
+      'EMPTY_RESPONSE',
+      'NAVIGATION_ERROR',
+      'SITE_MAINTENANCE',
+      'TIMEOUT',
+      'TIMED OUT',
+      'LOCATOR.WAIT_FOR',
+      'CONNECTIONTERMINATED',
+      'REMOTEPROTOCOLERROR',
+      'TARGET_REFRESH_ERROR',
+    ].some((token) => raw.includes(token))
+  }
+
+  const operationalJobMessage = (job: any) => {
+    const raw = jobText(job)
+
+    if (raw.includes('ERR_CONNECTION_REFUSED')) {
+      return 'AIS rechazó temporalmente la conexión. El Motor puede recuperarse solo en el siguiente intento.'
+    }
+
+    if (raw.includes('ERR_EMPTY_RESPONSE') || raw.includes('EMPTY_RESPONSE')) {
+      return 'AIS cerró la respuesta sin entregar contenido útil. El Motor volverá a intentar automáticamente.'
+    }
+
+    if (raw.includes('TIMEOUT') || raw.includes('LOCATOR.WAIT_FOR') || raw.includes('TIMED OUT')) {
+      return 'AIS no terminó de cargar un elemento esperado dentro del tiempo límite. El Motor volverá a intentar.'
+    }
+
+    if (raw.includes('SITE_MAINTENANCE')) {
+      return 'AIS parece estar en mantenimiento o respondiendo de forma inestable. La cuenta quedó protegida por backoff.'
+    }
+
+    if (raw.includes('TRANSIENT_ERROR') || raw.includes('CONNECTIONTERMINATED') || raw.includes('REMOTEPROTOCOLERROR')) {
+      return 'AIS tuvo un fallo temporal de navegación/conexión. El Motor volverá a intentar automáticamente.'
+    }
+
+    if (isCredentialJobFailure(job)) {
+      return 'La cuenta AIS requiere intervención de acceso antes de continuar.'
+    }
+
+    if (isBookingCriticalFailure(job)) {
+      return 'El intento de agendado quedó en un estado que requiere revisión manual antes de volver a intentar.'
+    }
+
+    return job.result_message || 'El Job terminó con error y requiere revisión.'
+  }
+
+  const jobMoment = (job: any) => {
+    const raw = rowTimestamp(job)
+    const millis = raw ? new Date(raw).getTime() : 0
+    return Number.isFinite(millis) ? millis : 0
+  }
+
+  const jobScopeKey = (job: any) => {
+    const accountId = Number(job?.account_id || 0)
+    const clientId = Number(job?.client_id || 0)
+    if (accountId || clientId) return `${accountId}:${clientId}`
+    return `job:${job?.id || 'unknown'}`
+  }
+
+  const jobScopeLabel = (job: any) => {
+    const client = clientById.get(Number(job?.client_id || 0))
+    if (client?.full_name) return client.full_name
+
+    const account = accountById.get(Number(job?.account_id || 0))
+    if (account?.account_email) return account.account_email
+
+    return `Cuenta #${job?.account_id || '—'}`
+  }
+
+  const jobsByScope = new Map<string, any[]>()
   for (const job of aisJobs ?? []) {
-    const status = String(job.status || '')
-    const age = ageMinutes(rowTimestamp(job))
-    if (status === 'RUNNING' && age !== null && age > 15) {
+    const key = jobScopeKey(job)
+    jobsByScope.set(key, [...(jobsByScope.get(key) || []), job])
+  }
+
+  let autoResolvedTransientCount = 0
+  let ignoredBackoffCount = 0
+  const aisIncidentAccountIds = new Set<number>()
+
+  for (const scopeJobsRaw of jobsByScope.values()) {
+    const scopeJobs = [...scopeJobsRaw].sort((a: any, b: any) => {
+      const timeDiff = jobMoment(b) - jobMoment(a)
+      if (timeDiff !== 0) return timeDiff
+      return Number(b.id || 0) - Number(a.id || 0)
+    })
+
+    // RUNNING atorado sigue siendo crítico aunque no exista FAILED.
+    const stuck = scopeJobs.find((job: any) => {
+      if (String(job.status || '') !== 'RUNNING') return false
+      const age = ageMinutes(rowTimestamp(job))
+      return age !== null && age > 15
+    })
+
+    if (stuck) {
+      const age = ageMinutes(rowTimestamp(stuck))
+      const accountId = Number(stuck.account_id || 0)
+      if (accountId) aisIncidentAccountIds.add(accountId)
+
       incidents.push({
         severity: 'CRITICAL',
-        title: `Job AIS #${job.id} atorado`,
-        detail: `Lleva aproximadamente ${Math.round(age)} min en RUNNING. ${job.result_message || ''}`.trim(),
+        title: `Motor AIS atorado · ${jobScopeLabel(stuck)}`,
+        detail: `Job #${stuck.id} lleva aproximadamente ${Math.round(age || 0)} min en RUNNING. Revisa el Orquestador antes de iniciar otro intento.`,
         source: 'Cola AIS',
       })
-    } else if (status === 'FAILED') {
-      incidents.push({
-        severity: 'WARNING',
-        title: `Job AIS #${job.id} falló`,
-        detail: `${job.result_code || 'FAILED'} · ${job.result_message || 'Sin detalle.'}`,
-        source: 'Cola AIS',
-      })
+      continue
     }
+
+    const health = healthByAccount.get(Number(scopeJobs[0]?.account_id || 0))
+
+    // Marcar fallas históricas como recuperadas cuando hubo un Job exitoso
+    // posterior o la telemetría AIS registra éxito después del fallo.
+    const unresolvedFailures: any[] = []
+
+    for (const job of scopeJobs) {
+      if (String(job.status || '') !== 'FAILED') continue
+
+      const code = String(job.result_code || '').toUpperCase()
+      if (BACKOFF_CODES.has(code)) {
+        ignoredBackoffCount += 1
+        continue
+      }
+
+      const failedAt = jobMoment(job)
+
+      const laterJobSuccess = scopeJobs.some((candidate: any) =>
+        SUCCESS_JOB_STATUSES.has(String(candidate.status || '').toUpperCase())
+        && jobMoment(candidate) > failedAt
+      )
+
+      const lastSuccessAt = health?.last_success_at
+        ? new Date(health.last_success_at).getTime()
+        : 0
+
+      const telemetryRecovered =
+        Number.isFinite(lastSuccessAt)
+        && lastSuccessAt > failedAt
+
+      if (isTransientJobFailure(job) && (laterJobSuccess || telemetryRecovered)) {
+        autoResolvedTransientCount += 1
+        continue
+      }
+
+      unresolvedFailures.push(job)
+    }
+
+    if (!unresolvedFailures.length) continue
+
+    const latestFailure = unresolvedFailures[0]
+    const accountId = Number(latestFailure.account_id || 0)
+    if (accountId) aisIncidentAccountIds.add(accountId)
+
+    // Credencial o submit incierto: escalar inmediatamente.
+    if (isCredentialJobFailure(latestFailure) || isBookingCriticalFailure(latestFailure)) {
+      incidents.push({
+        severity: 'CRITICAL',
+        title: `${isBookingCriticalFailure(latestFailure) ? 'Agendado requiere revisión' : 'Acceso AIS requiere intervención'} · ${jobScopeLabel(latestFailure)}`,
+        detail: `Job #${latestFailure.id}. ${operationalJobMessage(latestFailure)}`,
+        source: 'Cola AIS',
+      })
+      continue
+    }
+
+    if (isTransientJobFailure(latestFailure)) {
+      // Contamos únicamente el episodio transitorio actual: fallos consecutivos
+      // sin un Job exitoso posterior.
+      let consecutive = 0
+      for (const job of unresolvedFailures) {
+        if (!isTransientJobFailure(job)) break
+        consecutive += 1
+      }
+
+      const age = ageMinutes(rowTimestamp(latestFailure))
+      const severity: Incident['severity'] =
+        consecutive >= 4 || (age !== null && age > 15)
+          ? 'CRITICAL'
+          : consecutive >= 2
+            ? 'WARNING'
+            : 'INFO'
+
+      const followUp =
+        severity === 'INFO'
+          ? 'Sin intervención por ahora; el Motor reintentará automáticamente.'
+          : severity === 'WARNING'
+            ? 'El Motor seguirá intentando, pero conviene vigilar esta cuenta.'
+            : 'La cuenta no se ha recuperado; revisa Salud AIS y el Orquestador.'
+
+      incidents.push({
+        severity,
+        title: `AIS inestable · ${jobScopeLabel(latestFailure)}`,
+        detail: `Job #${latestFailure.id} · ${consecutive} fallo(s) transitorio(s) consecutivo(s). ${operationalJobMessage(latestFailure)} ${followUp}`,
+        source: 'AIS / red',
+      })
+      continue
+    }
+
+    incidents.push({
+      severity: 'WARNING',
+      title: `Job AIS requiere revisión · ${jobScopeLabel(latestFailure)}`,
+      detail: `Job #${latestFailure.id} · ${latestFailure.result_code || 'FAILED'}. ${operationalJobMessage(latestFailure)}`,
+      source: 'Cola AIS',
+    })
   }
 
   for (const row of telegramOutbox ?? []) {
@@ -916,14 +1149,56 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
   }
 
   for (const health of healthRows ?? []) {
-    if (String(health.health_status || '') === 'DEGRADED') {
-      incidents.push({
-        severity: 'WARNING',
-        title: `Salud AIS degradada · Cuenta #${health.account_id}`,
-        detail: `Errores 1 h: ${health.errors_1h || 0} · timeouts: ${health.timeouts_1h || 0} · empty: ${health.empty_responses_1h || 0}.`,
-        source: 'Salud AIS',
-      })
+    if (String(health.health_status || '') !== 'DEGRADED') continue
+
+    const accountId = Number(health.account_id || 0)
+
+    // Si ya existe una incidencia AIS activa para esta cuenta, no duplicamos
+    // la misma situación desde la vista de Salud AIS.
+    if (aisIncidentAccountIds.has(accountId)) continue
+
+    const lastErrorAt = health.last_error_at
+      ? new Date(health.last_error_at).getTime()
+      : 0
+    const lastSuccessAt = health.last_success_at
+      ? new Date(health.last_success_at).getTime()
+      : 0
+
+    // La salud puede seguir marcada como DEGRADED durante la ventana de 1 h
+    // aunque AIS ya haya vuelto a responder. En ese caso se considera recuperado.
+    if (
+      Number.isFinite(lastSuccessAt)
+      && Number.isFinite(lastErrorAt)
+      && lastSuccessAt > lastErrorAt
+    ) {
+      continue
     }
+
+    const consecutive = Math.max(
+      Number(health.possible_block_error_runs || 0),
+      Number(health.requests_since_last_success || 0),
+    )
+
+    const errorAge = ageMinutes(health.last_error_at)
+    const severity: Incident['severity'] =
+      consecutive >= 4 || (errorAge !== null && errorAge > 15)
+        ? 'CRITICAL'
+        : consecutive >= 2
+          ? 'WARNING'
+          : 'INFO'
+
+    incidents.push({
+      severity,
+      title: `Salud AIS degradada · Cuenta #${health.account_id}`,
+      detail: `Errores consecutivos: ${consecutive}. Errores 1 h: ${health.errors_1h || 0} · timeouts: ${health.timeouts_1h || 0} · empty: ${health.empty_responses_1h || 0}. ${
+        severity === 'INFO'
+          ? 'Seguimiento automático; todavía no requiere intervención.'
+          : severity === 'WARNING'
+            ? 'Vigila la recuperación automática de la cuenta.'
+            : 'La cuenta lleva demasiado tiempo sin recuperarse; requiere revisión.'
+      }`,
+      source: 'Salud AIS',
+    })
   }
 
   const criticalIncidents = incidents.filter((item) => item.severity === 'CRITICAL')
@@ -1092,7 +1367,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             <h2>Incidencias de Bot Master</h2>
           </div>
           <p>
-            Consolida Agent, servicios, AIS, Telegram privado, alertas públicas y publicaciones confirmadas.
+            Muestra únicamente incidencias operativas vigentes. BACKOFF es protección normal y los fallos transitorios desaparecen cuando AIS registra una recuperación posterior.
           </p>
         </div>
 
@@ -1107,10 +1382,27 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             <span>Informativas</span><strong style={{ display: 'block', fontSize: 28 }}>{infoIncidents.length}</strong>
           </article>
           <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(16,185,129,.28)' }}>
+            <span>Auto-resueltas</span><strong style={{ display: 'block', fontSize: 28 }}>{autoResolvedTransientCount}</strong>
+            <small>Fallas transitorias con éxito AIS posterior.</small>
+          </article>
+          <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(59,130,246,.28)' }}>
+            <span>Backoff ignorado</span><strong style={{ display: 'block', fontSize: 28 }}>{ignoredBackoffCount}</strong>
+            <small>Protecciones normales, no errores.</small>
+          </article>
+          <article style={{ padding: 16, borderRadius: 14, border: '1px solid rgba(16,185,129,.28)' }}>
             <span>Última detección Bot Master</span>
             <strong style={{ display: 'block', fontSize: 16 }}>{lastBotMasterDetection ? fmtDateTime(lastBotMasterDetection.detected_at) : 'Aún sin detecciones V3.32'}</strong>
           </article>
         </div>
+
+        {autoResolvedTransientCount > 0 ? (
+          <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(16,185,129,.25)', background: 'rgba(16,185,129,.06)' }}>
+            <strong>{autoResolvedTransientCount} falla(s) transitoria(s) auto-resueltas.</strong>
+            <span style={{ display: 'block', marginTop: 4 }}>
+              Se ocultaron del semáforo porque AIS registró un éxito posterior al fallo.
+            </span>
+          </div>
+        ) : null}
 
         <div style={{ display: 'grid', gap: 10 }}>
           {incidents.length ? incidents.map((incident, index) => {
@@ -1144,6 +1436,13 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
               <span style={{ display: 'block', marginTop: 6 }}>Agent, AIS y colas principales se ven normales.</span>
             </div>
           )}
+        </div>
+
+        <div style={{ marginTop: 18, padding: 16, borderRadius: 14, border: '1px solid rgba(148,163,184,.22)', background: 'rgba(148,163,184,.04)' }}>
+          <strong>Cómo leer la severidad</strong>
+          <span style={{ display: 'block', marginTop: 6 }}>
+            INFO = 1 fallo transitorio y reintento automático · WARNING = 2–3 fallos consecutivos · CRITICAL = 4+ fallos, más de 15 min sin recuperar, credenciales inválidas o agendado incierto.
+          </span>
         </div>
 
         <div style={{ marginTop: 20, padding: 16, borderRadius: 14, border: '1px solid rgba(148,163,184,.22)' }}>
