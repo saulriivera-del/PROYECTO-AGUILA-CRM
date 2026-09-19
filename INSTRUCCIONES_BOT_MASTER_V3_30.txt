@@ -1,0 +1,68 @@
+BOT MASTER / PROYECTO ÁGUILA — V3.30
+
+ARCHIVOS INCLUIDOS
+1. ais_worker_v3_fase2.py
+2. ais_worker_v3_orchestrator.py
+3. page.tsx
+4. actions.ts
+
+CAMBIOS DEL MOTOR
+- Una cita nueva debe estar dentro de acceptable_date_from / acceptable_date_to.
+- Si el cliente YA tiene cita consular, la nueva consular debe mejorarla.
+- Con minimum_improvement_days=0 se exige al menos 1 día de mejora.
+- Si minimum_improvement_days > 0, se respeta ese mínimo.
+
+ESCALERA DE RESILIENCIA CAS
+Cuando una combinación válida llega a la revalidación LIVE y AIS carga mal CAS:
+1) Reintenta la MISMA combinación hasta 3 veces, sin enviar el formulario si el estado no coincide.
+2) Si sigue fallando, intenta hasta 2 fechas CAS distintas manteniendo la misma fecha consular.
+3) Si no funciona, descarta temporalmente esa fecha consular y busca otra fecha dentro del rango original configurado.
+4) La nueva fecha consular sigue obligada a:
+   - mejorar la cita actual;
+   - estar dentro del rango configurado;
+   - cumplir consulados permitidos;
+   - cumplir ventana CAS;
+   - cumplir horarios configurados.
+5) Si ya hubo POST pero el resultado es incierto, NO hace fallback automático: conserva la protección existente y detiene el motor para revisión.
+
+MASTER NOTIFICADOR / INTELLIGENT
+- La alerta sigue intentando primero el consulado + fecha exactos avisados.
+- La ventana original del cliente no se pierde.
+- Si la fecha alertada agota la escalera de resiliencia, el motor puede probar otra consular válida dentro del rango original.
+
+PROYECTO ÁGUILA — ARMAR / DESARMAR
+- En Agendados aparece:
+  AUTO AGENDADO ARMADO / AUTO AGENDADO DESARMADO
+- Botón para Armar o Desarmar por trámite.
+- El interruptor maestro local VM_LIVE_BOOKING_ENABLED sigue siendo obligatorio.
+- Por tanto:
+  Proyecto Águila ARMADO + VM_LIVE_BOOKING_ENABLED=true = LIVE permitido.
+  Cualquiera de los dos apagado = no confirma automáticamente.
+- VM_LIVE_BOOKING_CLIENT_IDS deja de ser obligatorio.
+
+INSTALACIÓN EN LA PC DEL BOT
+Carpeta:
+C:\Users\DELL\visa-master-bot\
+
+Reemplazar:
+- ais_worker_v3_fase2.py
+- ais_worker_v3_orchestrator.py
+
+Después reiniciar únicamente el servicio Orquestador desde Proyecto Águila.
+No hace falta cambiar el Agent.
+
+INSTALACIÓN EN PROYECTO ÁGUILA
+Carpeta:
+app/admin/motor-citas/
+
+Reemplazar:
+- page.tsx
+- actions.ts
+
+Desplegar de nuevo en Vercel.
+
+IMPORTANTE
+Antes de la primera cita LIVE:
+- mantener el trámite DESARMADO mientras se valida DRY RUN;
+- verificar rango consular, CAS, horarios y consulado;
+- después ARMAR solo el cliente elegido para la prueba.
