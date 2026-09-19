@@ -731,6 +731,38 @@ export async function toggleBookingConfig(formData: FormData) {
 }
 
 
+export async function setAutoConfirmState(formData: FormData) {
+  await requireAuthContext()
+  const supabase = getVisaMasterAdminClient()
+
+  const id = numberValue(formData, 'booking_config_id')
+  const next = text(formData, 'next_state')
+
+  if (!id || !['ARMED', 'DISARMED'].includes(next)) {
+    redirect(`${PATH}?section=agendados&error=${encodeURIComponent(
+      'No se pudo cambiar el estado del agendado automático.'
+    )}#agendados`)
+  }
+
+  const armed = next === 'ARMED'
+
+  const { error } = await supabase
+    .from('vm_booking_configs')
+    .update({
+      auto_confirm_enabled: armed,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+
+  if (error) {
+    redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error.message)}#agendados`)
+  }
+
+  revalidatePath(PATH)
+  redirect(`${PATH}?section=agendados&updated=1#agendados`)
+}
+
+
 export async function requestAgentCommand(formData: FormData) {
   await requireAuthContext()
 

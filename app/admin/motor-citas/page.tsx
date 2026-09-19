@@ -8,6 +8,7 @@ import {
   requestTargetAppointmentRefresh,
   requestAgentCommand,
   resumeImprovementSearch,
+  setAutoConfirmState,
   toggleBookingConfig,
   updateAisPassword,
   updateBookingConfig,
@@ -1591,7 +1592,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <span className={styles.badge}>{modeLabel(config.search_mode)}</span>
                     {config.search_mode === 'INTELLIGENT' ? <span className={styles.recommended}>Recomendado</span> : null}
                     <span className={config.auto_confirm_enabled ? styles.autoConfirmOn : styles.autoConfirmOff}>
-                      Auto confirm {config.auto_confirm_enabled ? 'ON' : 'OFF'}
+                      {config.auto_confirm_enabled ? 'AUTO AGENDADO ARMADO' : 'AUTO AGENDADO DESARMADO'}
                     </span>
                     <span className={styles.badge}>Config #{config.booking_config_id}</span>
                     <span className={styles.badge}>Cuenta #{config.account_id}</span>
@@ -1671,6 +1672,33 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     </button>
                   </form>
                 )}
+              </div>
+
+              <div className={styles.improvementAction}>
+                <div>
+                  <strong>Agendado automático</strong>
+                  <span>
+                    {config.auto_confirm_enabled
+                      ? 'ARMADO en Proyecto Águila. Solo podrá confirmar si el seguro maestro local VM_LIVE_BOOKING_ENABLED también está activo.'
+                      : 'DESARMADO. El Motor puede buscar y verificar disponibilidad, pero no enviará una reprogramación real.'}
+                  </span>
+                </div>
+                <form action={setAutoConfirmState}>
+                  <input type="hidden" name="booking_config_id" value={config.booking_config_id} />
+                  <input
+                    type="hidden"
+                    name="next_state"
+                    value={config.auto_confirm_enabled ? 'DISARMED' : 'ARMED'}
+                  />
+                  <button
+                    type="submit"
+                    className={config.auto_confirm_enabled ? styles.secondaryButton : styles.startButton}
+                  >
+                    {config.auto_confirm_enabled
+                      ? 'Desarmar agendado automático'
+                      : 'Armar agendado automático'}
+                  </button>
+                </form>
               </div>
 
               <div className={styles.telegramPanel}>
