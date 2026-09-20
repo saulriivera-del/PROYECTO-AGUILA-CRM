@@ -1,5 +1,4 @@
-import { requireAuthContext } from '@/lib/auth-context'
-import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
+import { botMasterRoleAtLeast, requireBotMasterTenant } from '@/lib/bot-master-tenant'
 import {
   addAisAccount,
   createClientFromTarget,
@@ -30,6 +29,7 @@ const SECTION_OPTIONS = [
   { key: 'auditoria', label: 'Auditoría' },
   { key: 'preflight', label: 'Preflight' },
   { key: 'incidencias', label: 'Incidencias' },
+  { key: 'seguridad', label: 'Seguridad' },
   { key: 'organizaciones', label: 'Organizaciones' },
   { key: 'cuentas-ais', label: 'Cuentas AIS' },
   { key: 'servicios', label: 'Servicios' },
@@ -535,15 +535,41 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
   const params = await searchParams
 
   const rawSection = typeof params.section === 'string' ? params.section : 'resumen'
-  const selectedSection: SectionKey = SECTION_OPTIONS.some((item) => item.key === rawSection)
+
+  const tenant = await requireBotMasterTenant('VIEWER')
+  const supabase = tenant.admin
+  const canViewSecurity = botMasterRoleAtLeast(tenant.role, 'OWNER')
+  const visibleSectionOptions = SECTION_OPTIONS.filter((item) => {
+    if (item.key === 'servicios' && !tenant.isSuperadmin) return false
+    if (item.key === 'organizaciones' && !canViewSecurity) return false
+    if (item.key === 'seguridad' && !canViewSecurity) return false
+    return true
+  })
+  const selectedSection: SectionKey = visibleSectionOptions.some((item) => item.key === rawSection)
     ? rawSection as SectionKey
     : 'resumen'
 
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const [
+    { data: tenantConfigsBase, error: tenantConfigsBaseError },
+    { data: tenantAccountsBase, error: tenantAccountsBaseError },
+  ] = await Promise.all([
+    (supabase as any).from('vm_booking_configs')
+      .select('id,organization_id,client_id,account_id,ais_target_id,operational_status,auto_confirm_enabled')
+      .eq('organization_id', tenant.organizationId).order('id'),
+    (supabase as any).from('vm_ais_accounts')
+      .select('id,organization_id').eq('organization_id', tenant.organizationId).order('id'),
+  ])
+
+  const tenantSetupError = tenantConfigsBaseError || tenantAccountsBaseError
+  if (tenantSetupError) throw new Error(tenantSetupError.message)
+
+  const tenantConfigIds = (tenantConfigsBase ?? []).map((row: any) => Number(row.id))
+  const tenantAccountIds = (tenantAccountsBase ?? []).map((row: any) => Number(row.id))
+  const scopedConfigIds = tenantConfigIds.length ? tenantConfigIds : [-1]
+  const scopedAccountIds = tenantAccountIds.length ? tenantAccountIds : [-1]
 
   const [
-    { data: summaryRows, error: summaryError },
+    { error: summaryError },
     { data: openings, error: openingsError },
     { data: windows, error: windowsError },
     { data: configs, error: configsError },
@@ -569,6 +595,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     { data: availabilityPublications, error: availabilityPublicationsError },
     { data: notifierSources, error: notifierSourcesError },
     { data: botMasterDetections, error: botMasterDetectionsError },
+    { data: securityAudit, error: securityAuditError },
     { data: organizations, error: organizationsError },
     { data: organizationUsers, error: organizationUsersError },
     { data: onboardingRequests, error: onboardingRequestsError },
@@ -582,77 +609,97 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       .order('consulate')
       .order('detections', { ascending: false }),
     supabase.from('vm_booking_config_dashboard_view').select('*')
+      .in('booking_config_id', scopedConfigIds)
       .order('booking_config_id'),
     supabase.from('vm_booking_events').select(
       'id,booking_config_id,event_type,client_id,account_id,consulate,consular_date,consular_time,cas_location,cas_date,cas_time,source,result_code,message,payload,created_at'
-    ).order('created_at', { ascending: false }).limit(300),
+    ).in('booking_config_id', scopedConfigIds).order('created_at', { ascending: false }).limit(300),
     (supabase as any).from('vm_ais_session_events').select('*')
+      .in('account_id', scopedAccountIds)
       .order('occurred_at', { ascending: false }).limit(300),
     (supabase as any).from('vm_ais_health_runs').select('*')
+      .in('booking_config_id', scopedConfigIds)
       .order('id', { ascending: false }).limit(500),
-    supabase.from('vm_ais_accounts_dashboard_view').select('*').order('account_id'),
+    supabase.from('vm_ais_accounts_dashboard_view').select('*').in('account_id', scopedAccountIds).order('account_id'),
     supabase.from('vm_ais_account_targets').select(
       'id,account_id,external_target_id,target_type,display_name,member_count,client_id,current_consular_date,current_consular_time,current_consulate,current_cas_date,current_cas_time,current_cas_location,synced_at,is_active,appointment_refresh_status,appointment_refresh_requested_at,appointment_refresh_started_at,appointment_refresh_finished_at,appointment_refresh_error_code,appointment_refresh_error_message,appointment_verified_has_current,appointment_verified_at'
-    ).eq('is_active', true).order('account_id').order('display_name'),
+    ).eq('organization_id', tenant.organizationId).eq('is_active', true).order('account_id').order('display_name'),
     supabase.from('vm_appointment_clients').select(
       'id,organization_id,full_name,visa_type,status,current_appointment_date,current_consulate,ais_account_email'
-    ).order('full_name'),
+    ).eq('organization_id', tenant.organizationId).order('full_name'),
     supabase.from('vm_ais_account_sync_jobs').select(
       'id,account_id,job_type,status,error_code,error_message,created_at,started_at,finished_at'
-    ).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
-    supabase.from('vm_ais_health_dashboard_view').select('*').order('account_id'),
+    ).in('account_id', scopedAccountIds).in('status', ['PENDING', 'RUNNING']).order('created_at', { ascending: false }),
+    supabase.from('vm_ais_health_dashboard_view').select('*').in('account_id', scopedAccountIds).order('account_id'),
     (supabase as any).from('vm_telegram_links').select(
       'id,booking_config_id,chat_id,chat_title,active,internal_controls,linked_at,organization_id,link_source'
-    ).eq('active', true),
+    ).eq('organization_id', tenant.organizationId).eq('active', true),
     (supabase as any).from('vm_ais_crm_process_match_view').select(
       'account_id,account_email,crm_client_id,crm_client_name,crm_client_email,crm_process_id,service_name,process_status,current_stage,operational_status,match_count'
-    ).order('crm_client_name').order('service_name'),
-    (supabase as any).from('vm_ais_session_stats_view').select('*').order('account_id'),
-    (supabase as any).from('vm_agent_dashboard_view').select('*')
-      .order('last_heartbeat_at', { ascending: false }),
-    (supabase as any).from('vm_agent_services_dashboard_view').select('*')
-      .order('agent_id')
-      .order('service_key'),
+    ).in('account_id', scopedAccountIds).order('crm_client_name').order('service_name'),
+    (supabase as any).from('vm_ais_session_stats_view').select('*').in('account_id', scopedAccountIds).order('account_id'),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_agent_dashboard_view').select('*').order('last_heartbeat_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_agent_services_dashboard_view').select('*').order('agent_id').order('service_key')
+      : Promise.resolve({ data: [], error: null }),
     (supabase as any).from('vm_motor_performance_mode_view').select('*')
       .order('sort_order'),
     (supabase as any).from('vm_motor_performance_config_view').select('*')
+      .in('booking_config_id', scopedConfigIds)
       .order('booking_config_id'),
     (supabase as any).from('vm_ais_jobs').select('*')
+      .in('account_id', scopedAccountIds)
       .order('id', { ascending: false }).limit(300),
     (supabase as any).from('vm_telegram_outbox').select('*')
+      .in('booking_config_id', scopedConfigIds)
       .order('id', { ascending: false }).limit(300),
-    (supabase as any).from('vm_bot_master_availability_outbox').select('*')
-      .order('id', { ascending: false }).limit(100),
-    (supabase as any).from('vm_bot_master_promo_publications').select('*')
-      .order('id', { ascending: false }).limit(300),
-    (supabase as any).from('vm_bot_master_availability_publications').select('*')
-      .order('id', { ascending: false }).limit(100),
-    (supabase as any).from('vm_notifier_sources').select('*')
-      .order('id', { ascending: false }).limit(100),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_bot_master_availability_outbox').select('*').order('id', { ascending: false }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_bot_master_promo_publications').select('*').order('id', { ascending: false }).limit(300)
+      : Promise.resolve({ data: [], error: null }),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_bot_master_availability_publications').select('*').order('id', { ascending: false }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_notifier_sources').select('*').order('id', { ascending: false }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
     (supabase as any).from('vm_appointment_detections')
       .select('id,source,consulate,available_date,detected_at')
       .eq('source', 'BOT MASTER')
       .order('id', { ascending: false }).limit(30),
-    (supabase as any).from('vm_organization_dashboard_view').select('*')
-      .order('is_internal', { ascending: false }).order('name'),
-    (supabase as any).from('vm_organization_users').select('*')
-      .eq('active', true).order('organization_id').order('id'),
-    (supabase as any).from('vm_client_onboarding_requests').select('*')
-      .order('id', { ascending: false }).limit(100),
-    (supabase as any).from('vm_booking_configs').select('id,organization_id,client_id,operational_status,auto_confirm_enabled')
-      .order('id'),
+    canViewSecurity
+      ? (supabase as any).from('vm_security_audit_log').select('*')
+          .eq('organization_id', tenant.organizationId)
+          .order('id', { ascending: false }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_organization_dashboard_view').select('*').order('is_internal', { ascending: false }).order('name')
+      : (supabase as any).from('vm_organization_dashboard_view').select('*').eq('id', tenant.organizationId),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_organization_users').select('*').eq('active', true).order('organization_id').order('id')
+      : (supabase as any).from('vm_organization_users').select('*').eq('organization_id', tenant.organizationId).eq('active', true).order('id'),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_client_onboarding_requests').select('*').order('id', { ascending: false }).limit(100)
+      : (supabase as any).from('vm_client_onboarding_requests').select('*').eq('organization_id', tenant.organizationId).order('id', { ascending: false }).limit(100),
+    tenant.isSuperadmin
+      ? (supabase as any).from('vm_booking_configs').select('id,organization_id,client_id,operational_status,auto_confirm_enabled').order('id')
+      : (supabase as any).from('vm_booking_configs').select('id,organization_id,client_id,operational_status,auto_confirm_enabled').eq('organization_id', tenant.organizationId).order('id'),
   ])
 
   const anyError =
     summaryError || openingsError || windowsError || configsError || eventsError || sessionEventsError || healthRunsError ||
     accountsError || targetsError || clientsError || syncJobsError || healthError || telegramLinksError || crmMatchesError || sessionStatsError || agentError || agentServicesError || performanceModesError || performanceConfigsError ||
     aisJobsError || telegramOutboxError || availabilityOutboxError || promoPublicationsError || availabilityPublicationsError || notifierSourcesError || botMasterDetectionsError ||
-    organizationsError || organizationUsersError || onboardingRequestsError || organizationConfigsError
-  const summary = summaryRows?.[0] || {
-    active_configs: 0,
-    paused_configs: 0,
-    login_required_configs: 0,
-    error_configs: 0,
+    securityAuditError || organizationsError || organizationUsersError || onboardingRequestsError || organizationConfigsError || tenantConfigsBaseError || tenantAccountsBaseError
+  const summary = {
+    active_configs: (tenantConfigsBase ?? []).filter((row: any) => row.operational_status === 'ACTIVE').length,
+    paused_configs: (tenantConfigsBase ?? []).filter((row: any) => row.operational_status === 'PAUSED').length,
+    login_required_configs: (tenantConfigsBase ?? []).filter((row: any) => row.operational_status === 'LOGIN_REQUIRED').length,
+    error_configs: (tenantConfigsBase ?? []).filter((row: any) => row.operational_status === 'ERROR').length,
   }
 
 
@@ -1062,33 +1109,35 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
     'booking_publisher',
   ])
 
-  if (!activeAgent || !['ONLINE', 'RUNNING'].includes(String(activeAgent.effective_status || ''))) {
-    incidents.push({
-      severity: 'CRITICAL',
-      title: 'Visa Master Agent desconectado',
-      detail: 'Proyecto Águila no está recibiendo heartbeat normal del Agent.',
-      source: 'Infraestructura',
-    })
-  }
-
-  for (const service of activeAgentServices) {
-    if (!expectedServiceKeys.has(String(service.service_key || ''))) continue
-    const effective = String(service.effective_status || '')
-    const desired = String(service.desired_state || 'RUNNING')
-    if (desired !== 'STOPPED' && ['CRASHED', 'ERROR', 'STALE', 'AGENT_OFFLINE', 'OFFLINE'].includes(effective)) {
+  if (tenant.isSuperadmin) {
+    if (!activeAgent || !['ONLINE', 'RUNNING'].includes(String(activeAgent.effective_status || ''))) {
       incidents.push({
         severity: 'CRITICAL',
-        title: `${serviceKeyLabel(service.service_key)} fuera de servicio`,
-        detail: service.last_error || `Estado reportado: ${serviceStatusLabel(effective)}.`,
-        source: 'Servicios',
+        title: 'Visa Master Agent desconectado',
+        detail: 'Proyecto Águila no está recibiendo heartbeat normal del Agent.',
+        source: 'Infraestructura',
       })
-    } else if (desired === 'STOPPED') {
-      incidents.push({
-        severity: 'INFO',
-        title: `${serviceKeyLabel(service.service_key)} detenido intencionalmente`,
-        detail: 'El Agent conserva este estado hasta que lo inicies desde Servicios.',
-        source: 'Servicios',
-      })
+    }
+
+    for (const service of activeAgentServices) {
+      if (!expectedServiceKeys.has(String(service.service_key || ''))) continue
+      const effective = String(service.effective_status || '')
+      const desired = String(service.desired_state || 'RUNNING')
+      if (desired !== 'STOPPED' && ['CRASHED', 'ERROR', 'STALE', 'AGENT_OFFLINE', 'OFFLINE'].includes(effective)) {
+        incidents.push({
+          severity: 'CRITICAL',
+          title: `${serviceKeyLabel(service.service_key)} fuera de servicio`,
+          detail: service.last_error || `Estado reportado: ${serviceStatusLabel(effective)}.`,
+          source: 'Servicios',
+        })
+      } else if (desired === 'STOPPED') {
+        incidents.push({
+          severity: 'INFO',
+          title: `${serviceKeyLabel(service.service_key)} detenido intencionalmente`,
+          detail: 'El Agent conserva este estado hasta que lo inicies desde Servicios.',
+          source: 'Servicios',
+        })
+      }
     }
   }
 
@@ -1527,6 +1576,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
       </header>
 
+      <div style={{ marginBottom: 12, padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(59,130,246,.22)', background: 'rgba(59,130,246,.06)' }}>
+        🛡️ <strong>Tenant Guard activo</strong> · {tenant.organizationName} · {tenant.role}
+        {tenant.canArmLive || tenant.isSuperadmin ? ' · LIVE autorizado' : ' · LIVE requiere autorización'}
+      </div>
+
       {params.updated ? <div className={styles.success}>Configuración actualizada.</div> : null}
       {params.agent_command ? (
         <div className={styles.success}>
@@ -1582,7 +1636,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 10 }}>
-          <div><span>Servicios</span><strong style={{ display: 'block', fontSize: 22 }}>{onlineServices}/{expectedServices.length || 5}</strong></div>
+          {tenant.isSuperadmin ? (
+            <div><span>Servicios</span><strong style={{ display: 'block', fontSize: 22 }}>{onlineServices}/{expectedServices.length || 5}</strong></div>
+          ) : (
+            <div><span>Infraestructura</span><strong style={{ display: 'block', fontSize: 18 }}>Gestionada por Bot Master</strong></div>
+          )}
           <div><span>Cuentas AIS válidas</span><strong style={{ display: 'block', fontSize: 22 }}>{validAccounts}/{accounts?.length || 0}</strong></div>
           <div><span>Telegram vinculado</span><strong style={{ display: 'block', fontSize: 22 }}>{linkedConfigs}/{configs?.length || 0}</strong></div>
           <div><span>Alertas públicas pendientes</span><strong style={{ display: 'block', fontSize: 22 }}>{pendingPublicAlerts}</strong></div>
@@ -1603,7 +1661,7 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           background: 'rgba(15, 23, 42, 0.38)',
         }}
       >
-        {SECTION_OPTIONS.map((item) => {
+        {visibleSectionOptions.map((item) => {
           const active = selectedSection === item.key
           const preserveConsulate =
             item.key === 'aperturas' && selectedConsulate
@@ -1754,6 +1812,35 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       </section>
       ) : null}
 
+      {selectedSection === 'seguridad' ? (
+      <section className={styles.section} id="seguridad">
+        <div className={styles.sectionHeading}>
+          <div>
+            <span className={styles.kicker}>Tenant Guard V3.38</span>
+            <h2>Auditoría de seguridad</h2>
+          </div>
+          <p>Organización: <strong>{tenant.organizationName}</strong> · Rol: <strong>{tenant.role}</strong> · LIVE: <strong>{tenant.canArmLive || tenant.isSuperadmin ? 'permitido' : 'sin permiso'}</strong></p>
+        </div>
+
+        <div style={{ display: 'grid', gap: 10 }}>
+          {(securityAudit ?? []).length ? (securityAudit ?? []).map((row: any) => (
+            <article key={row.id} style={{ padding: 14, borderRadius: 14, border: `1px solid ${row.allowed ? 'rgba(16,185,129,.25)' : 'rgba(239,68,68,.35)'}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <strong>{row.allowed ? '✓ PERMITIDO' : '⛔ BLOQUEADO'} · {row.action}</strong>
+                <small>{fmtDateTime(row.created_at)}</small>
+              </div>
+              <span style={{ display: 'block', marginTop: 5 }}>
+                {row.actor_channel} · {row.actor_role || 'sin rol'} · {row.resource_type || 'recurso'} {row.resource_id ? `#${row.resource_id}` : ''}
+              </span>
+              {row.reason ? <small style={{ display: 'block', marginTop: 5 }}>{row.reason}</small> : null}
+            </article>
+          )) : (
+            <div className={styles.emptyState}>Sin eventos de seguridad registrados para esta organización.</div>
+          )}
+        </div>
+      </section>
+      ) : null}
+
       {selectedSection === 'organizaciones' ? (
       <section className={styles.section} id="organizaciones">
         <div className={styles.sectionHeading}>
@@ -1854,15 +1941,17 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
           })}
         </div>
 
-        <div style={{ padding: 18, borderRadius: 16, border: '1px solid rgba(59,130,246,.24)' }}>
-          <strong style={{ fontSize: 18 }}>Nueva agencia / cliente comercial</strong>
-          <form action={createBotMasterOrganization} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10, marginTop: 12, alignItems: 'end' }}>
-            <label><span>Nombre</span><input name="organization_name" required placeholder="Ej. Agencia Sonora Visas" /></label>
-            <label><span>Slug opcional</span><input name="organization_slug" placeholder="agencia-sonora" /></label>
-            <label><span>Tipo</span><select name="organization_type" defaultValue="AGENCY"><option value="AGENCY">Agencia</option><option value="DIRECT_CLIENT">Cliente directo</option></select></label>
-            <button type="submit" className={styles.primaryButton}>Crear organización</button>
-          </form>
-        </div>
+        {tenant.isSuperadmin ? (
+          <div style={{ padding: 18, borderRadius: 16, border: '1px solid rgba(59,130,246,.24)' }}>
+            <strong style={{ fontSize: 18 }}>Nueva agencia / cliente comercial</strong>
+            <form action={createBotMasterOrganization} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 10, marginTop: 12, alignItems: 'end' }}>
+              <label><span>Nombre</span><input name="organization_name" required placeholder="Ej. Agencia Sonora Visas" /></label>
+              <label><span>Slug opcional</span><input name="organization_slug" placeholder="agencia-sonora" /></label>
+              <label><span>Tipo</span><select name="organization_type" defaultValue="AGENCY"><option value="AGENCY">Agencia</option><option value="DIRECT_CLIENT">Cliente directo</option></select></label>
+              <button type="submit" className={styles.primaryButton}>Crear organización</button>
+            </form>
+          </div>
+        ) : null}
       </section>
       ) : null}
 

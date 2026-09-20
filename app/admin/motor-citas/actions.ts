@@ -2,10 +2,20 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { requireAuthContext } from '@/lib/auth-context'
 import { getVisaMasterAdminClient } from '@/lib/visa-master-admin'
 import { encryptVisaCredential } from '@/lib/visa-master-credentials'
 import { randomBytes } from 'crypto'
+import {
+  assertAccountAccess,
+  assertCanArmLive,
+  assertConfigAccess,
+  assertCrmProcessAccess,
+  assertOrganizationAccess,
+  assertTargetAccess,
+  logBotMasterSecurityEvent,
+  requireBotMasterTenant,
+  requirePlatformAdmin,
+} from '@/lib/bot-master-tenant'
 
 const PATH = '/admin/motor-citas'
 
@@ -130,6 +140,14 @@ async function ensureBookingConfig(
 ) {
   const organizationId = await organizationForClient(supabase, clientId)
 
+  const [{ data: account }, { data: target }] = await Promise.all([
+    supabase.from('vm_ais_accounts').select('id,organization_id').eq('id', accountId).maybeSingle(),
+    supabase.from('vm_ais_account_targets').select('id,organization_id').eq('id', targetId).maybeSingle(),
+  ])
+  if (!organizationId || Number(account?.organization_id) !== organizationId || Number(target?.organization_id) !== organizationId) {
+    throw new Error('TENANT_GUARD: cliente, cuenta AIS y target deben pertenecer a la misma organización.')
+  }
+
   const { data: existing, error: existingError } = await supabase
     .from('vm_booking_configs')
     .select('id')
@@ -184,8 +202,8 @@ async function ensureBookingConfig(
 }
 
 export async function addAisAccount(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const email = text(formData, 'account_email').toLowerCase()
   const password = text(formData, 'password')
@@ -204,13 +222,20 @@ export async function addAisAccount(formData: FormData) {
 
     const { data: existing, error: lookupError } = await supabase
       .from('vm_ais_accounts')
-      .select('id')
+      .select('id,organization_id')
       .eq('account_email', email)
       .limit(1)
 
     if (lookupError) throw new Error(lookupError.message)
 
     if (existing?.length) {
+      if (Number(existing[0].organization_id) !== tenant.organizationId && !tenant.isSuperadmin) {
+        await logBotMasterSecurityEvent(tenant, {
+          action: 'ADD_AIS_ACCOUNT', resourceType: 'AIS_ACCOUNT', resourceId: existing[0].id,
+          allowed: false, reason: 'El correo AIS ya pertenece a otra organización.',
+        })
+        throw new Error('ACCESS_DENIED: ese correo AIS ya pertenece a otra organización.')
+      }
       accountId = Number(existing[0].id)
 
       const { error } = await supabase
@@ -222,12 +247,14 @@ export async function addAisAccount(formData: FormData) {
           credential_error_message: null,
         })
         .eq('id', accountId)
+        .eq('organization_id', tenant.organizationId)
 
       if (error) throw new Error(error.message)
     } else {
       const { data, error } = await supabase
         .from('vm_ais_accounts')
         .insert({
+          organization_id: tenant.organizationId,
           account_email: email,
           display_name: displayName,
           credential_status: 'PENDING_VALIDATION',
@@ -258,8 +285,8 @@ export async function addAisAccount(formData: FormData) {
 }
 
 export async function updateAisPassword(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const accountId = numberValue(formData, 'account_id')
   const password = text(formData, 'password')
@@ -267,6 +294,8 @@ export async function updateAisPassword(formData: FormData) {
   if (!accountId || !password) {
     redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Cuenta o contraseña inválida.')}`)
   }
+
+  await assertAccountAccess(tenant, accountId, 'OPERATOR', 'UPDATE_AIS_PASSWORD')
 
   try {
     await saveEncryptedPassword(supabase, accountId, password)
@@ -300,13 +329,15 @@ export async function updateAisPassword(formData: FormData) {
 }
 
 export async function requestAisAccountSync(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
   const accountId = numberValue(formData, 'account_id')
 
   if (!accountId) {
     redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Cuenta AIS inválida.')}`)
   }
+
+  await assertAccountAccess(tenant, accountId, 'OPERATOR', 'SYNC_AIS_ACCOUNT')
 
   try {
     await queueAccountSync(supabase, accountId, 'SYNC')
@@ -328,14 +359,16 @@ export async function requestAisAccountSync(formData: FormData) {
 
 
 export async function requestTargetAppointmentRefresh(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const targetId = numberValue(formData, 'target_id')
 
   if (!targetId) {
     redirect(`${PATH}?section=cuentas-ais&error=${encodeURIComponent('Solicitante/grupo AIS inválido.')}#cuentas-ais`)
   }
+
+  await assertTargetAccess(tenant, targetId, 'OPERATOR', 'REFRESH_TARGET_APPOINTMENT')
 
   try {
     const { data: target, error: targetError } = await supabase
@@ -403,12 +436,12 @@ export async function requestTargetAppointmentRefresh(formData: FormData) {
 
 
 export async function linkTargetToCrmProcess(formData: FormData) {
-  await requireAuthContext()
+  const tenant = await requireBotMasterTenant('OPERATOR')
 
   // V13 usa una vista/columnas nuevas que todavía no existen en el
   // Database type generado de Supabase. El esquema real ya fue migrado.
   // Limitamos el cast a esta acción para no perder tipado en el resto.
-  const supabase = getVisaMasterAdminClient() as any
+  const supabase = tenant.admin as any
 
   const targetId = numberValue(formData, 'target_id')
   const crmProcessId = text(formData, 'crm_process_id')
@@ -419,13 +452,17 @@ export async function linkTargetToCrmProcess(formData: FormData) {
     )}#cuentas-ais`)
   }
 
+  await assertTargetAccess(tenant, targetId, 'OPERATOR', 'LINK_TARGET_TO_CRM')
+  await assertCrmProcessAccess(tenant, crmProcessId, 'LINK_TARGET_TO_CRM')
+
   try {
     const { data: target, error: targetError } = await supabase
       .from('vm_ais_account_targets')
       .select(
-        'id,account_id,display_name,current_consular_date,current_consulate'
+        'id,account_id,organization_id,display_name,current_consular_date,current_consulate'
       )
       .eq('id', targetId)
+      .eq('organization_id', tenant.organizationId)
       .single()
 
     if (targetError) throw new Error(targetError.message)
@@ -434,6 +471,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
       .from('vm_ais_accounts')
       .select('id,account_email,organization_id')
       .eq('id', Number(target.account_id))
+      .eq('organization_id', tenant.organizationId)
       .single()
 
     if (accountError) throw new Error(accountError.message)
@@ -460,6 +498,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
       .from('vm_appointment_clients')
       .select('id')
       .eq('crm_process_id', crmProcessId)
+      .eq('organization_id', tenant.organizationId)
       .limit(1)
 
     if (existingError) throw new Error(existingError.message)
@@ -481,6 +520,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', motorClientId)
+        .eq('organization_id', tenant.organizationId)
 
       if (updateClientError) throw new Error(updateClientError.message)
     } else {
@@ -511,6 +551,7 @@ export async function linkTargetToCrmProcess(formData: FormData) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', targetId)
+      .eq('organization_id', tenant.organizationId)
 
     if (targetLinkError) throw new Error(targetLinkError.message)
 
@@ -546,8 +587,8 @@ export async function linkTargetToCrmProcess(formData: FormData) {
 }
 
 export async function createClientFromTarget(formData: FormData) {
-  await requireAuthContext()
-  const supabaseAdmin = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabaseAdmin = tenant.admin
 
   const targetId = numberValue(formData, 'target_id')
   const customName = text(formData, 'client_name')
@@ -556,11 +597,14 @@ export async function createClientFromTarget(formData: FormData) {
     redirect(`${PATH}?section=agendados&error=${encodeURIComponent('Tramitante o grupo inválido.')}`)
   }
 
+  await assertTargetAccess(tenant, targetId, 'OPERATOR', 'CREATE_CLIENT_FROM_TARGET')
+
   try {
     const { data: target, error: targetError } = await supabaseAdmin
       .from('vm_ais_account_targets')
       .select('id,account_id,organization_id,display_name,current_consular_date,current_consulate')
       .eq('id', targetId)
+      .eq('organization_id', tenant.organizationId)
       .single()
 
     if (targetError) throw new Error(targetError.message)
@@ -568,13 +612,13 @@ export async function createClientFromTarget(formData: FormData) {
     const fullName = customName || target.display_name
 
     // vm_appointment_clients es la entidad operativa del Motor de Citas.
-    // Esta acción ya pasó requireAuthContext(); usamos el cliente admin
+    // Esta acción ya pasó Tenant Guard; usamos el cliente admin
     // server-side para no chocar con RLS al crear un cliente de prueba
     // o un objetivo AIS que todavía no existe en el CRM comercial.
     const { data: client, error: clientError } = await supabaseAdmin
       .from('vm_appointment_clients')
       .insert({
-        organization_id: target.organization_id || null,
+        organization_id: tenant.organizationId,
         full_name: fullName || `Cliente AIS ${targetId}`,
         visa_type: 'B1/B2',
         status: 'ACTIVE',
@@ -595,6 +639,7 @@ export async function createClientFromTarget(formData: FormData) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', targetId)
+      .eq('organization_id', tenant.organizationId)
 
     if (targetLinkError) throw new Error(targetLinkError.message)
 
@@ -614,11 +659,13 @@ export async function createClientFromTarget(formData: FormData) {
 }
 
 export async function updateBookingConfig(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const id = numberValue(formData, 'booking_config_id')
   if (!id) redirect(`${PATH}?section=agendados&error=Configuración inválida`)
+
+  await assertConfigAccess(tenant, id, 'OPERATOR', 'UPDATE_BOOKING_CONFIG')
 
   const allowAnyTime = formData.get('allow_any_time') === 'on'
   const searchMode = text(formData, 'search_mode') || 'INTELLIGENT'
@@ -664,6 +711,7 @@ export async function updateBookingConfig(formData: FormData) {
     .from('vm_booking_configs')
     .update(payload)
     .eq('id', id)
+    .eq('organization_id', tenant.organizationId)
 
   if (error) redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error.message)}`)
 
@@ -673,8 +721,8 @@ export async function updateBookingConfig(formData: FormData) {
 
 
 export async function resumeImprovementSearch(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const id = numberValue(formData, 'booking_config_id')
 
@@ -682,11 +730,14 @@ export async function resumeImprovementSearch(formData: FormData) {
     redirect(`${PATH}?section=agendados&error=${encodeURIComponent('Configuración inválida.')}`)
   }
 
+  await assertConfigAccess(tenant, id, 'OPERATOR', 'RESUME_IMPROVEMENT_SEARCH')
+
   try {
     const { data: config, error: configError } = await supabase
       .from('vm_booking_configs')
       .select('id,client_id,account_id,auto_confirm_enabled')
       .eq('id', id)
+      .eq('organization_id', tenant.organizationId)
       .single()
 
     if (configError) throw new Error(configError.message)
@@ -728,6 +779,7 @@ export async function resumeImprovementSearch(formData: FormData) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
+      .eq('organization_id', tenant.organizationId)
 
     if (error) throw new Error(error.message)
 
@@ -743,10 +795,11 @@ export async function resumeImprovementSearch(formData: FormData) {
 
 
 export async function toggleBookingConfig(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const id = numberValue(formData, 'booking_config_id')
+  await assertConfigAccess(tenant, id, 'OPERATOR', 'TOGGLE_BOOKING_CONFIG')
   const next = text(formData, 'next_status')
 
   const payload =
@@ -754,7 +807,7 @@ export async function toggleBookingConfig(formData: FormData) {
       ? { operational_status: 'PAUSED', enabled: true, updated_at: new Date().toISOString() }
       : { operational_status: 'ACTIVE', enabled: true, updated_at: new Date().toISOString() }
 
-  const { error } = await supabase.from('vm_booking_configs').update(payload).eq('id', id)
+  const { error } = await supabase.from('vm_booking_configs').update(payload).eq('id', id).eq('organization_id', tenant.organizationId)
   if (error) redirect(`${PATH}?section=agendados&error=${encodeURIComponent(error.message)}`)
 
   revalidatePath(PATH)
@@ -925,8 +978,8 @@ async function autoConfirmPreflight(
 
 
 export async function createBotMasterOrganization(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient() as any
+  const tenant = await requirePlatformAdmin('CREATE_ORGANIZATION')
+  const supabase = tenant.admin as any
   const name = text(formData, 'organization_name')
   const type = text(formData, 'organization_type') || 'AGENCY'
   const requestedSlug = text(formData, 'organization_slug')
@@ -949,17 +1002,19 @@ export async function createBotMasterOrganization(formData: FormData) {
   if (error) {
     redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent(error.message)}#organizaciones`)
   }
+  await logBotMasterSecurityEvent(tenant, { action: 'CREATE_ORGANIZATION', resourceType: 'ORGANIZATION', allowed: true, reason: 'SUPERADMIN' })
   revalidatePath(PATH)
   redirect(`${PATH}?section=organizaciones&organization_created=1#organizaciones`)
 }
 
 export async function generateOrganizationTelegramCode(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient() as any
+  const tenant = await requireBotMasterTenant('OWNER')
+  const supabase = tenant.admin as any
   const organizationId = numberValue(formData, 'organization_id')
   if (!organizationId) {
     redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent('Organización inválida.')}#organizaciones`)
   }
+  await assertOrganizationAccess(tenant, organizationId, 'OWNER', 'GENERATE_TELEGRAM_LINK_CODE')
   const code = randomBytes(6).toString('hex').toUpperCase()
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
   const { error } = await supabase.from('vm_organizations').update({
@@ -975,12 +1030,13 @@ export async function generateOrganizationTelegramCode(formData: FormData) {
 }
 
 export async function unlinkOrganizationTelegram(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient() as any
+  const tenant = await requireBotMasterTenant('OWNER')
+  const supabase = tenant.admin as any
   const organizationId = numberValue(formData, 'organization_id')
   if (!organizationId) {
     redirect(`${PATH}?section=organizaciones&error=${encodeURIComponent('Organización inválida.')}#organizaciones`)
   }
+  await assertOrganizationAccess(tenant, organizationId, 'OWNER', 'UNLINK_ORGANIZATION_TELEGRAM')
   const { error } = await supabase.from('vm_organization_telegram_chats').update({
     active: false,
     updated_at: new Date().toISOString(),
@@ -993,8 +1049,8 @@ export async function unlinkOrganizationTelegram(formData: FormData) {
 }
 
 export async function setAutoConfirmState(formData: FormData) {
-  await requireAuthContext()
-  const supabase = getVisaMasterAdminClient()
+  const tenant = await requireBotMasterTenant('OPERATOR')
+  const supabase = tenant.admin
 
   const id = numberValue(formData, 'booking_config_id')
   const next = text(formData, 'next_state')
@@ -1005,9 +1061,12 @@ export async function setAutoConfirmState(formData: FormData) {
     )}#agendados`)
   }
 
+  await assertConfigAccess(tenant, id, 'OPERATOR', 'SET_AUTO_CONFIRM')
+
   const armed = next === 'ARMED'
 
   if (armed) {
+    await assertCanArmLive(tenant, id, 'ARM_LIVE')
     try {
       const preflight = await autoConfirmPreflight(supabase, id)
 
@@ -1036,6 +1095,7 @@ export async function setAutoConfirmState(formData: FormData) {
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('organization_id', tenant.organizationId)
 
   if (error) {
     redirect(`${PATH}?section=preflight&error=${encodeURIComponent(error.message)}#preflight-${id}`)
@@ -1046,10 +1106,10 @@ export async function setAutoConfirmState(formData: FormData) {
 }
 
 export async function requestAgentCommand(formData: FormData) {
-  await requireAuthContext()
+  const tenant = await requirePlatformAdmin('AGENT_COMMAND')
 
-  // Tablas V1 nuevas; el esquema real existe tras ejecutar la migración.
-  const supabase = getVisaMasterAdminClient() as any
+  // Tenant Guard: servicios globales solo SUPERADMIN.
+  const supabase = tenant.admin as any
 
   const agentId = text(formData, 'agent_id')
   const serviceKey = text(formData, 'service_key')
