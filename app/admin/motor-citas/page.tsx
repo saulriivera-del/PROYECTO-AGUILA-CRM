@@ -672,9 +672,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       .eq('source', 'BOT MASTER')
       .order('id', { ascending: false }).limit(30),
     canViewSecurity
-      ? (supabase as any).from('vm_security_audit_log').select('*')
-          .eq('organization_id', tenant.organizationId)
-          .order('id', { ascending: false }).limit(100)
+      ? (tenant.isSuperadmin
+          ? (supabase as any).from('vm_security_audit_log').select('*')
+              .order('id', { ascending: false }).limit(250)
+          : (supabase as any).from('vm_security_audit_log').select('*')
+              .eq('organization_id', tenant.organizationId)
+              .order('id', { ascending: false }).limit(100))
       : Promise.resolve({ data: [], error: null }),
     tenant.isSuperadmin
       ? (supabase as any).from('vm_organization_dashboard_view').select('*').order('is_internal', { ascending: false }).order('name')
@@ -1030,6 +1033,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
   const auditBookedCount = auditEntries.filter((row) => String(row.code || '').includes('BOOKED_CONFIRMED')).length
   const auditWarningCount = auditEntries.filter((row) => row.tone === 'WARNING' || row.tone === 'CRITICAL').length
   const auditLastActivity = auditEntries[0]?.at || null
+
+  const organizationById = new Map<number, any>(
+    (organizations ?? []).map((org: any) => [Number(org.id), org])
+  )
 
   const organizationUsersByOrg = new Map<number, any[]>()
   for (const user of organizationUsers ?? []) {
@@ -1816,10 +1823,13 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       <section className={styles.section} id="seguridad">
         <div className={styles.sectionHeading}>
           <div>
-            <span className={styles.kicker}>Tenant Guard V3.38</span>
+            <span className={styles.kicker}>Tenant Guard V3.38.4</span>
             <h2>Auditoría de seguridad</h2>
           </div>
-          <p>Organización: <strong>{tenant.organizationName}</strong> · Rol: <strong>{tenant.role}</strong> · LIVE: <strong>{tenant.canArmLive || tenant.isSuperadmin ? 'permitido' : 'sin permiso'}</strong></p>
+          <p>
+            {tenant.isSuperadmin ? <><strong>Vista global</strong> · todas las organizaciones · </> : <>Organización: <strong>{tenant.organizationName}</strong> · </>}
+            Rol: <strong>{tenant.role}</strong> · LIVE: <strong>{tenant.canArmLive || tenant.isSuperadmin ? 'permitido' : 'sin permiso'}</strong>
+          </p>
         </div>
 
         <div style={{ display: 'grid', gap: 10 }}>
@@ -1830,12 +1840,15 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                 <small>{fmtDateTime(row.created_at)}</small>
               </div>
               <span style={{ display: 'block', marginTop: 5 }}>
+                {tenant.isSuperadmin
+                  ? `${organizationById.get(Number(row.organization_id))?.name || `Organización #${row.organization_id}`} · `
+                  : ''}
                 {row.actor_channel} · {row.actor_role || 'sin rol'} · {row.resource_type || 'recurso'} {row.resource_id ? `#${row.resource_id}` : ''}
               </span>
               {row.reason ? <small style={{ display: 'block', marginTop: 5 }}>{row.reason}</small> : null}
             </article>
           )) : (
-            <div className={styles.emptyState}>Sin eventos de seguridad registrados para esta organización.</div>
+            <div className={styles.emptyState}>Sin eventos de seguridad registrados en el alcance visible.</div>
           )}
         </div>
       </section>
@@ -2244,6 +2257,21 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                       </>
                     )}
                   </div>
+
+                  {service.service_key === 'orchestrator' ? (
+                    <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <span className={String(service.log_tail || '').includes('PROXY EFFECTIVE: OFF') ? styles.serviceOnline : styles.serviceWarning}>
+                        {String(service.log_tail || '').includes('PROXY EFFECTIVE: OFF')
+                          ? 'Proxy efectivo: PAUSADO'
+                          : String(service.log_tail || '').includes('PROXY EFFECTIVE: ON')
+                            ? 'Proxy efectivo: ACTIVO'
+                            : 'Proxy efectivo: sin confirmar'}
+                      </span>
+                      <span className={styles.serviceNeutral}>
+                        Runtime actual: {String(service.log_tail || '').includes('BOT MASTER ORQUESTADOR V3.38.4') ? 'V3.38.4' : 'revisar log'}
+                      </span>
+                    </div>
+                  ) : null}
 
                   <details className={styles.serviceLogDetails}>
                     <summary>Ver últimas líneas</summary>
