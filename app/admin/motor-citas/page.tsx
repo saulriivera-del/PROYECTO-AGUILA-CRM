@@ -196,6 +196,144 @@ function healthClass(status?: string | null) {
   return styles.healthNeutral
 }
 
+
+function healthRunIsSuccess(run: any) {
+  const status = String(run?.status || '').toUpperCase()
+  const resultCode = String(run?.result_code || '').toUpperCase()
+
+  return (
+    ['SUCCESS', 'BOOKED_CONFIRMED', 'DRY_RUN_VERIFIED', 'LIVE_ARMED_VERIFIED'].includes(status)
+    || ['WARMUP_READY', 'BOOKED_CONFIRMED', 'DRY_RUN_VERIFIED', 'LIVE_ARMED_VERIFIED'].includes(resultCode)
+  )
+}
+
+function connectivityAssessment(health: any, recentRuns: any[]) {
+  const runs = recentRuns || []
+  const latest = runs[0] || null
+
+  if (!latest && !health) {
+    return {
+      status: 'NO_DATA',
+      label: 'Conectividad: sin datos',
+      detail: 'Aún no hay ejecuciones del Motor para esta cuenta.',
+    }
+  }
+
+  if (latest && healthRunIsSuccess(latest)) {
+    const http2xx = Number(latest.http_2xx || 0)
+    return {
+      status: 'HEALTHY',
+      label: 'Conectividad: AIS OK',
+      detail: `${latest.run_type || 'RUN'} · ${latest.result_code || latest.status || 'SUCCESS'}${http2xx ? ` · ${http2xx} HTTP 2xx` : ''}`,
+    }
+  }
+
+  const lastSuccessAt = health?.last_success_at
+    ? new Date(health.last_success_at).getTime()
+    : 0
+  const lastErrorAt = health?.last_error_at
+    ? new Date(health.last_error_at).getTime()
+    : 0
+
+  if (lastSuccessAt && lastSuccessAt > lastErrorAt) {
+    return {
+      status: 'HEALTHY',
+      label: 'Conectividad: recuperada',
+      detail: `Último éxito ${fmtDateTime(health.last_success_at)}.`,
+    }
+  }
+
+  let consecutiveFailures = 0
+  for (const run of runs.slice(0, 10)) {
+    if (healthRunIsSuccess(run)) break
+    consecutiveFailures += 1
+  }
+
+  if (consecutiveFailures >= 3 || String(health?.health_status || '') === 'DEGRADED') {
+    return {
+      status: 'DEGRADED',
+      label: 'Conectividad: degradada',
+      detail: `${Math.max(consecutiveFailures, Number(health?.possible_block_error_runs || 0))} fallo(s) consecutivo(s). Último: ${latest?.result_code || health?.last_error_code || 'error AIS'}.`,
+    }
+  }
+
+  return {
+    status: 'WARNING',
+    label: 'Conectividad: atención',
+    detail: `Último resultado: ${latest?.result_code || latest?.status || health?.last_error_code || 'sin confirmar'}.`,
+  }
+}
+
+function appointmentAssessment(targets: any[]) {
+  const rows = targets || []
+
+  if (!rows.length) {
+    return {
+      status: 'NO_DATA',
+      label: 'Cita: sin target',
+      detail: 'La cuenta todavía no tiene solicitante/grupo AIS sincronizado.',
+    }
+  }
+
+  if (rows.some((target: any) => ['PENDING', 'RUNNING'].includes(String(target.appointment_refresh_status || '')))) {
+    return {
+      status: 'WARNING',
+      label: 'Cita: verificando',
+      detail: 'Existe una verificación AIS pendiente o en proceso.',
+    }
+  }
+
+  const verified = rows
+    .filter((target: any) => Boolean(target.appointment_verified_at))
+    .sort(
+      (a: any, b: any) =>
+        new Date(b.appointment_verified_at).getTime()
+        - new Date(a.appointment_verified_at).getTime()
+    )
+
+  if (verified.length) {
+    const latest = verified[0]
+
+    if (latest.appointment_verified_has_current === true) {
+      return {
+        status: 'HEALTHY',
+        label: 'Cita: programada',
+        detail: `${fmtDate(latest.current_consular_date)} · ${latest.current_consulate || 'consulado verificado'}`,
+      }
+    }
+
+    if (latest.appointment_verified_has_current === false) {
+      return {
+        status: 'HEALTHY',
+        label: 'Cita: sin cita',
+        detail: `AIS confirmó que no tiene cita · ${fmtDateTime(latest.appointment_verified_at)}`,
+      }
+    }
+  }
+
+  const latestFailed = rows
+    .filter((target: any) => String(target.appointment_refresh_status || '') === 'FAILED')
+    .sort(
+      (a: any, b: any) =>
+        new Date(b.appointment_refresh_finished_at || 0).getTime()
+        - new Date(a.appointment_refresh_finished_at || 0).getTime()
+    )[0]
+
+  if (latestFailed) {
+    return {
+      status: 'WARNING',
+      label: 'Cita: sin confirmar',
+      detail: latestFailed.appointment_refresh_error_message || 'La última verificación no fue concluyente.',
+    }
+  }
+
+  return {
+    status: 'NO_DATA',
+    label: 'Cita: no verificada',
+    detail: 'Pulsa “Verificar cita en AIS” para confirmar el estado actual.',
+  }
+}
+
 function fmtPct(value?: string | number | null) {
   if (value === null || value === undefined || value === '') return '—'
   const n = Number(value)
@@ -738,6 +876,16 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
   const healthByAccount = new Map<number, any>(
     (healthRows ?? []).map((row: any) => [Number(row.account_id), row])
   )
+
+  const healthRunsByAccount = new Map<number, any[]>()
+  for (const run of healthRuns ?? []) {
+    const accountId = Number(run.account_id || 0)
+    if (!accountId) continue
+    healthRunsByAccount.set(accountId, [
+      ...(healthRunsByAccount.get(accountId) || []),
+      run,
+    ])
+  }
 
   const sessionStatsByAccount = new Map<number, any>(
     (sessionStats ?? []).map((row: any) => [Number(row.account_id), row])
@@ -2497,6 +2645,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             const accountTargets = targetsByAccount.get(accountId) || []
             const accountCrmMatches = crmMatchesByAccount.get(accountId) || []
             const pendingJob = pendingSyncByAccount.get(accountId)
+            const health = healthByAccount.get(accountId)
+            const recentRuns = healthRunsByAccount.get(accountId) || []
+            const connectivity = connectivityAssessment(health, recentRuns)
+            const appointmentState = appointmentAssessment(accountTargets)
 
             return (
               <details className={styles.accountCard} key={accountId}>
@@ -2504,17 +2656,15 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                   <div>
                     <div className={styles.badgeRow}>
                       <span className={`${styles.credentialBadge} ${credentialClass(account.credential_status)}`}>
-                        {credentialLabel(account.credential_status)}
+                        Credenciales: {credentialLabel(account.credential_status)}
+                      </span>
+                      <span className={`${styles.healthBadge} ${healthClass(connectivity.status)}`} title={connectivity.detail}>
+                        {connectivity.label}
+                      </span>
+                      <span className={`${styles.healthBadge} ${healthClass(appointmentState.status)}`} title={appointmentState.detail}>
+                        {appointmentState.label}
                       </span>
                       {pendingJob ? <span className={styles.syncBadge}>Sincronizando / pendiente</span> : null}
-                      {(() => {
-                        const health = healthByAccount.get(accountId)
-                        return (
-                          <span className={`${styles.healthBadge} ${healthClass(health?.health_status)}`}>
-                            {healthLabel(health?.health_status)}
-                          </span>
-                        )
-                      })()}
                     </div>
                     <strong>{account.display_name || account.account_email}</strong>
                     <small>{account.account_email}</small>
@@ -2789,11 +2939,12 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
       <section className={styles.section} id="salud-ais">
         <div className={styles.sectionHeading}>
           <div>
-            <span className={styles.kicker}>Telemetría del Motor</span>
-            <h2>Salud de cuentas AIS</h2>
+            <span className={styles.kicker}>Telemetría del Motor · V3.38.6</span>
+            <h2>Estado AIS por capa</h2>
           </div>
           <p>
-            Mide solicitudes reales del Motor hacia AIS. Los contadores empiezan a acumularse desde V11.
+            Credenciales, conectividad del Motor y estado de cita se muestran por separado.
+            Un error de red ya no implica que la contraseña o la cita estén mal.
           </p>
         </div>
 
@@ -2810,6 +2961,10 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
             const accountId = Number(account.account_id)
             const health = healthByAccount.get(accountId)
             const session = sessionStatsByAccount.get(accountId)
+            const accountTargets = targetsByAccount.get(accountId) || []
+            const recentRuns = healthRunsByAccount.get(accountId) || []
+            const connectivity = connectivityAssessment(health, recentRuns)
+            const appointmentState = appointmentAssessment(accountTargets)
 
             return (
               <article className={styles.healthCard} key={`health-${accountId}`}>
@@ -2819,9 +2974,36 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
                     <strong>{account.display_name || account.account_email}</strong>
                     <small>{account.account_email}</small>
                   </div>
-                  <span className={`${styles.healthBadge} ${healthClass(health?.health_status)}`}>
-                    {healthLabel(health?.health_status)}
+                  <span className={`${styles.healthBadge} ${healthClass(connectivity.status)}`}>
+                    {connectivity.label}
                   </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    gap: '10px',
+                    margin: '12px 0 16px',
+                  }}
+                >
+                  <div style={{ border: '1px solid rgba(148,163,184,.28)', borderRadius: '12px', padding: '12px' }}>
+                    <span style={{ display: 'block', fontSize: '12px', opacity: .7 }}>Credenciales / sesión</span>
+                    <strong style={{ display: 'block', marginTop: '4px' }}>{credentialLabel(account.credential_status)}</strong>
+                    <small>{account.credential_status === 'VALID' ? 'La cuenta puede autenticarse en AIS.' : (account.credential_error_message || 'Revisión pendiente.')}</small>
+                  </div>
+
+                  <div style={{ border: '1px solid rgba(148,163,184,.28)', borderRadius: '12px', padding: '12px' }}>
+                    <span style={{ display: 'block', fontSize: '12px', opacity: .7 }}>Conectividad del Motor</span>
+                    <strong style={{ display: 'block', marginTop: '4px' }}>{connectivity.label.replace('Conectividad: ', '')}</strong>
+                    <small>{connectivity.detail}</small>
+                  </div>
+
+                  <div style={{ border: '1px solid rgba(148,163,184,.28)', borderRadius: '12px', padding: '12px' }}>
+                    <span style={{ display: 'block', fontSize: '12px', opacity: .7 }}>Estado de cita</span>
+                    <strong style={{ display: 'block', marginTop: '4px' }}>{appointmentState.label.replace('Cita: ', '')}</strong>
+                    <small>{appointmentState.detail}</small>
+                  </div>
                 </div>
 
                 <div className={styles.healthMetrics}>
@@ -3002,7 +3184,11 @@ export default async function MotorCitasPage({ searchParams }: { searchParams: S
         </div>
 
         <div className={styles.healthNote}>
-          <strong>Importante:</strong> “Requests AIS” cuenta documentos, XHR y fetch del dominio AIS utilizados por el Motor.
+          <strong>Importante:</strong> los tres estados son independientes.
+          “Acceso válido” confirma credenciales/sesión; “Conectividad” describe la comunicación reciente del Motor;
+          “Estado de cita” solo cambia cuando AIS permite verificar el schedule exacto.
+          <br />
+          “Requests AIS” cuenta documentos, XHR y fetch del dominio AIS utilizados por el Motor.
           No cuenta imágenes, CSS ni consultas a Supabase.
           <br />
           <strong>Posible restricción</strong> es una señal operativa, no una confirmación de bloqueo por AIS:
