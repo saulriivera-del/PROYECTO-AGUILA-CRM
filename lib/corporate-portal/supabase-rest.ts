@@ -105,9 +105,17 @@ export async function getCompany() {
 }
 
 export async function getCorporateProcesses() {
-  const res = await authedFetch('/rest/v1/corporate_portal_processes?select=*&order=client_name.asc')
+  const res = await authedFetch('/rest/v1/rpc/get_my_corporate_processes', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+
   const body = await res.json()
-  if (!res.ok) throw new Error(body?.message || 'No se pudieron cargar los trámites.')
+
+  if (!res.ok) {
+    throw new Error(body?.message || 'No se pudieron cargar los trámites.')
+  }
+
   return Array.isArray(body) ? body : []
 }
 
