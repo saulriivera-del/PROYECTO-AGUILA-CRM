@@ -1,0 +1,21 @@
+{
+  "name": "Visa Master Portal Corporativo - Integración Proyecto Águila CRM",
+  "files": [
+    "README_PORTAL_CORPORATIVO.md",
+    "app/empresas/_components/PortalShell.tsx",
+    "app/empresas/actividad/page.tsx",
+    "app/empresas/cuenta/page.tsx",
+    "app/empresas/documentos/page.tsx",
+    "app/empresas/layout.tsx",
+    "app/empresas/login/page.tsx",
+    "app/empresas/page.tsx",
+    "app/empresas/portal.module.css",
+    "app/empresas/tramites/[id]/page.tsx",
+    "app/empresas/tramites/page.tsx",
+    "lib/corporate-portal/supabase-rest.ts",
+    "middleware.ts"
+  ],
+  "target": "repo root",
+  "domain": "empresas.visamaster.com.mx",
+  "route": "/empresas"
+}
