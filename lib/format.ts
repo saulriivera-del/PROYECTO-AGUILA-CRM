@@ -1,16 +1,27 @@
-export function formatDate(value?: string | null, withTime = false) {
-  if (!value) return 'Sin fecha'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Sin fecha'
-  return new Intl.DateTimeFormat('es-MX', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
-  }).format(date)
+import {
+  HERMOSILLO_TIME_ZONE,
+  hermosilloDateKey,
+  hermosilloTodayKey,
+} from '@/lib/hermosillo'
+
+export { HERMOSILLO_TIME_ZONE, hermosilloDateKey, hermosilloTodayKey }
+
+export function money(value: number | string | null | undefined) {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency', currency: 'MXN', maximumFractionDigits: 2,
+  }).format(Number(value ?? 0))
 }
 
-export function initials(name?: string | null) {
-  if (!name) return 'VM'
-  return name.split(' ').filter(Boolean).slice(0, 2).map(x => x[0]?.toUpperCase()).join('')
+export function dateTime(value: string | null | undefined) {
+  if (!value) return 'Sin fecha'
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: HERMOSILLO_TIME_ZONE,
+  }).format(new Date(value))
+}
+
+export function dateOnly(value: string | null | undefined) {
+  if (!value) return 'Sin fecha'
+  return new Intl.DateTimeFormat('es-MX', {
+    dateStyle: 'medium', timeZone: HERMOSILLO_TIME_ZONE,
+  }).format(new Date(value))
 }

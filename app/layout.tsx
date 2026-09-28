@@ -1,14 +1,17 @@
-import './globals.css'
 import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Portal Empresarial | Visa Master',
-  description: 'Seguimiento empresarial de trámites Visa Master',
+  title: 'Proyecto Águila | Visa Master',
+  description: 'Centro de operaciones de Visa Master',
+  robots: { index: false, follow: false },
 }
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="es">
+    <html lang="es-MX">
       <body>{children}</body>
     </html>
   )
