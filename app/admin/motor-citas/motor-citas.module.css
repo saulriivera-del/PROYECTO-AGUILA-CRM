@@ -186,7 +186,11 @@
 .emptyAccount{display:flex;flex-direction:column;gap:3px;text-align:center;padding:18px;border:1px dashed #d6e0ea;border-radius:10px;background:#fafcfe}
 .emptyAccount strong{font-size:11px}
 .emptyAccount span{font-size:9px;color:#78879a}
-button:disabled{opacity:.5;cursor:not-allowed}
+.secondaryButton:disabled,
+.primaryButton:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
 @media(max-width:980px){
   .accountForm{grid-template-columns:1fr 1fr}
   .accountSummary{grid-template-columns:1fr 1fr}
