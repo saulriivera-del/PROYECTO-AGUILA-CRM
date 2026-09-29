@@ -1,72 +1,126 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import PortalShell from '../../_components/PortalShell'
 import styles from '../../portal.module.css'
-import { getCorporateDocuments, getCorporateProcesses, getCorporateUpdates } from '@/lib/corporate-portal/supabase-rest'
+import { getCorporateProcess, getCorporateUpdates } from '@/lib/corporate-portal/supabase-rest'
 
-const fmt=(v?:string)=>v?new Intl.DateTimeFormat('es-MX',{dateStyle:'long'}).format(new Date(v)):'Sin fecha'
+function fmt(v?: string) {
+  if (!v) return 'Sin fecha'
+  return new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Hermosillo',
+    day: '2-digit', month: 'long', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  }).format(new Date(v))
+}
 
-export default function TramiteDetallePage() {
-  const params=useParams()
-  const id=String(params?.id||'')
-  const [p,setP]=useState<any>(null)
-  const [updates,setUpdates]=useState<any[]>([])
-  const [docs,setDocs]=useState<any[]>([])
+export default function CorporateProcessDetailPage() {
+  const params = useParams()
+  const processId = String(params?.id || '')
+  const [process, setProcess] = useState<any>(null)
+  const [updates, setUpdates] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  useEffect(()=>{
-    Promise.all([getCorporateProcesses(),getCorporateUpdates(),getCorporateDocuments(id)]).then(([ps,us,ds])=>{
-      setP(ps.find((x:any)=>x.process_id===id)||null)
-      setUpdates(us.filter((x:any)=>x.process_id===id))
-      setDocs(ds)
-    })
-  },[id])
+  useEffect(() => {
+    if (!processId) return
+    Promise.all([getCorporateProcess(processId), getCorporateUpdates(processId)])
+      .then(([p, u]) => {
+        if (!p) throw new Error('Trámite no disponible.')
+        setProcess(p)
+        setUpdates(u)
+      })
+      .catch((e) => setError(e?.message || 'No se pudo cargar el trámite.'))
+      .finally(() => setLoading(false))
+  }, [processId])
 
-  return <PortalShell><div className={styles.content}>
-    {!p ? <div className={`${styles.card} ${styles.empty}`}>Cargando expediente…</div> : <>
-      <div className={styles.hero}><h1>{p.client_name}</h1><p>{p.service_name}</p></div>
-      <div className={styles.grid} style={{marginTop:28}}>
-        <section>
-          <div className={`${styles.card} ${styles.caseCard}`}>
-            <h2 className={styles.sectionTitle}>Estado actual</h2>
-            <span className={`${styles.status} ${styles.statusBlue}`}>{p.public_status_label||p.public_status}</span>
-            <p className={styles.note}>{p.public_note}</p>
-            <div className={styles.next}><strong>Próximo paso</strong><div>{p.public_next_step||'Continuar seguimiento.'}</div></div>
-            {p.requires_client_action?<div className={styles.error} style={{marginTop:15}}>{p.client_action_note}</div>:null}
-          </div>
-          <div className={`${styles.card} ${styles.caseCard}`} style={{marginTop:16}}>
-            <h2 className={styles.sectionTitle}>Citas y resultado</h2>
-            <div className={styles.detailGrid}>
-              <div className={styles.kv}><small>CAS</small><strong>{fmt(p.cas_appointment_at)}</strong></div>
-              <div className={styles.kv}><small>Consulado</small><strong>{fmt(p.consulate_appointment_at)}</strong></div>
-              <div className={styles.kv}><small>Resultado</small><strong>{p.result_status||'Sin resultado'}</strong></div>
-              <div className={styles.kv}><small>Última actualización</small><strong>{fmt(p.portal_last_updated_at)}</strong></div>
+  return (
+    <PortalShell>
+      <div className={styles.content}>
+        <Link href="/empresas/tramites" className={styles.backLink}>← Volver a trámites</Link>
+
+        {loading ? <div className={`${styles.card} ${styles.empty}`}>Cargando trámite…</div> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
+
+        {process ? (
+          <>
+            <div className={styles.detailHero}>
+              <div>
+                <span className={styles.sectionEyebrow}>EXPEDIENTE CORPORATIVO</span>
+                <div className={styles.detailTitleRow}>
+                  <h1>{process.client_name}</h1>
+                  {Number(process.applicant_count || 1) > 1 ? <span className={styles.groupBadge}>{process.applicant_count} solicitantes</span> : null}
+                </div>
+                <p>{process.service_name}{process.group_label ? ` · ${process.group_label}` : ''}</p>
+              </div>
+
+              <div className={styles.detailStatusBox}>
+                <small>ESTADO ACTUAL</small>
+                <strong>{process.public_status_label || 'En proceso'}</strong>
+                <span>Actualizado {fmt(process.last_visible_update_at || process.portal_last_updated_at)}</span>
+              </div>
             </div>
-          </div>
-          <div className={`${styles.card} ${styles.caseCard}`} style={{marginTop:16}}>
-            <h2 className={styles.sectionTitle}>Documentos</h2>
-            {docs.map((d:any)=><div className={styles.activityItem} key={d.id}>
-              <strong>{d.public_title||d.file_name}</strong><small>{d.document_type}</small>
-              <p>{d.portal_description||'Documento del trámite.'}</p>
-              {d.external_file_url?<a className={styles.buttonSecondary} href={d.external_file_url} target="_blank" rel="noreferrer">Abrir</a>:null}
-            </div>)}
-            {!docs.length?<div className={styles.empty}>El módulo está listo. Los documentos se mostrarán aquí cuando sean publicados desde Visa Master.</div>:null}
-          </div>
-        </section>
-        <aside>
-          <div className={`${styles.card} ${styles.sideCard}`}>
-            <h2 className={styles.sectionTitle}>Historial</h2>
-            <div className={styles.timeline}>
-              {updates.map((u:any)=><div className={styles.timelineItem} key={u.update_id}>
-                <strong>{u.title}</strong><small style={{display:'block',color:'#7b879b'}}>{fmt(u.event_date)}</small>
-                <p className={styles.note}>{u.description}</p>
-              </div>)}
-              {!updates.length?<div className={styles.empty}>Sin actualizaciones públicas.</div>:null}
+
+            {process.requires_client_action ? (
+              <div className={styles.actionRequiredLarge}>
+                <div className={styles.actionRequiredIcon}>!</div>
+                <div>
+                  <span>ACCIÓN REQUERIDA</span>
+                  <strong>Se necesita información o una acción de tu empresa</strong>
+                  <p>{process.client_action_note || 'Contacta a Visa Master para continuar el proceso.'}</p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={styles.detailLayout}>
+              <div>
+                <section className={`${styles.card} ${styles.detailSection}`}>
+                  <span className={styles.sectionEyebrow}>CITAS</span>
+                  <h2>Programación actual</h2>
+                  <div className={styles.appointmentDetailGrid}>
+                    <div className={styles.appointmentDetailCard}>
+                      <span className={styles.appointmentType}>CAS</span>
+                      <strong>{fmt(process.cas_appointment_at)}</strong>
+                      <p>{process.cas_location || 'Sede pendiente de confirmar'}</p>
+                    </div>
+                    <div className={styles.appointmentDetailCard}>
+                      <span className={styles.appointmentType}>CONSULADO</span>
+                      <strong>{fmt(process.consulate_appointment_at)}</strong>
+                      <p>{process.consulate_location || 'Sede pendiente de confirmar'}</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className={`${styles.card} ${styles.detailSection}`} style={{ marginTop: 16 }}>
+                  <span className={styles.sectionEyebrow}>SEGUIMIENTO</span>
+                  <h2>Situación del trámite</h2>
+                  <div className={styles.processSummaryBlock}>
+                    <div><small>Estado</small><strong>{process.public_status_label || process.public_status || 'En proceso'}</strong></div>
+                    <div><small>Próximo paso</small><strong>{process.public_next_step || 'Continuar seguimiento.'}</strong></div>
+                  </div>
+                  <p className={styles.detailNote}>{process.public_note || 'Visa Master continúa dando seguimiento al trámite.'}</p>
+                </section>
+              </div>
+
+              <aside className={`${styles.card} ${styles.detailSection}`}>
+                <span className={styles.sectionEyebrow}>HISTORIAL</span>
+                <h2>Actividad del trámite</h2>
+                <div className={styles.timelineV3}>
+                  {updates.map((u) => (
+                    <div className={styles.timelineV3Item} key={u.update_id}>
+                      <div className={styles.timelineDot} />
+                      <div><small>{fmt(u.event_date)}</small><strong>{u.title}</strong><p>{u.description}</p></div>
+                    </div>
+                  ))}
+                  {!updates.length ? <div className={styles.empty}>Aún no hay movimientos públicos registrados.</div> : null}
+                </div>
+              </aside>
             </div>
-          </div>
-        </aside>
+          </>
+        ) : null}
       </div>
-    </>}
-  </div></PortalShell>
+    </PortalShell>
+  )
 }

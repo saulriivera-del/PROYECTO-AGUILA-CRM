@@ -2,7 +2,6 @@
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-
 const TOKEN_KEY = 'vm_corporate_session'
 
 type Session = {
@@ -14,9 +13,7 @@ type Session = {
 }
 
 function config() {
-  if (!url || !anon) {
-    throw new Error('Faltan NEXT_PUBLIC_SUPABASE_URL y la llave pública de Supabase.')
-  }
+  if (!url || !anon) throw new Error('Faltan NEXT_PUBLIC_SUPABASE_URL y la llave pública de Supabase.')
   return { url, anon }
 }
 
@@ -105,22 +102,25 @@ export async function getCompany() {
 }
 
 export async function getCorporateProcesses() {
-  const res = await authedFetch('/rest/v1/rpc/get_my_corporate_processes', {
-    method: 'POST',
-    body: JSON.stringify({}),
-  })
-
+  const res = await authedFetch('/rest/v1/corporate_portal_processes?select=*&order=client_name.asc')
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(body?.message || 'No se pudieron cargar los trámites.')
-  }
-
+  if (!res.ok) throw new Error(body?.message || 'No se pudieron cargar los trámites.')
   return Array.isArray(body) ? body : []
 }
 
-export async function getCorporateUpdates() {
-  const res = await authedFetch('/rest/v1/corporate_portal_updates?select=*&order=event_date.desc&limit=100')
+export async function getCorporateProcess(processId: string) {
+  const res = await authedFetch(
+    `/rest/v1/corporate_portal_processes?select=*&process_id=eq.${encodeURIComponent(processId)}&limit=1`
+  )
+  const body = await res.json()
+  if (!res.ok) throw new Error(body?.message || 'No se pudo cargar el trámite.')
+  return Array.isArray(body) ? body[0] || null : null
+}
+
+export async function getCorporateUpdates(processId?: string) {
+  let path = '/rest/v1/corporate_portal_updates?select=*&order=event_date.desc&limit=100'
+  if (processId) path += `&process_id=eq.${encodeURIComponent(processId)}`
+  const res = await authedFetch(path)
   const body = await res.json()
   if (!res.ok) throw new Error(body?.message || 'No se pudo cargar la actividad.')
   return Array.isArray(body) ? body : []

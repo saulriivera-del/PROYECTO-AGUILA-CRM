@@ -1,0 +1,34 @@
+
+/* VISA MASTER PORTAL EMPRESARIAL V3 - agregar al FINAL de portal.module.css */
+
+.sectionEyebrow{display:block;color:#1a63bb;font-size:9px;font-weight:900;letter-spacing:.13em;margin-bottom:5px}
+.pageHeading{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:20px}
+.pageHeading h1,.detailHero h1{margin:0;color:#15325b;letter-spacing:-1px}.pageHeading h1{font-size:36px}.pageHeading p{margin:7px 0 0;color:#77859a;font-size:13px}.searchBox{width:min(360px,100%)}
+.caseIdentityRow,.detailTitleRow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.groupBadge{display:inline-flex;align-items:center;min-height:23px;padding:0 8px;border-radius:999px;background:#eef3f8;border:1px solid #e0e7ef;color:#53657d;font-size:9px;font-weight:800;white-space:nowrap}
+.appointmentGrid{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.appointmentCard{position:relative;overflow:hidden;min-height:92px;box-sizing:border-box;padding:14px 15px;border:1px solid #e6ebf1;border-radius:13px;background:linear-gradient(145deg,#f9fbfd,#f5f8fb)}
+.appointmentType{display:block;color:#1d66bb;font-size:9px;font-weight:900;letter-spacing:.10em;margin-bottom:6px}
+.appointmentCard strong{display:block;color:#1c355a;font-size:12px}.appointmentCard small{display:block;margin-top:5px;color:#7d899a;font-size:10px}
+.actionRequired,.attentionBanner,.actionRequiredLarge{border:1px solid #f0d8aa;background:linear-gradient(145deg,#fff9ed,#fff6e4);color:#6e4c0d}
+.actionRequired{display:flex;gap:11px;align-items:flex-start;border-radius:12px;padding:12px 13px;margin-top:13px}
+.actionRequiredIcon,.attentionIcon{width:27px;height:27px;flex:0 0 auto;display:grid;place-items:center;border-radius:8px;background:#e9a839;color:#fff;font-size:12px;font-weight:900}
+.actionRequired strong{display:block;font-size:11px}.actionRequired p{margin:3px 0 0;font-size:11px;line-height:1.45}
+.attentionBanner{display:flex;align-items:center;gap:13px;border-radius:14px;padding:14px 16px;margin:-8px 0 26px}.attentionBanner strong{display:block;font-size:12px}.attentionBanner p{margin:3px 0 0;font-size:11px;color:#87651d}
+.caseFooter{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:15px}.lastUpdated{color:#8a96a6;font-size:9px}.lastUpdated strong{color:#65748a}
+.processRow{display:grid;grid-template-columns:minmax(220px,1fr) minmax(400px,1.3fr) auto;align-items:center;gap:20px;padding:17px 18px;color:inherit;text-decoration:none}
+.processRowMain .caseIdentityRow>strong{color:#1c355a;font-size:14px}.processRowMain>span{display:block;margin-top:4px;color:#7c899c;font-size:11px}
+.processAppointmentSummary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.processAppointmentSummary>div{border-left:2px solid #dfe8f4;padding-left:10px}
+.processAppointmentSummary small{display:block;color:#8290a3;font-size:8px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.processAppointmentSummary strong{display:block;margin-top:2px;color:#334965;font-size:10px}.processAppointmentSummary span{display:block;margin-top:2px;color:#909bab;font-size:9px}
+.processRowStatus{min-width:120px;display:flex;align-items:center;justify-content:flex-end;gap:12px;color:#617189;font-size:10px;font-weight:700}.processRowStatus b{color:#1760b8;font-size:16px}.miniAttention{color:#956000;background:#fff4dd;border-radius:999px;padding:6px 8px}
+.backLink{display:inline-flex;margin-bottom:22px;color:#47709f;text-decoration:none;font-size:11px;font-weight:750}
+.detailHero{display:flex;justify-content:space-between;align-items:flex-end;gap:28px;margin-bottom:24px}.detailHero h1{font-size:38px}.detailHero p{margin:7px 0 0;color:#768499;font-size:13px}
+.detailStatusBox{width:min(275px,100%);box-sizing:border-box;padding:14px 15px;border:1px solid #e1e7ee;background:#fff;border-radius:14px}.detailStatusBox small{display:block;color:#8793a5;font-size:8px;font-weight:900;letter-spacing:.09em}.detailStatusBox strong{display:block;margin-top:5px;color:#1d3c67;font-size:14px}.detailStatusBox span{display:block;margin-top:5px;color:#8d99a8;font-size:9px}
+.actionRequiredLarge{display:flex;align-items:flex-start;gap:14px;border-radius:15px;padding:16px 18px;margin-bottom:18px}.actionRequiredLarge span{display:block;color:#9e6d12;font-size:8px;font-weight:900;letter-spacing:.10em}.actionRequiredLarge strong{display:block;margin-top:3px;font-size:13px}.actionRequiredLarge p{margin:5px 0 0;color:#79591b;font-size:11px}
+.detailLayout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);gap:18px;align-items:start}.detailSection{padding:20px}.detailSection h2{margin:2px 0 16px;color:#1b365e;font-size:17px}
+.appointmentDetailGrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.appointmentDetailCard{min-height:125px;box-sizing:border-box;padding:17px;border:1px solid #e3e9f0;border-radius:14px;background:linear-gradient(145deg,#f9fbfd,#f5f8fb)}.appointmentDetailCard strong{display:block;color:#1a365e;font-size:15px;margin-top:7px}.appointmentDetailCard p{margin:8px 0 0;color:#718096;font-size:11px}
+.processSummaryBlock{display:grid;grid-template-columns:.8fr 1.2fr;gap:11px}.processSummaryBlock>div{padding:13px 14px;background:#f7f9fb;border:1px solid #eaedf2;border-radius:11px}.processSummaryBlock small{display:block;color:#8592a4;font-size:8px;font-weight:850;text-transform:uppercase}.processSummaryBlock strong{display:block;margin-top:4px;color:#304766;font-size:11px;line-height:1.5}.detailNote{margin:14px 0 0;color:#65758c;font-size:11px;line-height:1.65}
+.timelineV3{position:relative}.timelineV3:before{content:"";position:absolute;left:5px;top:7px;bottom:8px;width:1px;background:#dfe6ef}.timelineV3Item{position:relative;display:grid;grid-template-columns:11px minmax(0,1fr);gap:12px;padding-bottom:19px}.timelineDot{position:relative;z-index:1;width:10px;height:10px;margin-top:4px;border-radius:50%;background:#2769ba;border:3px solid #e8f1fc;box-sizing:content-box;transform:translateX(-3px)}.timelineV3Item small{display:block;color:#919dab;font-size:8px}.timelineV3Item strong{display:block;margin-top:3px;color:#304866;font-size:11px}.timelineV3Item p{margin:4px 0 0;color:#718096;font-size:10px;line-height:1.55}
+@media(max-width:1100px){.processRow{grid-template-columns:minmax(180px,1fr) 1.2fr auto}.detailLayout{grid-template-columns:1fr}}
+@media(max-width:780px){.pageHeading,.detailHero{align-items:stretch;flex-direction:column}.searchBox{width:100%}.appointmentGrid,.appointmentDetailGrid,.processSummaryBlock{grid-template-columns:1fr}.caseFooter{align-items:flex-start;flex-direction:column}.processRow{grid-template-columns:1fr}.processAppointmentSummary{grid-template-columns:1fr 1fr}.processRowStatus{justify-content:space-between}.detailStatusBox{width:100%}}
+@media(max-width:520px){.processAppointmentSummary{grid-template-columns:1fr}}
