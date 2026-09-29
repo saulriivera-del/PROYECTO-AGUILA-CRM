@@ -24,7 +24,9 @@ export default function PortalShell({ children }: { children: ReactNode }) {
       .finally(() => setChecking(false))
   }, [router])
 
-  if (checking) return <div className={styles.page}><div className={styles.empty}>Validando acceso…</div></div>
+  if (checking) {
+    return <div className={styles.page}><div className={styles.loadingScreen}><img src="/visa-master-logo.png" alt="Visa Master" className={styles.loadingLogo}/><div className={styles.loadingPulse}/><p>Validando acceso empresarial…</p></div></div>
+  }
 
   const initials = String(profile?.name || 'U').split(' ').slice(0,2).map((p:string)=>p[0]).join('').toUpperCase()
 
@@ -34,43 +36,44 @@ export default function PortalShell({ children }: { children: ReactNode }) {
   }
 
   const nav = [
-    ['/empresas','⌂ Resumen'],
-    ['/empresas/tramites','▤ Trámites'],
-    ['/empresas/actividad','◷ Actividad'],
-    ['/empresas/documentos','▱ Documentos'],
-    ['/empresas/cuenta','◎ Mi cuenta'],
+    { href:'/empresas', icon:'⌂', label:'Resumen' },
+    { href:'/empresas/tramites', icon:'▤', label:'Trámites' },
+    { href:'/empresas/actividad', icon:'◷', label:'Actividad' },
+    { href:'/empresas/documentos', icon:'▱', label:'Documentos' },
+    { href:'/empresas/cuenta', icon:'◎', label:'Mi cuenta' },
   ]
+
+  const isActive = (href:string) => href === '/empresas' ? pathname === '/empresas' : pathname.startsWith(href)
 
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <aside className={styles.sidebar}>
           <Link href="/empresas" className={styles.brand}>
-            <span className={styles.brandMark}>VM</span>
-            <span><strong>Visa Master</strong><small>Portal Empresarial</small></span>
+            <div className={styles.brandLogoBox}><img src="/visa-master-logo.png" alt="Visa Master" className={styles.brandLogo}/></div>
+            <span className={styles.brandText}><strong>Portal Empresarial</strong><small>Visa Master</small></span>
           </Link>
+          <div className={styles.sidebarDivider}/>
           <nav className={styles.nav}>
-            {nav.map(([href,label]) => <Link key={href} href={href}>{label}</Link>)}
+            {nav.map(item => <Link key={item.href} href={item.href} className={isActive(item.href) ? styles.navActive : ''}><span className={styles.navIcon}>{item.icon}</span><span>{item.label}</span></Link>)}
           </nav>
-          <div className={styles.companyBox}>
-            <strong>{company?.legal_name || company?.name || 'Cliente corporativo'}</strong>
-            <small>Cliente Corporativo</small>
+          <div className={styles.sidebarBottom}>
+            <div className={styles.companyBox}>
+              <span className={styles.companyEyebrow}>Empresa vinculada</span>
+              <strong>{company?.legal_name || company?.name || 'Cliente corporativo'}</strong>
+              <small>Cuenta empresarial Visa Master</small>
+            </div>
+            <div className={styles.sidebarSecure}><span className={styles.secureDot}/><span>Acceso seguro y privado</span></div>
           </div>
         </aside>
 
         <main className={styles.main}>
           <header className={styles.topbar}>
-            <div className={styles.topbarTitle}>
-              <strong>Portal Empresarial</strong>
-              <small>Seguimiento de trámites | Visa Master</small>
-            </div>
+            <div className={styles.topbarTitle}><span className={styles.topbarEyebrow}>VISA MASTER</span><strong>Portal Empresarial</strong><small>Seguimiento centralizado de trámites</small></div>
             <div className={styles.userBox}>
               <span className={styles.avatar}>{initials}</span>
-              <span>
-                <strong>{profile?.name || 'Usuario'}</strong>
-                <small style={{display:'block',color:'#71809a'}}>{company?.name || ''}</small>
-              </span>
-              <button className={styles.buttonSecondary} onClick={logout}>Salir</button>
+              <span className={styles.userText}><strong>{profile?.name || 'Usuario'}</strong><small>{company?.name || ''}</small></span>
+              <button className={styles.buttonSecondary} onClick={logout} type="button">Cerrar sesión</button>
             </div>
           </header>
           {children}
@@ -78,7 +81,7 @@ export default function PortalShell({ children }: { children: ReactNode }) {
       </div>
 
       <nav className={styles.mobileNav}>
-        {nav.slice(0,4).map(([href,label]) => <Link key={href} href={href}>{label.replace(/^[^ ]+ /,'')}</Link>)}
+        {nav.slice(0,4).map(item => <Link key={item.href} href={item.href} className={isActive(item.href) ? styles.mobileNavActive : ''}><span>{item.icon}</span><small>{item.label}</small></Link>)}
       </nav>
     </div>
   )
