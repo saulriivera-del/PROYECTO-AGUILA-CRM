@@ -1,0 +1,21 @@
+.corporate-portal-admin{width:100%;min-width:0}
+.corporate-portal-admin .form-card,.corporate-portal-admin .panel-card{position:static!important;top:auto!important}
+.corporate-company-card{margin:0 0 18px}
+.corporate-company-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,.65fr);gap:16px;align-items:end}
+.corporate-inline-form{display:grid;grid-template-columns:minmax(220px,1fr) minmax(190px,.65fr) auto;gap:12px;align-items:end}
+.corporate-inline-form label{display:grid;gap:6px;margin:0;font-size:.79rem;font-weight:800}
+.corporate-inline-form input,.corporate-inline-form select{width:100%;min-height:43px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text)}
+.corporate-unlink-form,.corporate-unlinked-help{padding:14px;border-radius:13px;border:1px solid var(--line);background:#f8faff}
+.corporate-unlink-form p,.corporate-unlinked-help p{margin:0 0 12px;color:var(--muted);font-size:.78rem;line-height:1.5}
+.corporate-unlinked-help strong{display:block;margin-bottom:5px}
+.corporate-portal-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(340px,.78fr);gap:16px;align-items:start}
+.corporate-portal-column{display:flex;min-width:0;flex-direction:column;gap:16px}
+.corporate-static-card{position:static!important;top:auto!important;margin:0!important}
+.corporate-check-row{display:flex!important;grid-template-columns:none!important;align-items:flex-start;gap:10px!important;cursor:pointer}
+.corporate-check-row input{width:18px!important;height:18px;margin:2px 0 0;flex:0 0 auto}
+.corporate-check-row strong,.corporate-check-row small{display:block}
+.corporate-check-row small{margin-top:3px;color:var(--muted);font-weight:500}
+.corporate-form-help{margin:-2px 0 12px;color:var(--muted);font-size:.78rem;line-height:1.5}
+.corporate-portal-admin button:disabled,.corporate-portal-admin input:disabled{opacity:.55;cursor:not-allowed}
+@media(max-width:1150px){.corporate-company-grid{grid-template-columns:1fr}.corporate-inline-form{grid-template-columns:1fr 1fr}.corporate-inline-form .primary-button{grid-column:1/-1}.corporate-portal-grid{grid-template-columns:1fr}}
+@media(max-width:650px){.corporate-inline-form{grid-template-columns:1fr}.corporate-inline-form .primary-button{grid-column:auto}}
