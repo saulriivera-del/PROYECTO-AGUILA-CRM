@@ -5,14 +5,21 @@ import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import PortalShell from '../../_components/PortalShell'
 import styles from '../../portal.module.css'
-import { getCorporateProcess, getCorporateUpdates } from '@/lib/corporate-portal/supabase-rest'
+import {
+  getCorporateDocuments,
+  getCorporateProcess,
+  getCorporateUpdates,
+} from '@/lib/corporate-portal/supabase-rest'
 
 function fmt(v?: string) {
   if (!v) return 'Sin fecha'
   return new Intl.DateTimeFormat('es-MX', {
     timeZone: 'America/Hermosillo',
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   }).format(new Date(v))
 }
 
@@ -21,16 +28,23 @@ export default function CorporateProcessDetailPage() {
   const processId = String(params?.id || '')
   const [process, setProcess] = useState<any>(null)
   const [updates, setUpdates] = useState<any[]>([])
+  const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (!processId) return
-    Promise.all([getCorporateProcess(processId), getCorporateUpdates(processId)])
-      .then(([p, u]) => {
+
+    Promise.all([
+      getCorporateProcess(processId),
+      getCorporateUpdates(processId),
+      getCorporateDocuments(processId),
+    ])
+      .then(([p, u, d]) => {
         if (!p) throw new Error('Trámite no disponible.')
         setProcess(p)
         setUpdates(u)
+        setDocuments(d)
       })
       .catch((e) => setError(e?.message || 'No se pudo cargar el trámite.'))
       .finally(() => setLoading(false))
@@ -51,7 +65,9 @@ export default function CorporateProcessDetailPage() {
                 <span className={styles.sectionEyebrow}>EXPEDIENTE CORPORATIVO</span>
                 <div className={styles.detailTitleRow}>
                   <h1>{process.client_name}</h1>
-                  {Number(process.applicant_count || 1) > 1 ? <span className={styles.groupBadge}>{process.applicant_count} solicitantes</span> : null}
+                  {Number(process.applicant_count || 1) > 1 ? (
+                    <span className={styles.groupBadge}>{process.applicant_count} solicitantes</span>
+                  ) : null}
                 </div>
                 <p>{process.service_name}{process.group_label ? ` · ${process.group_label}` : ''}</p>
               </div>
@@ -79,12 +95,14 @@ export default function CorporateProcessDetailPage() {
                 <section className={`${styles.card} ${styles.detailSection}`}>
                   <span className={styles.sectionEyebrow}>CITAS</span>
                   <h2>Programación actual</h2>
+
                   <div className={styles.appointmentDetailGrid}>
                     <div className={styles.appointmentDetailCard}>
                       <span className={styles.appointmentType}>CAS</span>
                       <strong>{fmt(process.cas_appointment_at)}</strong>
                       <p>{process.cas_location || 'Sede pendiente de confirmar'}</p>
                     </div>
+
                     <div className={styles.appointmentDetailCard}>
                       <span className={styles.appointmentType}>CONSULADO</span>
                       <strong>{fmt(process.consulate_appointment_at)}</strong>
@@ -96,25 +114,79 @@ export default function CorporateProcessDetailPage() {
                 <section className={`${styles.card} ${styles.detailSection}`} style={{ marginTop: 16 }}>
                   <span className={styles.sectionEyebrow}>SEGUIMIENTO</span>
                   <h2>Situación del trámite</h2>
+
                   <div className={styles.processSummaryBlock}>
-                    <div><small>Estado</small><strong>{process.public_status_label || process.public_status || 'En proceso'}</strong></div>
-                    <div><small>Próximo paso</small><strong>{process.public_next_step || 'Continuar seguimiento.'}</strong></div>
+                    <div>
+                      <small>Estado</small>
+                      <strong>{process.public_status_label || process.public_status || 'En proceso'}</strong>
+                    </div>
+
+                    <div>
+                      <small>Próximo paso</small>
+                      <strong>{process.public_next_step || 'Continuar seguimiento.'}</strong>
+                    </div>
                   </div>
-                  <p className={styles.detailNote}>{process.public_note || 'Visa Master continúa dando seguimiento al trámite.'}</p>
+
+                  <p className={styles.detailNote}>
+                    {process.public_note || 'Visa Master continúa dando seguimiento al trámite.'}
+                  </p>
+                </section>
+
+                <section className={`${styles.card} ${styles.detailSection}`} style={{ marginTop: 16 }}>
+                  <span className={styles.sectionEyebrow}>DOCUMENTOS</span>
+                  <h2>Archivos publicados</h2>
+
+                  <div className={styles.documentListV4}>
+                    {documents.map((document) => (
+                      <a
+                        key={document.id}
+                        className={styles.documentRowV4}
+                        href={document.external_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <span className={styles.documentIconV4}>PDF</span>
+                        <span>
+                          <strong>{document.title}</strong>
+                          <small>
+                            {document.document_type}
+                            {document.description ? ` · ${document.description}` : ''}
+                          </small>
+                        </span>
+                        <b>↗</b>
+                      </a>
+                    ))}
+
+                    {!documents.length ? (
+                      <div className={styles.empty}>
+                        No hay documentos publicados para este trámite.
+                      </div>
+                    ) : null}
+                  </div>
                 </section>
               </div>
 
               <aside className={`${styles.card} ${styles.detailSection}`}>
                 <span className={styles.sectionEyebrow}>HISTORIAL</span>
                 <h2>Actividad del trámite</h2>
+
                 <div className={styles.timelineV3}>
                   {updates.map((u) => (
                     <div className={styles.timelineV3Item} key={u.update_id}>
                       <div className={styles.timelineDot} />
-                      <div><small>{fmt(u.event_date)}</small><strong>{u.title}</strong><p>{u.description}</p></div>
+                      <div>
+                        <small>{fmt(u.event_date)}</small>
+                        <strong>{u.title}</strong>
+                        <p>{u.description}</p>
+                      </div>
                     </div>
                   ))}
-                  {!updates.length ? <div className={styles.empty}>Aún no hay movimientos públicos registrados.</div> : null}
+
+                  {!updates.length ? (
+                    <div className={styles.empty}>
+                      Aún no hay movimientos públicos registrados.
+                    </div>
+                  ) : null}
                 </div>
               </aside>
             </div>

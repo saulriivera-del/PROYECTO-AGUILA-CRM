@@ -21,238 +21,160 @@ function config() {
       'Faltan NEXT_PUBLIC_SUPABASE_URL y la llave pública de Supabase.'
     )
   }
-
   return { url, anon }
 }
 
 export function getCorporateSession(): Session | null {
   if (typeof window === 'undefined') return null
-
   const raw = window.localStorage.getItem(TOKEN_KEY)
   if (!raw) return null
-
-  try {
-    return JSON.parse(raw) as Session
-  } catch {
-    return null
-  }
+  try { return JSON.parse(raw) as Session } catch { return null }
 }
 
 export function clearCorporateSession() {
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(TOKEN_KEY)
-  }
+  if (typeof window !== 'undefined') window.localStorage.removeItem(TOKEN_KEY)
 }
 
 export async function signInCorporate(email: string, password: string) {
   const c = config()
-
   const res = await fetch(`${c.url}/auth/v1/token?grant_type=password`, {
     method: 'POST',
-    headers: {
-      apikey: c.anon,
-      'Content-Type': 'application/json',
-    },
+    headers: { apikey: c.anon, 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   })
-
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(
-      body?.error_description ||
-        body?.msg ||
-        'No se pudo iniciar sesión.'
-    )
-  }
-
+  if (!res.ok) throw new Error(body?.error_description || body?.msg || 'No se pudo iniciar sesión.')
   window.localStorage.setItem(TOKEN_KEY, JSON.stringify(body))
   return body as Session
 }
 
 export async function refreshCorporateSession() {
   const session = getCorporateSession()
-
-  if (!session?.refresh_token) {
-    throw new Error('Sesión no disponible.')
-  }
-
+  if (!session?.refresh_token) throw new Error('Sesión no disponible.')
   const c = config()
-
-  const res = await fetch(
-    `${c.url}/auth/v1/token?grant_type=refresh_token`,
-    {
-      method: 'POST',
-      headers: {
-        apikey: c.anon,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        refresh_token: session.refresh_token,
-      }),
-    }
-  )
-
+  const res = await fetch(`${c.url}/auth/v1/token?grant_type=refresh_token`, {
+    method: 'POST',
+    headers: { apikey: c.anon, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  })
   const body = await res.json()
-
   if (!res.ok) {
     clearCorporateSession()
     throw new Error('Tu sesión venció. Inicia sesión nuevamente.')
   }
-
   window.localStorage.setItem(TOKEN_KEY, JSON.stringify(body))
   return body as Session
 }
 
 async function authedFetch(path: string, init: RequestInit = {}) {
   let session = getCorporateSession()
-
-  if (!session?.access_token) {
-    throw new Error('AUTH_REQUIRED')
-  }
-
+  if (!session?.access_token) throw new Error('AUTH_REQUIRED')
   const c = config()
-
-  const doFetch = (token: string) =>
-    fetch(`${c.url}${path}`, {
-      ...init,
-      headers: {
-        apikey: c.anon,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-    })
-
+  const doFetch = (token: string) => fetch(`${c.url}${path}`, {
+    ...init,
+    headers: {
+      apikey: c.anon,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(init.headers || {}),
+    },
+  })
   let res = await doFetch(session.access_token)
-
   if (res.status === 401) {
     session = await refreshCorporateSession()
     res = await doFetch(session.access_token)
   }
-
   return res
 }
 
 export async function getCorporateUser() {
   const res = await authedFetch('/auth/v1/user')
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(body?.msg || 'No se pudo validar la sesión.')
-  }
-
+  if (!res.ok) throw new Error(body?.msg || 'No se pudo validar la sesión.')
   return body
 }
 
 export async function getCompanyProfile() {
-  const res = await authedFetch(
-    '/rest/v1/company_users?select=id,name,email,role,is_active,company_id&limit=1'
-  )
-
+  const res = await authedFetch('/rest/v1/company_users?select=id,name,email,role,is_active,company_id&limit=1')
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(body?.message || 'No se pudo cargar el perfil.')
-  }
-
+  if (!res.ok) throw new Error(body?.message || 'No se pudo cargar el perfil.')
   return body?.[0] || null
 }
 
 export async function getCompany() {
-  const res = await authedFetch(
-    '/rest/v1/companies?select=id,name,legal_name,slug,logo_url,is_active&limit=1'
-  )
-
+  const res = await authedFetch('/rest/v1/companies?select=id,name,legal_name,slug,logo_url,is_active&limit=1')
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(body?.message || 'No se pudo cargar la empresa.')
-  }
-
+  if (!res.ok) throw new Error(body?.message || 'No se pudo cargar la empresa.')
   return body?.[0] || null
 }
 
 export async function getCorporateProcesses() {
-  const res = await authedFetch(
-    '/rest/v1/rpc/get_my_corporate_processes',
-    {
-      method: 'POST',
-      body: JSON.stringify({}),
-    }
-  )
-
+  const res = await authedFetch('/rest/v1/rpc/get_my_corporate_processes', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(
-      body?.message || 'No se pudieron cargar los trámites.'
-    )
-  }
-
+  if (!res.ok) throw new Error(body?.message || 'No se pudieron cargar los trámites.')
   return Array.isArray(body) ? body : []
 }
 
 export async function getCorporateProcess(processId: string) {
   const processes = await getCorporateProcesses()
-
-  return (
-    processes.find(
-      (process: any) =>
-        String(process.process_id) === String(processId)
-    ) || null
-  )
+  return processes.find((process: any) => String(process.process_id) === String(processId)) || null
 }
 
-export async function getCorporateUpdates(processId?: string) {
-  let path =
-    '/rest/v1/corporate_portal_updates?select=*&order=event_date.desc&limit=100'
-
-  if (processId) {
-    path += `&process_id=eq.${encodeURIComponent(processId)}`
-  }
-
-  const res = await authedFetch(path)
+async function getManualCorporateUpdates(processId?: string) {
+  const res = await authedFetch('/rest/v1/rpc/get_my_corporate_manual_updates', {
+    method: 'POST',
+    body: JSON.stringify({
+      target_process_id: processId || null,
+    }),
+  })
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(
-      body?.message || 'No se pudo cargar la actividad.'
-    )
-  }
-
+  if (!res.ok) throw new Error(body?.message || 'No se pudo cargar la actividad manual.')
   return Array.isArray(body) ? body : []
 }
 
+export async function getCorporateUpdates(processId?: string) {
+  let path = '/rest/v1/corporate_portal_updates?select=*&order=event_date.desc&limit=100'
+  if (processId) path += `&process_id=eq.${encodeURIComponent(processId)}`
+
+  const [baseResponse, manual] = await Promise.all([
+    authedFetch(path),
+    getManualCorporateUpdates(processId),
+  ])
+
+  const base = await baseResponse.json()
+  if (!baseResponse.ok) {
+    throw new Error(base?.message || 'No se pudo cargar la actividad.')
+  }
+
+  return [
+    ...(Array.isArray(base) ? base : []),
+    ...manual,
+  ]
+    .sort((a: any, b: any) => {
+      return new Date(b.event_date).getTime() - new Date(a.event_date).getTime()
+    })
+    .slice(0, 100)
+}
+
 export async function getCorporateDocuments(processId?: string) {
-  let path =
-    '/rest/v1/documents?select=id,process_id,document_type,file_name,public_title,portal_description,storage_provider,external_file_url,created_at&visible_to_company=eq.true&order=created_at.desc'
-
-  if (processId) {
-    path += `&process_id=eq.${encodeURIComponent(processId)}`
-  }
-
-  const res = await authedFetch(path)
+  const res = await authedFetch('/rest/v1/rpc/get_my_corporate_documents', {
+    method: 'POST',
+    body: JSON.stringify({
+      target_process_id: processId || null,
+    }),
+  })
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(
-      body?.message || 'No se pudieron cargar los documentos.'
-    )
-  }
-
+  if (!res.ok) throw new Error(body?.message || 'No se pudieron cargar los documentos.')
   return Array.isArray(body) ? body : []
 }
 
 export async function updateCorporatePassword(password: string) {
   const session = getCorporateSession()
-
-  if (!session?.access_token) {
-    throw new Error('AUTH_REQUIRED')
-  }
-
+  if (!session?.access_token) throw new Error('AUTH_REQUIRED')
   const c = config()
-
   const res = await fetch(`${c.url}/auth/v1/user`, {
     method: 'PUT',
     headers: {
@@ -262,34 +184,21 @@ export async function updateCorporatePassword(password: string) {
     },
     body: JSON.stringify({ password }),
   })
-
   const body = await res.json()
-
-  if (!res.ok) {
-    throw new Error(
-      body?.msg || 'No se pudo cambiar la contraseña.'
-    )
-  }
-
+  if (!res.ok) throw new Error(body?.msg || 'No se pudo cambiar la contraseña.')
   return body
 }
 
 export async function signOutCorporate() {
   const session = getCorporateSession()
-
   if (session?.access_token) {
     try {
       const c = config()
-
       await fetch(`${c.url}/auth/v1/logout`, {
         method: 'POST',
-        headers: {
-          apikey: c.anon,
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { apikey: c.anon, Authorization: `Bearer ${session.access_token}` },
       })
     } catch {}
   }
-
   clearCorporateSession()
 }
