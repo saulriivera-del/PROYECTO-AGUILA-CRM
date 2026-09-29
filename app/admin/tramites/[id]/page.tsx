@@ -68,6 +68,7 @@ export default async function ProcessDetailPage({
           <p>Teléfono: {process.contact_phone || client?.phone || 'Sin teléfono'} · Correo: {client?.email || 'Sin correo'}</p>
         </div>
         <div className="header-actions">
+          <Link className="secondary-button" href={`/admin/tramites/${process.id}/portal`}>Portal empresa</Link>
           <Link className="secondary-button" href={`/admin/clientes/${client?.id}`}>Expediente</Link>
           <Link className="secondary-button" href="/admin/tramites">← Trámites</Link>
         </div>
