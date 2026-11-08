@@ -34,12 +34,23 @@ function prefills(candidate: CandidateForDemo | undefined): Record<string, strin
   }
 }
 
-function visibleField(field: DraftField, answers: Record<string, string>) {
-  if (!field.when) return true
-  const expected = field.when.equals
+function conditionMatches(
+  condition: NonNullable<DraftField['when']>,
+  answers: Record<string, string>,
+) {
+  const expected = condition.equals
   return Array.isArray(expected)
-    ? expected.includes(answers[field.when.key])
-    : answers[field.when.key] === expected
+    ? expected.includes(answers[condition.key])
+    : answers[condition.key] === expected
+}
+
+function visibleField(field: DraftField, answers: Record<string, string>) {
+  return !field.when || conditionMatches(field.when, answers)
+}
+
+function requiredField(field: DraftField, answers: Record<string, string>) {
+  return Boolean(field.required) ||
+    Boolean(field.requiredWhen && conditionMatches(field.requiredWhen, answers))
 }
 
 type PersonEntry = { id: number; fullName: string; relationship: string; immigrationStatus: string }
@@ -128,7 +139,7 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
   const current = sections[step] ?? sections[0]
   const fields = current.fields.filter((field) => visibleField(field, answers))
   const allRequired = sections.flatMap((section) =>
-    section.fields.filter((field) => field.required && visibleField(field, answers)),
+    section.fields.filter((field) => requiredField(field, answers) && visibleField(field, answers)),
   )
   const baseCompleted = allRequired.filter((field) => String(answers[field.key] ?? '').trim()).length
   const companionRequired = answers.travel_with_someone === 'Sí' ? 2 * Math.max(1, companions.length) : 0
@@ -206,7 +217,7 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
       onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
         change(field.key, event.target.value),
       className: styles.input,
-      'aria-required': field.required || undefined,
+      'aria-required': requiredField(field, answers) || undefined,
     }
     if (field.type === 'textarea') {
       return <textarea {...common} rows={3} placeholder={field.placeholder ?? ''} />
@@ -292,21 +303,21 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
         <div className={styles.fields}>
           {fields.map((field) => (
             <label key={field.key} htmlFor={field.key} className={styles.field}>
-              <span>{field.label}{field.required ? <b> *</b> : null}</span>
+              <span>{field.label}{requiredField(field, answers) ? <b> *</b> : null}</span>
               {field.help ? <small>{field.help}</small> : null}
               {renderInput(field)}
             </label>
           ))}
           {current.id === 'travel' && answers.travel_with_someone === 'Sí' && (
             <PeopleEditor title="Personas que viajarán contigo" kind="companion" people={companions}
-              onAdd={() => setCompanions((previous) => [...previous, newPerson()])}
+              onAdd={() => { const person = newPerson(); setCompanions((previous) => [...previous, person]) }}
               onRemove={(id) => setCompanions((previous) => previous.filter((p) => p.id !== id))}
               onChange={(id, key, value) => updatePerson(setCompanions, id, key, value)}
             />
           )}
           {current.id === 'family' && answers.family_us === 'Sí' && (
             <PeopleEditor title="Familiares que viven en Estados Unidos" kind="relative" people={relatives}
-              onAdd={() => setRelatives((previous) => [...previous, newPerson()])}
+              onAdd={() => { const person = newPerson(); setRelatives((previous) => [...previous, person]) }}
               onRemove={(id) => setRelatives((previous) => previous.filter((p) => p.id !== id))}
               onChange={(id, key, value) => updatePerson(setRelatives, id, key, value)}
             />
