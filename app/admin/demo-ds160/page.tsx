@@ -39,6 +39,8 @@ export default async function Ds160DemoPage() {
 
         const clientById = new Map((clients ?? []).map((client) => [client.id, client]))
         for (const process of processes ?? []) {
+          // A TD is not a TN or a tourist visa. A separate flow will be added later.
+          if (!['Visa TN', 'Visa americana', 'Renovación Visa Americana'].includes(process.service_name)) continue
           const client = clientById.get(process.client_id)
           if (!client) continue
           candidates.push({
