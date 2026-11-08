@@ -14,11 +14,17 @@ Mostrar en la reunión con Trade in Motion el flujo **CRM Águila → expediente
 - Precarga de nombre, fecha de nacimiento, celular y correo cuando hay datos disponibles.
 - Modo B1/B2 y TN; preguntas de trabajo TN solo cuando aplica.
 - Secciones navegables, progreso de preguntas esenciales, preguntas condicionadas y resumen de elementos que deben revisarse.
+- Correcciones de la revisión del 8 de noviembre: ciudad y estado de nacimiento separados; domicilio particular, laboral, académico y TN por calle, colonia, ciudad, estado, código postal y país; opciones de responsable del pago; alojamiento obligatorio en la captura interna si la estancia supera 24 horas.
+- Acompañantes y familiares en EE. UU. como listas repetibles con nombre, parentesco y situación migratoria (cuando aplica); datos de cónyuge actual o anterior condicionados al estado civil.
+- Historial con calendarios para última visita, visa previa, cancelación/negativa/robo, lugar de expedición con sedes consulares de México y campos de explicación; antecedentes de problemas migratorios.
+- Fechas de nacimiento de padres, domicilio y periodos de escuela, empleo anterior y advertencias de secuencia de fechas.
 - Diseño compatible con móvil.
 
 ## Seguridad y limitaciones
 - No se escriben datos a Supabase, al DS-160 oficial ni a Google Forms.
 - Los campos escritos **no se guardan**; se pierden al recargar o salir.
+- Las listas y opciones son para reducir errores de captura. NO equivalen todavía a una equivalencia certificada con las opciones oficiales de CEAC: falta validar catálogo, condiciones y campos aplicables antes de cualquier automatización.
+- La regla de solicitar alojamiento si se prevén más de 24 horas es un criterio operativo solicitado por Visa Master, no una afirmación sobre los requisitos oficiales del DS-160.
 - La opción predeterminada usa un caso ficticio; no probar con datos reales ni mostrar información confidencial a terceros sin autorización.
 - Esta demo **no reemplaza ni valida** un DS-160 oficial o la elegibilidad TN; solo es un borrador de recopilación inicial.
 - No publicar el formulario al público ni afirmar que guarda avances hasta agregar permisos, persistencia segura y pruebas.
