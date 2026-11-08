@@ -89,8 +89,8 @@ export const draftSections: DraftSection[] = [
     fields: [
       { key: 'father_name', label: 'Nombre completo de tu padre', type: 'text' },
       { key: 'mother_name', label: 'Nombre completo de tu madre', type: 'text' },
-      { key: 'spouse_name', label: 'Nombre completo de tu pareja o cónyuge', type: 'text', when: { key: 'has_spouse', equals: 'Sí' } },
       { key: 'has_spouse', label: '¿Tienes pareja o cónyuge que deba declararse?', type: 'select', options: ['Sí', 'No'] },
+      { key: 'spouse_name', label: 'Nombre completo de tu pareja o cónyuge', type: 'text', when: { key: 'has_spouse', equals: 'Sí' } },
       { key: 'family_us', label: '¿Tienes familiares viviendo en EE. UU.?', type: 'select', options: ['Sí', 'No'], required: true },
       { key: 'family_us_details', label: '¿Qué familiares son y cuál es su situación migratoria, si la conoces?', type: 'textarea', when: { key: 'family_us', equals: 'Sí' } },
     ],
