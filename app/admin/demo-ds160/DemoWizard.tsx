@@ -1,9 +1,12 @@
 'use client'
 
-import { useMemo, useState, type ChangeEvent } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
   type DraftField,
   type VisaMode,
+  companionRelationships,
+  relativeRelationships,
+  immigrationStatuses,
   sectionsForMode,
 } from '@/lib/ds160-demo/questions'
 import styles from './demo.module.css'
@@ -32,7 +35,77 @@ function prefills(candidate: CandidateForDemo | undefined): Record<string, strin
 }
 
 function visibleField(field: DraftField, answers: Record<string, string>) {
-  return !field.when || answers[field.when.key] === field.when.equals
+  if (!field.when) return true
+  const expected = field.when.equals
+  return Array.isArray(expected)
+    ? expected.includes(answers[field.when.key])
+    : answers[field.when.key] === expected
+}
+
+type PersonEntry = { id: number; fullName: string; relationship: string; immigrationStatus: string }
+
+function PeopleEditor({
+  title, kind, people, onAdd, onRemove, onChange,
+}: {
+  title: string
+  kind: 'companion' | 'relative'
+  people: PersonEntry[]
+  onAdd: () => void
+  onRemove: (id: number) => void
+  onChange: (id: number, key: keyof Omit<PersonEntry, 'id'>, value: string) => void
+}) {
+  const relationships = kind === 'companion' ? companionRelationships : relativeRelationships
+  return (
+    <section className={styles.peopleBlock} aria-label={title}>
+      <h4>{title}</h4>
+      <p>Captura a cada persona por separado; no juntes nombres ni parentescos en un solo campo.</p>
+      {people.map((person, index) => (
+        <div className={styles.personCard} key={person.id}>
+          <div className={styles.personHeading}>
+            <strong>Persona {index + 1}</strong>
+            <button type="button" className={styles.removeButton} onClick={() => onRemove(person.id)}>
+              Quitar
+            </button>
+          </div>
+          <div className={styles.personFields}>
+            <label className={styles.field}>
+              <span>Nombre completo <b>*</b></span>
+              <input
+                className={styles.input} type="text" value={person.fullName}
+                onChange={(e) => onChange(person.id, 'fullName', e.target.value)}
+              />
+            </label>
+            <label className={styles.field}>
+              <span>Parentesco o relación <b>*</b></span>
+              <select
+                className={styles.input} value={person.relationship}
+                onChange={(e) => onChange(person.id, 'relationship', e.target.value)}
+              >
+                <option value="">Selecciona una respuesta</option>
+                {relationships.map((label) => <option key={label} value={label}>{label}</option>)}
+              </select>
+            </label>
+            {kind === 'relative' && (
+              <label className={styles.field}>
+                <span>Situación migratoria en EE. UU. <b>*</b></span>
+                <select
+                  className={styles.input} value={person.immigrationStatus}
+                  onChange={(e) => onChange(person.id, 'immigrationStatus', e.target.value)}
+                >
+                  <option value="">Selecciona una respuesta</option>
+                  {immigrationStatuses.map((label) => <option key={label} value={label}>{label}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+        </div>
+      ))}
+      <button className={styles.secondary} type="button" onClick={onAdd}>
+        + Agregar {kind === 'companion' ? 'acompañante' : 'familiar'}
+      </button>
+      {people.length === 0 && <p className={styles.missing}>Agrega al menos una persona para completar esta respuesta.</p>}
+    </section>
+  )
 }
 
 export default function DemoWizard({ candidates }: { candidates: CandidateForDemo[] }) {
@@ -40,6 +113,16 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
   const [mode, setMode] = useState<VisaMode>('TN')
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>(EMPTY)
+  const [companions, setCompanions] = useState<PersonEntry[]>([])
+  const [relatives, setRelatives] = useState<PersonEntry[]>([])
+  const personId = useRef(0)
+  const newPerson = (): PersonEntry => ({
+    id: ++personId.current, fullName: '', relationship: '', immigrationStatus: '',
+  })
+  const updatePerson = (
+    setter: (value: PersonEntry[] | ((previous: PersonEntry[]) => PersonEntry[])) => void,
+    id: number, key: keyof Omit<PersonEntry, 'id'>, value: string,
+  ) => setter((previous) => previous.map((item) => item.id === id ? { ...item, [key]: value } : item))
 
   const sections = useMemo(() => sectionsForMode(mode), [mode])
   const current = sections[step] ?? sections[0]
@@ -47,8 +130,29 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
   const allRequired = sections.flatMap((section) =>
     section.fields.filter((field) => field.required && visibleField(field, answers)),
   )
-  const completed = allRequired.filter((field) => String(answers[field.key] ?? '').trim()).length
-  const percent = allRequired.length ? Math.round((completed / allRequired.length) * 100) : 0
+  const baseCompleted = allRequired.filter((field) => String(answers[field.key] ?? '').trim()).length
+  const companionRequired = answers.travel_with_someone === 'Sí' ? 2 * Math.max(1, companions.length) : 0
+  const relativeRequired = answers.family_us === 'Sí' ? 3 * Math.max(1, relatives.length) : 0
+  const companionCompleted = answers.travel_with_someone === 'Sí'
+    ? companions.reduce((count, p) => count + Number(Boolean(p.fullName.trim())) + Number(Boolean(p.relationship)), 0)
+    : 0
+  const relativeCompleted = answers.family_us === 'Sí'
+    ? relatives.reduce((count, p) => count + Number(Boolean(p.fullName.trim())) +
+        Number(Boolean(p.relationship)) + Number(Boolean(p.immigrationStatus)), 0)
+    : 0
+  const completed = baseCompleted + companionCompleted + relativeCompleted
+  const totalRequired = allRequired.length + companionRequired + relativeRequired
+  const percent = totalRequired ? Math.round((completed / totalRequired) * 100) : 0
+  const dateIssues = [
+    answers.passport_issued && answers.passport_expires && answers.passport_expires <= answers.passport_issued
+      ? 'La fecha de vencimiento del pasaporte debe ser posterior a su expedición.' : '',
+    answers.prior_visa_issue_date && answers.prior_visa_expiration_date && answers.prior_visa_expiration_date <= answers.prior_visa_issue_date
+      ? 'La fecha de vencimiento de la visa debe ser posterior a su expedición.' : '',
+    answers.previous_job_start && answers.previous_job_end && answers.previous_job_end < answers.previous_job_start
+      ? 'La fecha de término del empleo anterior no puede ser anterior al inicio.' : '',
+    answers.school_start && answers.school_end && answers.school_end < answers.school_start
+      ? 'La fecha de término de estudios no puede ser anterior al inicio.' : '',
+  ].filter(Boolean)
   const first = step === 0
   const last = step === sections.length - 1
   const candidate = candidates.find((c) => c.processId === chosen)
@@ -64,6 +168,8 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
     const selected = candidates.find((c) => c.processId === id)
     setChosen(id)
     setAnswers({ ...prefills(selected) })
+    setCompanions([])
+    setRelatives([])
     setMode(selected?.serviceName === 'Visa TN' ? 'TN' : 'B1B2')
     if (!selected) setMode('TN')
     setStep(0)
@@ -75,7 +181,21 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
   }
 
   function change(key: string, value: string) {
-    setAnswers((previous) => ({ ...previous, [key]: value }))
+    setAnswers((previous) => {
+      const next = { ...previous, [key]: value }
+      // Purge values of follow-up questions that stop applying to this person.
+      // This prevents stale answers from entering a future DS-160 mapping.
+      for (let pass = 0; pass < 3; pass++) {
+        for (const section of sections) {
+          for (const field of section.fields) {
+            if (!visibleField(field, next)) delete next[field.key]
+          }
+        }
+      }
+      return next
+    })
+    if (key === 'travel_with_someone' && value !== 'Sí') setCompanions([])
+    if (key === 'family_us' && value !== 'Sí') setRelatives([])
   }
 
   function renderInput(field: DraftField) {
@@ -99,7 +219,14 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
         </select>
       )
     }
-    return <input {...common} type={field.type} placeholder={field.placeholder ?? ''} />
+    return (
+      <input
+        {...common} type={field.type} placeholder={field.placeholder ?? ''}
+        min={field.type === 'number' ? (field.key.includes('duration') ? 1 : 0) : undefined}
+        step={field.type === 'number' ? 'any' : undefined}
+        inputMode={field.type === 'number' ? 'decimal' : undefined}
+      />
+    )
   }
 
   return (
@@ -170,6 +297,20 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
               {renderInput(field)}
             </label>
           ))}
+          {current.id === 'travel' && answers.travel_with_someone === 'Sí' && (
+            <PeopleEditor title="Personas que viajarán contigo" kind="companion" people={companions}
+              onAdd={() => setCompanions((previous) => [...previous, newPerson()])}
+              onRemove={(id) => setCompanions((previous) => previous.filter((p) => p.id !== id))}
+              onChange={(id, key, value) => updatePerson(setCompanions, id, key, value)}
+            />
+          )}
+          {current.id === 'family' && answers.family_us === 'Sí' && (
+            <PeopleEditor title="Familiares que viven en Estados Unidos" kind="relative" people={relatives}
+              onAdd={() => setRelatives((previous) => [...previous, newPerson()])}
+              onRemove={(id) => setRelatives((previous) => previous.filter((p) => p.id !== id))}
+              onChange={(id, key, value) => updatePerson(setRelatives, id, key, value)}
+            />
+          )}
         </div>
         <div className={styles.footer}>
           <button className={styles.secondary} type="button" disabled={first} onClick={() => setStep((s) => Math.max(0, s - 1))}>
@@ -185,11 +326,14 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
       <section className={styles.review}>
         <div>
           <h3>Resumen de la demostración</h3>
-          <p>{completed} de {allRequired.length} campos esenciales completos.
+          <p>{completed} de {totalRequired} datos esenciales completos.
             {reviewItems.length > 0 ? ` Hay ${reviewItems.length} respuestas que requieren revisión del equipo.` : ''}</p>
+          {dateIssues.map((issue) => <p className={styles.validation} role="alert" key={issue}>{issue}</p>)}
         </div>
         <button type="button" className={styles.secondary} onClick={() => {
           setAnswers({ ...prefills(candidate) })
+          setCompanions([])
+          setRelatives([])
           setStep(0)
         }}>Reiniciar respuestas</button>
       </section>
