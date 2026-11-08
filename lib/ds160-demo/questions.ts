@@ -82,9 +82,13 @@ function addressFields(
     { key: `${prefix}_street`, label: `Calle y número · ${who}`, placeholder: 'Calle y número', inlinePrompt: true, type: 'text', required, when },
     { key: `${prefix}_neighborhood`, label: `Colonia · ${who}`, placeholder: 'Colonia', inlinePrompt: true, type: 'text', when },
     { key: `${prefix}_city`, label: `Ciudad · ${who}`, placeholder: 'Ciudad', inlinePrompt: true, type: 'text', required, when },
-    { key: `${prefix}_state`, label: `Estado · ${who}`, placeholder: 'Selecciona un estado', inlinePrompt: true, type: 'select', options: [...mexicoStates, outsideMexico], required, when },
-    { key: `${prefix}_state_other`, label: `Estado o provincia fuera de México · ${who}`, placeholder: 'Escribe el estado o provincia', inlinePrompt: true, type: 'text',
-      requiredWhen: { key: `${prefix}_state`, equals: outsideMexico }, when: { key: `${prefix}_state`, equals: outsideMexico } },
+    ...(prefix === 'tn_employer'
+      ? [{ key: `${prefix}_state`, label: `Estado / provincia · ${who}`, placeholder: 'Estado de EE. UU.', inlinePrompt: true, type: 'text', required, when } as DraftField]
+      : [
+        { key: `${prefix}_state`, label: `Estado · ${who}`, placeholder: 'Selecciona un estado', inlinePrompt: true, type: 'select', options: [...mexicoStates, outsideMexico], required, when } as DraftField,
+        { key: `${prefix}_state_other`, label: `Estado o provincia fuera de México · ${who}`, placeholder: 'Escribe el estado o provincia', inlinePrompt: true, type: 'text', required: true,
+          when: { key: `${prefix}_state`, equals: outsideMexico } } as DraftField,
+      ]),
     { key: `${prefix}_postal`, label: `Código postal · ${who}`, placeholder: 'Código postal', inlinePrompt: true, type: 'text', required: prefix === 'home', when },
   ]
   if (prefix === 'home') {
