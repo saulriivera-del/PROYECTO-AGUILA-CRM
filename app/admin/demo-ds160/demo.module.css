@@ -47,3 +47,19 @@ textarea.input { resize: vertical; }
   .footer { flex-wrap: wrap; }
   .footer span { order: 3; flex: 1 0 100%; }
 }
+
+/* Repeatable structured people: companions and relatives in the U.S. */
+.peopleBlock { grid-column: 1 / -1; background: #f8fbff; border: 1px solid #d9e5f4; padding: 18px; border-radius: 14px; display: grid; gap: 14px; }
+.peopleBlock h4 { color: #0b2552; font-size: 1.05rem; margin: 0; }
+.peopleBlock p { margin: 0; font-size: .85rem; line-height: 1.45; color: #536987; }
+.personCard { border: 1px solid #dce6f2; background: #fff; padding: 15px; border-radius: 12px; display: grid; gap: 14px; }
+.personHeading { display: flex; justify-content: space-between; align-items: center; gap: 14px; color: #203b5c; font-size: .88rem; }
+.personFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.removeButton { border: none; background: none; color: #a73045; font: inherit; font-weight: 750; cursor: pointer; }
+.peopleBlock .secondary { justify-self: start; }
+.peopleBlock .missing { color: #93552b; }
+.review .validation { color: #a73045; font-weight: 700; margin: 8px 0 0; }
+@media (max-width: 730px) {
+  .personFields { grid-template-columns: minmax(0, 1fr); }
+  .peopleBlock { padding: 14px; }
+}
