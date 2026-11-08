@@ -10,6 +10,7 @@ export type DraftField = {
   help?: string
   options?: string[]
   required?: boolean
+  requiredWhen?: { key: string; equals: string | string[] }
   /** A conditional answer may match one or several selected values. */
   when?: { key: string; equals: string | string[] }
   reviewFlag?: boolean
@@ -120,8 +121,8 @@ export const draftSections: DraftSection[] = [
       { key: 'travel_duration_amount', label: '¿Cuánto tiempo planeas permanecer en EE. UU.? (cantidad)', type: 'number', help: 'Escribe solo el número, por ejemplo 7.' },
       { key: 'travel_duration_unit', label: 'Unidad de tiempo', type: 'select', options: ['Días', 'Semanas', 'Meses'] },
       { key: 'travel_more_than_24h', label: '¿Planeas quedarte más de 24 horas?', type: 'select', options: yesNo, required: true },
-      { key: 'travel_stay_city', label: 'Ciudad donde te hospedarás', type: 'text', when: { key: 'travel_more_than_24h', equals: 'Sí' }, required: true, help: 'Obligatorio para Visa Master si planeas quedarte más de 24 horas.' },
-      { key: 'travel_stay_address', label: 'Dirección donde te hospedarás', type: 'text', when: { key: 'travel_more_than_24h', equals: 'Sí' }, required: true, help: 'Si aún no la conoces, solicítanos revisión antes de enviar.' },
+      { key: 'travel_stay_city', label: 'Ciudad donde te hospedarás', type: 'text', requiredWhen: { key: 'travel_more_than_24h', equals: 'Sí' }, help: 'Puedes dejarlo pendiente si aún no lo sabes. Obligatorio en Visa Master para estancias de más de 24 horas.' },
+      { key: 'travel_stay_address', label: 'Dirección donde te hospedarás', type: 'text', requiredWhen: { key: 'travel_more_than_24h', equals: 'Sí' }, help: 'Obligatoria para estancias de más de 24 horas; no inventes una dirección si aún no la conoces.' },
       { key: 'travel_payer', label: '¿Quién pagará los gastos de tu viaje?', type: 'select', options: ['Yo mismo(a)', 'Un familiar', 'Otra persona', 'Mi empleador actual', 'Empresa en Estados Unidos', 'Otra empresa u organización'], required: true },
       { key: 'travel_payer_person_name', label: 'Nombre completo de la persona que pagará', type: 'text', when: { key: 'travel_payer', equals: ['Un familiar', 'Otra persona'] }, required: true },
       { key: 'travel_payer_relationship', label: 'Parentesco o relación con quien pagará', type: 'select', options: companionRelationships, when: { key: 'travel_payer', equals: ['Un familiar', 'Otra persona'] }, required: true },
