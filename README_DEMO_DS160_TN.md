@@ -39,3 +39,12 @@ Mostrar en la reunión con Trade in Motion el flujo **CRM Águila → expediente
 
 ## Cómo probar
 En una instancia de desarrollo del CRM con credenciales de administrador, abrir `/admin/demo-ds160`. Empezar con **Caso ficticio**, recorrer las secciones y alternar entre B1/B2 y TN. Elegir un expediente vinculado solo cuando se requiera enseñar la precarga y se cuente con autorización.
+
+## Ajustes solicitados en revisión guiada del 8 de noviembre (segunda ronda)
+- Campos de dirección con nombre dentro de cada casilla (placeholder), accesibles a lectores de pantalla.
+- En los domicilios en México, Estado despliega las 32 entidades federativas; se incluye alternativa de domicilio extranjero. En el empleador TN se permite estado de EE. UU. sin mostrar estados mexicanos.
+- Se pide código postal de domicilio particular y país de nacimiento; el país del domicilio no se muestra para domicilios en México.
+- Teléfono de trabajo (no obligatorio) junto al celular en Datos personales.
+- Pregunta de estancia mayor de 24 h antes de la duración; alojamiento oculto cuando responde «No» y requerido cuando responde «Sí» (regla interna de Visa Master, no requisito consular).
+- Opciones de parentesco de quien paga separadas: familiar vs otra persona; se limpia la selección previa al cambiar de categoría.
+- Se mantiene la limitación de esta demo: no hay guardado ni transferencia al portal oficial.
