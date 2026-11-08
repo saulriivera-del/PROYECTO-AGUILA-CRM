@@ -219,7 +219,7 @@ export const draftSections: DraftSection[] = [
       ...addressFields('employer', 'trabajo actual'),
       { key: 'job_title', label: 'Puesto o actividad principal', type: 'text' },
       { key: 'job_start', label: 'Fecha en que comenzaste en tu empleo actual', type: 'date' },
-      { key: 'monthly_income', label: 'Ingreso mensual bruto aproximado (MXN)', type: 'number' },
+      { key: 'monthly_income', label: 'Ingreso mensual bruto aproximado (MXN, antes de impuestos o deducciones)', type: 'number' },
       { key: 'previous_job', label: '¿Has tenido un trabajo anterior?', type: 'select', options: yesNo },
       { key: 'previous_employer', label: 'Empresa donde trabajabas anteriormente', type: 'text', when: { key: 'previous_job', equals: 'Sí' } },
       ...addressFields('previous_employer', 'trabajo anterior', false, { key: 'previous_job', equals: 'Sí' }),
