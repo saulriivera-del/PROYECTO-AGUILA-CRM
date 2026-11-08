@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import {
   type DraftField,
   type VisaMode,
@@ -83,7 +83,7 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
       id: field.key,
       name: field.key,
       value: answers[field.key] ?? '',
-      onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
         change(field.key, event.target.value),
       className: styles.input,
       'aria-required': field.required || undefined,
