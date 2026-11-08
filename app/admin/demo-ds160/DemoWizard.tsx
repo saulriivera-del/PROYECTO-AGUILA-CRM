@@ -5,6 +5,8 @@ import {
   type DraftField,
   type VisaMode,
   companionRelationships,
+  familyPayerRelationships,
+  otherPayerRelationships,
   relativeRelationships,
   immigrationStatuses,
   sectionsForMode,
@@ -194,6 +196,11 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
   function change(key: string, value: string) {
     setAnswers((previous) => {
       const next = { ...previous, [key]: value }
+      if (key === 'travel_payer' && previous.travel_payer !== value) {
+        delete next.travel_payer_relationship
+        delete next.travel_payer_person_name
+        delete next.travel_payer_organization
+      }
       // Purge values of follow-up questions that stop applying to this person.
       // This prevents stale answers from entering a future DS-160 mapping.
       for (let pass = 0; pass < 3; pass++) {
@@ -210,6 +217,8 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
   }
 
   function renderInput(field: DraftField) {
+    const placeholder = field.placeholder ?? (field.inlinePrompt ? field.label : '')
+    const displayPrompt = placeholder + (field.inlinePrompt && requiredField(field, answers) ? ' *' : '')
     const common = {
       id: field.key,
       name: field.key,
@@ -220,19 +229,22 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
       'aria-required': requiredField(field, answers) || undefined,
     }
     if (field.type === 'textarea') {
-      return <textarea {...common} rows={3} placeholder={field.placeholder ?? ''} />
+      return <textarea {...common} rows={3} placeholder={displayPrompt} />
     }
     if (field.type === 'select') {
+      const options = field.key === 'travel_payer_relationship'
+        ? answers.travel_payer === 'Un familiar' ? familyPayerRelationships : otherPayerRelationships
+        : field.options ?? []
       return (
         <select {...common}>
-          <option value="">Selecciona una respuesta</option>
-          {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
+          <option value="">{field.inlinePrompt ? displayPrompt : 'Selecciona una respuesta'}</option>
+          {options.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       )
     }
     return (
       <input
-        {...common} type={field.type} placeholder={field.placeholder ?? ''}
+        {...common} type={field.type} placeholder={displayPrompt}
         min={field.type === 'number' ? (field.key.includes('duration') ? 1 : 0) : undefined}
         step={field.type === 'number' ? 'any' : undefined}
         inputMode={field.type === 'number' ? 'decimal' : undefined}
@@ -303,7 +315,7 @@ export default function DemoWizard({ candidates }: { candidates: CandidateForDem
         <div className={styles.fields}>
           {fields.map((field) => (
             <label key={field.key} htmlFor={field.key} className={styles.field}>
-              <span>{field.label}{requiredField(field, answers) ? <b> *</b> : null}</span>
+              <span className={field.inlinePrompt ? styles.srOnly : undefined}>{field.label}{requiredField(field, answers) ? <b> *</b> : null}</span>
               {field.help ? <small>{field.help}</small> : null}
               {renderInput(field)}
             </label>
