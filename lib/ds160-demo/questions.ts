@@ -7,6 +7,8 @@ export type DraftField = {
   label: string
   type: FieldType
   placeholder?: string
+  /** Render the label as an accessible placeholder inside the input. */
+  inlinePrompt?: boolean
   help?: string
   options?: string[]
   required?: boolean
@@ -25,6 +27,25 @@ export type DraftSection = {
 }
 
 const yesNo = ['Sí', 'No']
+
+// Entidades federativas de México; incluye Ciudad de México (32).
+export const mexicoStates = [
+  'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche',
+  'Chiapas', 'Chihuahua', 'Ciudad de México', 'Coahuila', 'Colima',
+  'Durango', 'Estado de México', 'Guanajuato', 'Guerrero', 'Hidalgo',
+  'Jalisco', 'Michoacán', 'Morelos', 'Nayarit', 'Nuevo León', 'Oaxaca',
+  'Puebla', 'Querétaro', 'Quintana Roo', 'San Luis Potosí', 'Sinaloa',
+  'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán',
+  'Zacatecas',
+]
+export const outsideMexico = 'Fuera de México / otro estado o provincia'
+export const familyPayerRelationships = [
+  'Cónyuge / pareja', 'Padre', 'Madre', 'Hijo(a)', 'Hermano(a)',
+  'Abuelo(a)', 'Nieto(a)', 'Tío(a)', 'Primo(a)', 'Otro familiar',
+]
+export const otherPayerRelationships = [
+  'Amigo(a)', 'Colega / compañero(a)', 'Conocido(a)', 'Otro',
+]
 const currentSpouseStatuses = ['Casado(a)', 'Unión libre', 'Separado(a)']
 const formerSpouseStatuses = ['Divorciado(a)', 'Viudo(a)']
 
@@ -57,14 +78,29 @@ function addressFields(
   required = false,
   when?: DraftField['when'],
 ): DraftField[] {
-  return [
-    { key: `${prefix}_street`, label: `Calle y número · ${who}`, type: 'text', required, when },
-    { key: `${prefix}_neighborhood`, label: `Colonia / barrio · ${who}`, type: 'text', when },
-    { key: `${prefix}_city`, label: `Ciudad · ${who}`, type: 'text', required, when },
-    { key: `${prefix}_state`, label: `Estado / provincia · ${who}`, type: 'text', required, when },
-    { key: `${prefix}_postal`, label: `Código postal · ${who}`, type: 'text', when },
-    { key: `${prefix}_country`, label: `País · ${who}`, type: 'text', required, when },
+  const fields: DraftField[] = [
+    { key: `${prefix}_street`, label: `Calle y número · ${who}`, placeholder: 'Calle y número', inlinePrompt: true, type: 'text', required, when },
+    { key: `${prefix}_neighborhood`, label: `Colonia · ${who}`, placeholder: 'Colonia', inlinePrompt: true, type: 'text', when },
+    { key: `${prefix}_city`, label: `Ciudad · ${who}`, placeholder: 'Ciudad', inlinePrompt: true, type: 'text', required, when },
+    { key: `${prefix}_state`, label: `Estado · ${who}`, placeholder: 'Selecciona un estado', inlinePrompt: true, type: 'select', options: [...mexicoStates, outsideMexico], required, when },
+    { key: `${prefix}_state_other`, label: `Estado o provincia fuera de México · ${who}`, placeholder: 'Escribe el estado o provincia', inlinePrompt: true, type: 'text',
+      requiredWhen: { key: `${prefix}_state`, equals: outsideMexico }, when: { key: `${prefix}_state`, equals: outsideMexico } },
+    { key: `${prefix}_postal`, label: `Código postal · ${who}`, placeholder: 'Código postal', inlinePrompt: true, type: 'text', required: prefix === 'home', when },
   ]
+  if (prefix === 'home') {
+    // Evitar mostrar País en domicilios mexicanos. Se pregunta si se marca domicilio extranjero.
+    fields.push({
+      key: 'home_country',
+      label: 'País de tu domicilio fuera de México',
+      placeholder: 'Escribe el país',
+      inlinePrompt: true, type: 'text',
+      when: { key: 'home_state', equals: outsideMexico },
+      required: true,
+    })
+  } else {
+    fields.push({ key: `${prefix}_country`, label: `País · ${who}`, placeholder: 'País', inlinePrompt: true, type: 'text', required, when })
+  }
+  return fields
 }
 
 // Basado en el cuestionario histórico de Visa Master y observaciones del
@@ -80,8 +116,9 @@ export const draftSections: DraftSection[] = [
       { key: 'full_name', label: 'Nombre completo como aparece en tu pasaporte', type: 'text', required: true },
       { key: 'birth_date', label: 'Fecha de nacimiento', type: 'date', required: true },
       { key: 'birth_city', label: 'Ciudad donde naciste', type: 'text', required: true },
-      { key: 'birth_state', label: 'Estado / provincia donde naciste', type: 'text', required: true },
-      { key: 'birth_country', label: 'País donde naciste', type: 'text' },
+      { key: 'birth_state', label: 'Estado / provincia donde naciste', type: 'select', options: [...mexicoStates, outsideMexico], required: true },
+      { key: 'birth_state_other', label: 'Estado o provincia donde naciste (fuera de México)', type: 'text', when: { key: 'birth_state', equals: outsideMexico }, required: true },
+      { key: 'birth_country', label: 'País donde naciste', type: 'text', required: true },
       { key: 'marital_status', label: 'Estado civil', type: 'select', options: ['Soltero(a)', 'Casado(a)', 'Unión libre', 'Divorciado(a)', 'Viudo(a)', 'Separado(a)'], required: true },
       { key: 'nationality', label: 'Nacionalidad', type: 'text', placeholder: 'Por ejemplo, mexicana', required: true },
       { key: 'spouse_name', label: 'Nombre completo de tu cónyuge / pareja', type: 'text', required: true, when: { key: 'marital_status', equals: currentSpouseStatuses } },
@@ -96,6 +133,7 @@ export const draftSections: DraftSection[] = [
       ...addressFields('home', 'domicilio actual', true),
       { key: 'email', label: 'Correo electrónico', type: 'email', required: true },
       { key: 'phone', label: 'Teléfono celular', type: 'tel', required: true },
+      { key: 'employer_phone', label: 'Teléfono del trabajo (opcional)', type: 'tel' },
     ],
   },
   {
@@ -118,14 +156,14 @@ export const draftSections: DraftSection[] = [
     description: 'Contesta lo que sabes; Visa Master revisará los datos requeridos para el DS-160.',
     fields: [
       { key: 'travel_date', label: 'Fecha aproximada de tu viaje', type: 'date' },
+      { key: 'travel_more_than_24h', label: '¿Planeas quedarte más de 24 horas?', type: 'select', options: yesNo, required: true },
       { key: 'travel_duration_amount', label: '¿Cuánto tiempo planeas permanecer en EE. UU.? (cantidad)', type: 'number', help: 'Escribe solo el número, por ejemplo 7.' },
       { key: 'travel_duration_unit', label: 'Unidad de tiempo', type: 'select', options: ['Días', 'Semanas', 'Meses'] },
-      { key: 'travel_more_than_24h', label: '¿Planeas quedarte más de 24 horas?', type: 'select', options: yesNo, required: true },
-      { key: 'travel_stay_city', label: 'Ciudad donde te hospedarás', type: 'text', requiredWhen: { key: 'travel_more_than_24h', equals: 'Sí' }, help: 'Puedes dejarlo pendiente si aún no lo sabes. Obligatorio en Visa Master para estancias de más de 24 horas.' },
-      { key: 'travel_stay_address', label: 'Dirección donde te hospedarás', type: 'text', requiredWhen: { key: 'travel_more_than_24h', equals: 'Sí' }, help: 'Obligatoria para estancias de más de 24 horas; no inventes una dirección si aún no la conoces.' },
+      { key: 'travel_stay_city', label: 'Ciudad donde te hospedarás', type: 'text', when: { key: 'travel_more_than_24h', equals: 'Sí' }, required: true, help: 'No inventes una dirección si todavía no sabes dónde te hospedarás.' },
+      { key: 'travel_stay_address', label: 'Dirección donde te hospedarás', type: 'text', when: { key: 'travel_more_than_24h', equals: 'Sí' }, required: true, help: 'Obligatorio en Visa Master cuando planeas quedarte más de 24 horas.' },
       { key: 'travel_payer', label: '¿Quién pagará los gastos de tu viaje?', type: 'select', options: ['Yo mismo(a)', 'Un familiar', 'Otra persona', 'Mi empleador actual', 'Empresa en Estados Unidos', 'Otra empresa u organización'], required: true },
       { key: 'travel_payer_person_name', label: 'Nombre completo de la persona que pagará', type: 'text', when: { key: 'travel_payer', equals: ['Un familiar', 'Otra persona'] }, required: true },
-      { key: 'travel_payer_relationship', label: 'Parentesco o relación con quien pagará', type: 'select', options: companionRelationships, when: { key: 'travel_payer', equals: ['Un familiar', 'Otra persona'] }, required: true },
+      { key: 'travel_payer_relationship', label: 'Parentesco o relación con quien pagará', type: 'select', options: familyPayerRelationships, when: { key: 'travel_payer', equals: ['Un familiar', 'Otra persona'] }, required: true },
       { key: 'travel_payer_organization', label: 'Nombre de la empresa u organización que pagará', type: 'text', when: { key: 'travel_payer', equals: ['Mi empleador actual', 'Empresa en Estados Unidos', 'Otra empresa u organización'] }, required: true },
       { key: 'travel_with_someone', label: '¿Viajarás con alguien?', type: 'select', options: yesNo, required: true },
     ],
@@ -175,7 +213,6 @@ export const draftSections: DraftSection[] = [
     fields: [
       { key: 'employer', label: 'Empresa donde trabajas o actividad que realizas', type: 'text' },
       ...addressFields('employer', 'trabajo actual'),
-      { key: 'employer_phone', label: 'Teléfono del trabajo actual', type: 'tel' },
       { key: 'job_title', label: 'Puesto o actividad principal', type: 'text' },
       { key: 'job_start', label: 'Fecha en que comenzaste en tu empleo actual', type: 'date' },
       { key: 'monthly_income', label: 'Ingreso mensual bruto aproximado (MXN)', type: 'number' },
