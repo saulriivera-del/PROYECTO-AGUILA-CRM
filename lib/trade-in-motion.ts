@@ -53,8 +53,9 @@ export function cleanAnswers(raw: unknown): AnswerMap {
   const provided = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {}
   const answers: AnswerMap = {}
   for (const field of questionMap.values()) {
-    let value = provided[field.key]
-    if (typeof value !== 'string') continue
+    const originalValue = provided[field.key]
+    if (typeof originalValue !== 'string') continue
+    let value: string = originalValue
     // Compatibilidad con borradores de la versión anterior, que usaba Sí/No.
     if (field.key === 'social_media_used') {
       if (value === 'No') value = 'Ninguna'
