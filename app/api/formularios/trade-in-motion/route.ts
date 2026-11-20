@@ -25,11 +25,23 @@ async function databaseContext() {
   if (!organization || !company) throw new Error('Configuración de empresa no encontrada')
   return { admin, organizationId: organization.id as string, companyId: company.id as string }
 }
+async function isInvited(
+  admin: ReturnType<typeof createAdminClient>, candidateEmail: string, organizationId: string, companyId: string,
+) {
+  const { data, error } = await admin.from('vm_trade_in_motion_invites')
+    .select('id').eq('organization_id', organizationId).eq('company_id', companyId)
+    .eq('applicant_email', candidateEmail).eq('is_active', true).maybeSingle()
+  if (error) throw error
+  return Boolean(data)
+}
 export async function GET() {
   const candidate = await resolveCandidate()
   if (!candidate) return respond({ error: 'Verifica tu correo para continuar.' }, 401)
   try {
-    const { admin, companyId } = await databaseContext()
+    const { admin, organizationId, companyId } = await databaseContext()
+    if (!await isInvited(admin, candidate.email, organizationId, companyId)) {
+      return respond({ error: 'Tu correo todavía no está autorizado. Pide a Visa Master que lo registre antes de comenzar.' }, 403)
+    }
     const { data, error } = await admin.from('vm_trade_in_motion_drafts')
       .select('answers, people, status, updated_at, submitted_at, consent_at')
       .eq('auth_user_id', candidate.id).eq('company_id', companyId).maybeSingle()
@@ -70,6 +82,9 @@ export async function POST(request: Request) {
 
   try {
     const { admin, organizationId, companyId } = await databaseContext()
+    if (!await isInvited(admin, candidate.email, organizationId, companyId)) {
+      return respond({ error: 'Tu correo no está autorizado para este formulario.' }, 403)
+    }
     const { data: previous, error: prevError } = await admin.from('vm_trade_in_motion_drafts')
       .select('id,status,submission_id,consent_at')
       .eq('company_id', companyId).eq('auth_user_id', candidate.id).maybeSingle()
