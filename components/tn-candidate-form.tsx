@@ -317,6 +317,11 @@ export default function CandidateForm() {
                 </div>
                 <div className="tn-fields">
                   {current.fields.filter(f => isVisible(f, answers)).map(field => <div key={field.key} style={{ display: 'contents' }}>
+                    {field.key === 'social_media_used' ? <div className="tn-label wide" role="note" style={{ gridColumn: '1 / -1', borderLeft: '3px solid #bd8a39', paddingLeft: 12, margin: '14px 0' }}>
+                      <strong style={{ display: 'block', marginBottom: 5 }}>AVISO IMPORTANTE · REDES SOCIALES (VISAS TN Y TD)</strong>
+                      <p style={{ margin: '0 0 7px', lineHeight: 1.5 }}>Desde el 1 de octubre de 2026, el Departamento de Estado de EE. UU. indica que quienes solicitan visas TN o TD deben configurar <strong>todos sus perfiles de redes sociales como públicos o abiertos</strong> para facilitar la revisión consular. Declara las cuentas utilizadas en los últimos cinco años, incluidas las inactivas, e informa todos tus usuarios; <strong>nunca compartas contraseñas</strong>.</p>
+                      <a href="https://travel.state.gov/en/newsroom/visas/2026/announcement-of-expanded-screening-and-vetting-for-visa-applicants.html" target="_blank" rel="noopener noreferrer">Consultar aviso oficial del Departamento de Estado</a>
+                    </div> : null}
                     {addressTitles[field.key] ? <div className="tn-address">Dirección · {addressTitles[field.key]}</div> : null}
                     {fieldEditor(field)}
                   </div>)}
