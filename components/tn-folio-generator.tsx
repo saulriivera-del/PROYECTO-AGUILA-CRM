@@ -17,8 +17,9 @@ export default function TnFolioGenerator() {
       } catch { setResult({error:'No se pudo generar el acceso.'}) }
     })
   }
+  const baseUrl = typeof window === 'undefined' ? 'https://crm.visamaster.com.mx' : window.location.origin
   const message = result?.folio && result.key
-    ? `Visa Master · Cuestionario de candidato\nFormulario: https://crm.visamaster.com.mx/formularios/trade-in-motion\nFolio: ${result.folio}\nClave: ${result.key}\nGuarda estos datos para continuar tu formulario más adelante.`
+    ? `Visa Master · Cuestionario de candidato\nFormulario: ${baseUrl}/formularios/trade-in-motion\nFolio: ${result.folio}\nClave: ${result.key}\nGuarda estos datos para continuar tu formulario más adelante.`
     : ''
   return <section style={{ background:'#fff',border:'1px solid #c8d9ea',borderRadius:13,padding:20,margin:'18px 0 22px' }}>
     <h3 style={{margin:'0 0 5px'}}>Generar folio y clave de candidato</h3>
