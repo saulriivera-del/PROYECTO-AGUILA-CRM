@@ -31,7 +31,7 @@ export async function GET() {
   try {
     const { admin, companyId } = await databaseContext()
     const { data, error } = await admin.from('vm_trade_in_motion_drafts')
-      .select('answers, people, status, updated_at, submitted_at')
+      .select('answers, people, status, updated_at, submitted_at, consent_at')
       .eq('auth_user_id', candidate.id).eq('company_id', companyId).maybeSingle()
     if (error) throw error
     return respond({ email: candidate.email, draft: data ?? null })
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
   answers.email = candidate.email
   if (answers.travel_with_someone !== 'Sí') people.companions = []
   if (answers.family_us !== 'Sí') people.relatives = []
+  if (payload.consent !== true) return respond({ error: 'Acepta el aviso de privacidad antes de guardar tus respuestas.' }, 422)
   if (action === 'submit') {
-    if (payload.consent !== true) return respond({ error: 'Es necesario aceptar el aviso de privacidad antes de enviar.' }, 422)
     const missing = validateSubmission(answers, people)
     if (missing.length) return respond({ error: 'Completa las respuestas marcadas.', fields: missing.slice(0, 20) }, 422)
   }
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const { admin, organizationId, companyId } = await databaseContext()
     const { data: previous, error: prevError } = await admin.from('vm_trade_in_motion_drafts')
-      .select('id,status,submission_id')
+      .select('id,status,submission_id,consent_at')
       .eq('company_id', companyId).eq('auth_user_id', candidate.id).maybeSingle()
     if (prevError) throw prevError
     if (previous?.status === 'Enviado') return respond({ saved: true, submitted: true })
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     let submissionId: string
     if (previous) {
       const { error } = await admin.from('vm_trade_in_motion_drafts')
-        .update({ answers, people, updated_at: new Date().toISOString() })
+        .update({ answers, people, updated_at: new Date().toISOString(), consent_at: previous.consent_at || new Date().toISOString(), consent_version: 'aviso-privacidad-2026-11' })
         .eq('id', previous.id).eq('auth_user_id', candidate.id).eq('status','Borrador')
       if (error) throw error
       draftId = previous.id
@@ -88,7 +88,8 @@ export async function POST(request: Request) {
     } else {
       const { data: created, error } = await admin.from('vm_trade_in_motion_drafts')
         .insert({ organization_id: organizationId, company_id: companyId,
-          auth_user_id: candidate.id, applicant_email: candidate.email, answers, people, status: 'Borrador' })
+          auth_user_id: candidate.id, applicant_email: candidate.email, answers, people, status: 'Borrador',
+          consent_at: new Date().toISOString(), consent_version: 'aviso-privacidad-2026-11' })
         .select('id,submission_id').single()
       if (error || !created) throw error || new Error('Draft not created')
       draftId = created.id
