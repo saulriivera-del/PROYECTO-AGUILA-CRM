@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
@@ -16,11 +15,10 @@ const addressTitles: Record<string, string> = {
 }
 
 export default function CandidateForm() {
-  const supabase = useMemo(() => createClient(), [])
   const [identity, setIdentity] = useState('')
-  const [emailInput, setEmailInput] = useState('')
+  const [folioInput, setFolioInput] = useState('')
+  const [keyInput, setKeyInput] = useState('')
   const [authentication, setAuthentication] = useState<'checking' | 'guest' | 'verified'>('checking')
-  const [emailSent, setEmailSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [answers, setAnswers] = useState<AnswerMap>({})
@@ -32,30 +30,27 @@ export default function CandidateForm() {
   const [consent, setConsent] = useState(false)
   const [error, setError] = useState('')
   const [missing, setMissing] = useState<string[]>([])
+  const revision = useRef(0)
+  const saveQueue = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     let active = true
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (!active) return
-      const user = data.user
-      if (!error && user?.email && user.email_confirmed_at) {
-        setIdentity(user.email)
-        setAuthentication('verified')
-      } else setAuthentication('guest')
-    }).catch(() => { if (active) setAuthentication('guest') })
+    fetch('/api/formularios/trade-in-motion/folio',{cache:'no-store'})
+      .then(r => { if (active) setAuthentication(r.ok ? 'verified' : 'guest') })
+      .catch(() => { if (active) setAuthentication('guest') })
     return () => { active = false }
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     if (authentication !== 'verified') return
     let active = true
-    fetch('/api/formularios/trade-in-motion', { cache: 'no-store' })
+    fetch('/api/formularios/trade-in-motion/folio', { cache: 'no-store' })
       .then(async r => {
         const data = await r.json()
         if (!r.ok) throw new Error(data.error || 'Error al recuperar borrador')
         if (!active) return
         const stored = cleanAnswers(data.draft?.answers)
-        stored.email = data.email
+        setIdentity(data.name || 'Candidato')
         setAnswers(stored)
         setPeople(cleanPeople(data.draft?.people))
         setSubmitted(data.draft?.status === 'Enviado')
@@ -66,38 +61,49 @@ export default function CandidateForm() {
     return () => { active = false }
   }, [authentication])
 
-  async function requestEmail(event: React.FormEvent) {
+  async function login(event: React.FormEvent) {
     event.preventDefault()
-    setError('')
     setLoading(true)
-    const { error: sendError } = await supabase.auth.signInWithOtp({
-      email: emailInput.trim().toLowerCase(),
-      options: { emailRedirectTo: window.location.origin + '/auth/callback?next=%2Fformularios%2Ftrade-in-motion' },
-    })
-    setLoading(false)
-    if (sendError) setError('No pudimos enviar el enlace. Revisa el correo o inténtalo más tarde.')
-    else setEmailSent(true)
+    setError('')
+    try {
+      const r = await fetch('/api/formularios/trade-in-motion/folio',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({folio:folioInput,key:keyInput}),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || 'No se pudo iniciar sesión.')
+      setIdentity(data.name || 'Candidato')
+      setKeyInput('')
+      setHydrated(false)
+      setAuthentication('verified')
+    } catch (e) { setError(e instanceof Error ? e.message : 'Error de acceso.') }
+    finally { setLoading(false) }
   }
 
   async function logout() {
-    await supabase.auth.signOut()
+    await fetch('/api/formularios/trade-in-motion/folio',{method:'DELETE'})
     setAuthentication('guest')
     setHydrated(false)
     setIdentity('')
     setAnswers({})
     setPeople({ companions: [], relatives: [] })
     setSubmitted(false)
-    setEmailSent(false)
     setDirty(false)
     setError('')
   }
 
   async function store(action: 'save' | 'submit'): Promise<SaveResult> {
+    // Guardados secuenciales: una respuesta vieja nunca puede llegar después de una nueva.
+    const snapshot = JSON.stringify({ action, answers, people, consent })
+    const atRevision = revision.current
     setSaveStatus(action === 'save' ? 'Guardando…' : 'Enviando…')
+    const previous = saveQueue.current
+    let release: () => void = () => {}
+    saveQueue.current = new Promise<void>(resolve => { release = resolve })
+    await previous
     try {
-      const response = await fetch('/api/formularios/trade-in-motion', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, answers, people, consent }),
+      const response = await fetch('/api/formularios/trade-in-motion/folio/draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: snapshot,
       })
       const data: SaveResult = await response.json()
       if (!response.ok) {
@@ -106,7 +112,7 @@ export default function CandidateForm() {
         setMissing(data.fields ?? [])
         return data
       }
-      setDirty(false)
+      if (revision.current === atRevision) setDirty(false)
       setSaveStatus(data.submitted ? 'Formulario enviado' : 'Guardado en línea correctamente')
       if (data.submitted) setSubmitted(true)
       return data
@@ -114,6 +120,8 @@ export default function CandidateForm() {
       setSaveStatus('Sin conexión: vuelve a intentar guardar')
       setError('No hay conexión con el servidor. Tus respuestas todavía no se confirmaron como guardadas.')
       return { error: 'Sin conexión' }
+    } finally {
+      release()
     }
   }
 
@@ -124,6 +132,7 @@ export default function CandidateForm() {
   }, [answers, people, dirty, hydrated, submitted])
 
   function update(key: string, value: string) {
+    revision.current += 1
     setAnswers(previous => {
       const next = { ...previous, [key]: value }
       for (let pass = 0; pass < 4; pass++)
@@ -138,6 +147,7 @@ export default function CandidateForm() {
     setMissing([])
   }
   function updatePeople(kind: keyof GroupedPeople, index: number, key: keyof Person, value: string) {
+    revision.current += 1
     setPeople(prev => ({ ...prev,
       [kind]: prev[kind].map((p, i) => i === index ? { ...p, [key]: value } : p),
     }))
@@ -145,12 +155,14 @@ export default function CandidateForm() {
     setSaveStatus('Cambios pendientes…')
   }
   function addPerson(kind: keyof GroupedPeople) {
+    revision.current += 1
     setPeople(prev => ({ ...prev,
       [kind]: [...prev[kind], { id: Date.now(), fullName: '', relationship: '', immigrationStatus: '' }],
     }))
     setDirty(true)
   }
   function removePerson(kind: keyof GroupedPeople, id: number) {
+    revision.current += 1
     setPeople(prev => ({ ...prev, [kind]: prev[kind].filter(p => p.id !== id) }))
     setDirty(true)
   }
@@ -163,7 +175,7 @@ export default function CandidateForm() {
   }
   async function submit() {
     setError('')
-    const checked = cleanAnswers({ ...answers, email: identity })
+    const checked = cleanAnswers(answers)
     const errors = validateSubmission(checked, people)
     if (errors.length) {
       setError('Faltan algunas respuestas para concluir el formulario.')
@@ -218,7 +230,7 @@ export default function CandidateForm() {
   function fieldEditor(field: Question) {
     const required = isRequired(field, answers)
     const label = field.label + (required ? ' *' : '')
-    const value = field.key === 'email' ? identity : (answers[field.key] ?? '')
+    const value = answers[field.key] ?? ''
     const fieldProps = {
       className: 'tn-input', value, name: field.key,
       'aria-label': field.label,
@@ -227,18 +239,16 @@ export default function CandidateForm() {
     return <div key={field.key} className={field.type === 'textarea' ? 'tn-label wide' : 'tn-label'}>
       <label htmlFor={'tn-' + field.key}>{label}</label>
       {field.help ? <small>{field.help}</small> : null}
-      {field.key === 'email'
-        ? <input id={'tn-' + field.key} className="tn-input" type="email" value={identity} readOnly />
-        : field.type === 'select'
-          ? <select id={'tn-' + field.key} {...fieldProps}>
-              <option value="">Selecciona una respuesta</option>
-              {selectOptions(field).map(choice => <option key={choice} value={choice}>{choice}</option>)}
-            </select>
-          : field.type === 'textarea'
-            ? <textarea id={'tn-' + field.key} {...fieldProps} rows={3} />
-            : <input id={'tn-' + field.key} {...fieldProps}
-                type={field.type === 'number' ? 'number' : field.type}
-                placeholder={field.placeholder || ''} />}
+      {field.type === 'select'
+        ? <select id={'tn-' + field.key} {...fieldProps}>
+            <option value="">Selecciona una respuesta</option>
+            {selectOptions(field).map(choice => <option key={choice} value={choice}>{choice}</option>)}
+          </select>
+        : field.type === 'textarea'
+          ? <textarea id={'tn-' + field.key} {...fieldProps} rows={3} />
+          : <input id={'tn-' + field.key} {...fieldProps}
+              type={field.type === 'number' ? 'number' : field.type}
+              placeholder={field.placeholder || ''} />}
     </div>
   }
 
@@ -251,24 +261,26 @@ export default function CandidateForm() {
       <div className="tn-intro">
         <span className="tn-eyebrow">Cuestionario de información para visa TN</span>
         <h1>Prepara tu información para el formulario DS-160</h1>
-        <p>Responde con tus datos reales, como aparecen en tus documentos. Puedes guardar tus avances y volver después con el mismo correo. Visa Master revisará tus respuestas antes de preparar la solicitud oficial.</p>
+        <p>Responde con tus datos reales, como aparecen en tus documentos. Tus respuestas se guardan y podrás regresar con tu folio y clave. Visa Master revisará tus respuestas antes de preparar la solicitud oficial.</p>
       </div>
       {authentication === 'checking' ? <section className="tn-card tn-login"><p>Verificando acceso seguro…</p></section> : null}
       {authentication === 'guest' ? <section className="tn-card tn-login">
-        <span className="tn-eyebrow">Acceso verificado</span>
-        <h2>Ingresa tu correo electrónico</h2>
-        <p className="tn-muted">Te enviaremos un enlace de acceso. Así podemos proteger tus datos y recuperar tus respuestas sin usar contraseñas.</p>
+        <span className="tn-eyebrow">Acceso personal</span>
+        <h2>Ingresa tu folio y clave</h2>
+        <p className="tn-muted">Visa Master te proporciona estos datos. No necesitas recibir un correo para entrar y podrás continuar desde otro dispositivo.</p>
         {error ? <div className="tn-error" role="alert">{error}</div> : null}
-        {emailSent ? <div className="tn-success">Revisa tu bandeja de entrada y abre el enlace que te enviamos. También revisa Spam.</div> : null}
-        <form onSubmit={requestEmail}>
-          <label className="tn-label">Correo personal del candidato *
-            <input className="tn-input" type="email" autoComplete="email" required value={emailInput} onChange={e => setEmailInput(e.target.value)} placeholder="tucorreo@ejemplo.com" />
+        <form onSubmit={login}>
+          <label className="tn-label">Folio del candidato *
+            <input className="tn-input" required autoCapitalize="characters" value={folioInput} onChange={e => setFolioInput(e.target.value)} placeholder="VM-XXXXXXXXXXXX"/>
           </label>
-          <button className="tn-button" type="submit" disabled={loading}>{loading ? 'Enviando…' : 'Enviar enlace de acceso'}</button>
+          <label className="tn-label">Clave de acceso *
+            <input className="tn-input" type="password" required autoComplete="off" value={keyInput} onChange={e=>setKeyInput(e.target.value)} placeholder="Clave entregada por Visa Master"/>
+          </label>
+          <button className="tn-button" type="submit" disabled={loading}>{loading ? 'Verificando…' : 'Entrar al formulario'}</button>
         </form>
       </section> : null}
       {authentication === 'verified' ? <div>
-        <div className="tn-status">Correo verificado: <strong>{identity}</strong> · <button className="tn-button ghost" type="button" onClick={logout}>Cambiar cuenta</button></div>
+        <div className="tn-status">Candidato: <strong>{identity}</strong> · <button className="tn-button ghost" type="button" onClick={logout}>Cambiar cuenta</button></div>
         {!hydrated ? <section className="tn-card"><p>{error || 'Cargando tus respuestas guardadas…'}</p></section>
           : submitted ? <section className="tn-card tn-done">
               <span className="tn-eyebrow">Respuestas recibidas</span>
@@ -279,7 +291,7 @@ export default function CandidateForm() {
           : !consent ? <section className="tn-card tn-login">
               <span className="tn-eyebrow">Protección de tu información</span>
               <h2>Antes de empezar</h2>
-              <p className="tn-muted">Tu información se guardará de forma privada en Visa Master y será utilizada para preparar y revisar tu trámite. Puedes retomar tus respuestas con el mismo correo.</p>
+              <p className="tn-muted">Tu información se guardará de forma privada en Visa Master y será utilizada para preparar y revisar tu trámite. Puedes retomar tus respuestas con el mismo folio y clave.</p>
               <label className="tn-check"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />
                 <span>He leído el <a href="https://visamaster.com.mx/avisodeprivacidad/" target="_blank" rel="noreferrer">aviso de privacidad</a> y autorizo el tratamiento de mis datos para preparar mi solicitud. Sé que esta captura no equivale al envío del DS-160 oficial ni garantiza una visa.</span>
               </label>

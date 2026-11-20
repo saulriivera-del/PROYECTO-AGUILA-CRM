@@ -5,7 +5,7 @@ import { isAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cleanAnswers, cleanPeople, countProgress } from '@/lib/trade-in-motion'
 import TnResponseReview from '@/components/tn-response-review'
-import { markReview } from './actions'
+import { markReview, markFolioReview } from './actions'
 
 export const dynamic = 'force-dynamic'
 export default async function CandidateResponsesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,9 +14,11 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
   if (!isAdministrator(context.role) && context.role !== 'reception') redirect('/admin?error=Acceso%20restringido')
   const db = createAdminClient()
   const { data: draft } = await db.from('vm_trade_in_motion_drafts')
-    .select('id, applicant_email, organization_id, answers, people, submission_id, status, created_at, updated_at, submitted_at, consent_at')
+    .select('id, access_id, applicant_email, organization_id, answers, people, submission_id, status, reviewed_at, created_at, updated_at, submitted_at, consent_at')
     .eq('id', id).eq('organization_id', context.organizationId).maybeSingle()
   if (!draft) notFound()
+  const { data: access } = draft.access_id ? await db.from('vm_trade_in_motion_access')
+    .select('folio,applicant_name').eq('id',draft.access_id).eq('organization_id',context.organizationId).maybeSingle() : {data:null}
   const { data: submission } = draft.status === 'Enviado'
     ? await db.from('vm_form_submissions')
       .select('process_id, status, received_at')
@@ -26,7 +28,7 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
   const answers = cleanAnswers(draft.answers)
   const people = cleanPeople(draft.people)
   const progress = countProgress(answers, people)
-  const state = draft.status === 'Borrador' ? 'Borrador' : submission?.status === 'En revisión' ? 'En revisión' : 'Recibido'
+  const state = draft.status === 'Borrador' ? 'Borrador' : draft.reviewed_at || submission?.status === 'En revisión' ? 'En revisión' : 'Recibido'
   const date = (value: string) => new Intl.DateTimeFormat('es-MX', {
     timeZone: 'America/Hermosillo', dateStyle: 'medium', timeStyle: 'short',
   }).format(new Date(value))
@@ -34,14 +36,14 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
   return <div style={{ maxWidth: 1120, margin: '0 auto', padding: '25px 20px 60px' }}>
     <p><Link href="/admin/formularios/trade-in-motion">← Volver a todos los candidatos</Link></p>
     <small style={{ fontWeight: 800, letterSpacing: 1.7, color: '#59768e' }}>TRADE IN MOTION · RESPUESTAS PRIVADAS</small>
-    <h1 style={{ margin: '12px 0 5px' }}>{answers.full_name || 'Candidato sin nombre'}</h1>
-    <p style={{ color: '#60778a' }}>{draft.applicant_email}</p>
+    <h1 style={{ margin: '12px 0 5px' }}>{answers.full_name || access?.applicant_name || 'Candidato sin nombre'}</h1>
+    <p style={{ color: '#60778a' }}>{access ? 'Folio: ' + access.folio : draft.applicant_email}</p>
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', margin: '18px 0 28px' }}>
       <span style={{ color: '#245987', background: '#e8f2fa', padding: '7px 13px', borderRadius: 30, fontWeight: 700 }}>{state}</span>
       <span style={{ color: '#60778a' }}>{progress}% campos esenciales</span>
       <span style={{ color: '#60778a' }}>Actualizado: {date(draft.updated_at)}</span>
       {submission?.process_id ? <Link href={'/admin/tramites/' + submission.process_id}>Abrir trámite TN →</Link> : null}
-      {draft.status === 'Enviado' && submission?.status === 'Recibido' ? <form action={markReview}>
+      {draft.status === 'Enviado' && state === 'Recibido' ? <form action={draft.access_id ? markFolioReview : markReview}>
         <input type="hidden" name="id" value={draft.id} />
         <button className="primary-button" type="submit">Marcar en revisión</button>
       </form> : null}

@@ -22,3 +22,18 @@ export async function markReview(formData: FormData) {
   revalidatePath('/admin/formularios/trade-in-motion')
   revalidatePath('/admin/formularios/trade-in-motion/' + id)
 }
+
+export async function markFolioReview(formData: FormData) {
+  const context = await requireAuthContext()
+  if (!isAdministrator(context.role) && context.role !== 'reception') redirect('/admin')
+  const id = String(formData.get('id') ?? '')
+  if (!/^[a-f0-9-]{36}$/i.test(id)) return
+  const admin = createAdminClient()
+  const { error } = await admin.from('vm_trade_in_motion_drafts')
+    .update({ reviewed_at: new Date().toISOString() })
+    .eq('id',id).eq('organization_id',context.organizationId)
+    .not('access_id','is',null).eq('status','Enviado')
+  if (error) throw new Error('No se pudo marcar en revisión')
+  revalidatePath('/admin/formularios/trade-in-motion')
+  revalidatePath('/admin/formularios/trade-in-motion/' + id)
+}
