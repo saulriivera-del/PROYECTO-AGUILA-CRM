@@ -124,7 +124,14 @@ export default function CandidateForm() {
   }, [answers, people, dirty, hydrated, submitted])
 
   function update(key: string, value: string) {
-    setAnswers(previous => cleanAnswers({ ...previous, [key]: value }))
+    setAnswers(previous => {
+      const next = { ...previous, [key]: value }
+      for (let pass = 0; pass < 4; pass++)
+        for (const section of sections)
+          for (const field of section.fields)
+            if (!isVisible(field, next)) delete next[field.key]
+      return next
+    })
     setDirty(true)
     setSaveStatus('Cambios pendientes…')
     setError('')
