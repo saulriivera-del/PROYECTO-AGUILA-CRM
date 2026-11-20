@@ -55,6 +55,7 @@ export default async function TradeInMotionIntakePage({ searchParams }: { search
     <div style={{ color: '#54708b', fontSize: 12, fontWeight: 800, letterSpacing: 2 }}>VISA MASTER · TRADE IN MOTION</div>
     <h1 style={{ marginBottom: 6 }}>Respuestas del formulario DS-160</h1>
     <p style={{ color: '#5b738c', lineHeight: 1.6 }}>Bandeja privada de candidatos. Revisa borradores y formularios terminados antes de preparar la solicitud consular oficial.</p>
+    <p><Link className="secondary-button" href="/formularios/trade-in-motion" target="_blank">Abrir formulario para compartir con candidatos ↗</Link></p>
     <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', margin: '24px 0' }}>
       {[
         { title: 'Todos', value: all.length },
