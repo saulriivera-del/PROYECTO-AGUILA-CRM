@@ -1,77 +1,54 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
-import { requireAdministrator } from '@/lib/admin-access'
+import { isAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cleanAnswers, cleanPeople, countProgress } from '@/lib/trade-in-motion'
+import TnResponseReview from '@/components/tn-response-review'
+import { markReview } from './actions'
 
 export const dynamic = 'force-dynamic'
-
-const labels: Record<string, string> = {
-  full_name: 'Nombre completo',
-  birth_date: 'Fecha de nacimiento',
-  birth_city: 'Ciudad de nacimiento',
-  birth_state: 'Estado de nacimiento',
-  birth_country: 'País de nacimiento',
-  nationality: 'Nacionalidad',
-  marital_status: 'Estado civil',
-  email: 'Correo electrónico',
-  phone: 'Teléfono celular',
-  employer_phone: 'Teléfono del trabajo',
-  passport_number: 'Número de pasaporte',
-  passport_issued: 'Pasaporte expedido',
-  passport_expires: 'Pasaporte vence',
-  tn_employer: 'Empresa contratante en EE. UU.',
-  tn_position: 'Puesto ofrecido',
-  tn_profession: 'Categoría TN',
-  tn_duties: 'Actividades propuestas',
-  tn_salary: 'Sueldo ofrecido (USD)',
-}
-
-function readableName(key: string) {
-  return labels[key] || key.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-function readableValue(value: unknown) {
-  if (value == null || value === '') return 'Sin respuesta'
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
-  return JSON.stringify(value, null, 2)
-}
-
-export default async function ReviewIntake({
-  params,
-}: { params: Promise<{ id: string }> }) {
+export default async function CandidateResponsesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const context = await requireAuthContext()
-  requireAdministrator(context)
-  const { data, error } = await createAdminClient()
-    .from('vm_form_submissions')
-    .select('id, organization_id, applicant_name, applicant_email, status, received_at, process_id, answers')
-    .eq('id', id)
-    .eq('organization_id', context.organizationId)
-    .maybeSingle()
+  if (!isAdministrator(context.role) && context.role !== 'reception') redirect('/admin?error=Acceso%20restringido')
+  const db = createAdminClient()
+  const { data: draft } = await db.from('vm_trade_in_motion_drafts')
+    .select('id, applicant_email, organization_id, answers, people, submission_id, status, created_at, updated_at, submitted_at, consent_at')
+    .eq('id', id).eq('organization_id', context.organizationId).maybeSingle()
+  if (!draft) notFound()
+  const { data: submission } = draft.status === 'Enviado'
+    ? await db.from('vm_form_submissions')
+      .select('process_id, status, received_at')
+      .eq('submission_id', draft.submission_id)
+      .eq('organization_id', context.organizationId).maybeSingle()
+    : { data: null }
+  const answers = cleanAnswers(draft.answers)
+  const people = cleanPeople(draft.people)
+  const progress = countProgress(answers, people)
+  const state = draft.status === 'Borrador' ? 'Borrador' : submission?.status === 'En revisión' ? 'En revisión' : 'Recibido'
+  const date = (value: string) => new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'America/Hermosillo', dateStyle: 'medium', timeStyle: 'short',
+  }).format(new Date(value))
 
-  if (error || !data) notFound()
-
-  const answers = data.answers && typeof data.answers === 'object' && !Array.isArray(data.answers)
-    ? Object.entries(data.answers as Record<string, unknown>)
-    : []
-
-  return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: 24 }}>
-      <p><Link href="/admin/formularios/trade-in-motion">← Volver a la bandeja</Link></p>
-      <span style={{ fontSize: 12, fontWeight: 700, color: '#516783' }}>TRADE IN MOTION · REVISIÓN PRIVADA</span>
-      <h1>{data.applicant_name}</h1>
-      <p>{data.applicant_email} · {data.status}</p>
-      {data.process_id ? <p><Link href={`/admin/tramites/${data.process_id}`}>Abrir expediente CRM →</Link></p> : null}
-      <p style={{ fontSize: 13 }}>La información siguiente es confidencial. Comprueba sus datos antes de preparar el DS-160 oficial.</p>
-      <dl style={{ display: 'grid', gap: 10 }}>
-        {answers.map(([key, value]) => (
-          <div key={key} style={{ padding: 14, border: '1px solid #d9e2ec', borderRadius: 10, background: '#fff' }}>
-            <dt style={{ fontSize: 13, fontWeight: 700, color: '#243e60' }}>{readableName(key)}</dt>
-            <dd style={{ margin: '6px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{readableValue(value)}</dd>
-          </div>
-        ))}
-      </dl>
+  return <div style={{ maxWidth: 1120, margin: '0 auto', padding: '25px 20px 60px' }}>
+    <p><Link href="/admin/formularios/trade-in-motion">← Volver a todos los candidatos</Link></p>
+    <small style={{ fontWeight: 800, letterSpacing: 1.7, color: '#59768e' }}>TRADE IN MOTION · RESPUESTAS PRIVADAS</small>
+    <h1 style={{ margin: '12px 0 5px' }}>{answers.full_name || 'Candidato sin nombre'}</h1>
+    <p style={{ color: '#60778a' }}>{draft.applicant_email}</p>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', margin: '18px 0 28px' }}>
+      <span style={{ color: '#245987', background: '#e8f2fa', padding: '7px 13px', borderRadius: 30, fontWeight: 700 }}>{state}</span>
+      <span style={{ color: '#60778a' }}>{progress}% campos esenciales</span>
+      <span style={{ color: '#60778a' }}>Actualizado: {date(draft.updated_at)}</span>
+      {submission?.process_id ? <Link href={'/admin/tramites/' + submission.process_id}>Abrir trámite TN →</Link> : null}
+      {draft.status === 'Enviado' && submission?.status === 'Recibido' ? <form action={markReview}>
+        <input type="hidden" name="id" value={draft.id} />
+        <button className="primary-button" type="submit">Marcar en revisión</button>
+      </form> : null}
     </div>
-  )
+    <p style={{ background: '#f4f7fa', borderLeft: '3px solid #256ba9', padding: 14, fontSize: 13, color: '#536e88' }}>
+      Información confidencial. Las respuestas son aportadas por el candidato y deben verificarse con documentación antes de presentar el DS-160 oficial. {draft.consent_at ? 'Aceptó el aviso de privacidad al enviar.' : 'Aún no ha enviado ni aceptado el aviso de privacidad.'}
+    </p>
+    <TnResponseReview answers={answers} people={people} />
+  </div>
 }
