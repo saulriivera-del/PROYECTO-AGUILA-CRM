@@ -25,6 +25,7 @@ create table if not exists public.vm_trade_in_motion_sessions (
 create index if not exists vm_tn_sessions_access_idx on public.vm_trade_in_motion_sessions(access_id,expires_at desc);
 alter table public.vm_trade_in_motion_drafts alter column auth_user_id drop not null;
 alter table public.vm_trade_in_motion_drafts add column if not exists access_id uuid references public.vm_trade_in_motion_access(id);
+alter table public.vm_trade_in_motion_drafts add column if not exists reviewed_at timestamptz;
 create unique index if not exists vm_tn_drafts_access_idx on public.vm_trade_in_motion_drafts(access_id) where access_id is not null;
 alter table public.vm_trade_in_motion_access enable row level security;
 alter table public.vm_trade_in_motion_sessions enable row level security;
