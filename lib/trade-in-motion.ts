@@ -61,6 +61,10 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     if (field.type === 'number' && !Number.isFinite(Number(value))) problems.push(field.label + ' (número inválido)')
     if (field.type === 'select' && field.options?.length && field.key !== 'travel_payer_relationship' && !field.options.includes(value)) problems.push(field.label + ' (opción inválida)')
   }
+  if (answers.social_media_used === 'Sí' &&
+    !['social_facebook','social_instagram','social_x','social_tiktok','social_linkedin','social_youtube','social_snapchat','social_reddit','social_other']
+      .some(key => Boolean(answers[key]?.trim())))
+    problems.push('Indica por lo menos un usuario o identificador de las redes sociales que has utilizado')
   if (!answers.full_name || !answers.phone || !answers.email) problems.push('Nombre, teléfono y correo son necesarios')
   if (!/^\d{10,15}$/.test((answers.phone || '').replace(/\D/g, ''))) problems.push('Teléfono: de 10 a 15 dígitos')
   if (answers.travel_with_someone === 'Sí') {
