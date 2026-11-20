@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
-  type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
+  getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
 type SaveResult = { saved?: boolean; submitted?: boolean; error?: string; fields?: string[] }
 const addressTitles: Record<string, string> = {
@@ -231,6 +231,29 @@ export default function CandidateForm() {
     const required = isRequired(field, answers)
     const label = field.label + (required ? ' *' : '')
     const value = answers[field.key] ?? ''
+    if (field.type === 'multiselect') {
+      const selected = getSelectedSocialPlatforms(value)
+      const options = field.options ?? []
+      return <fieldset className="tn-label wide" key={field.key} style={{ border: '1px solid #d6e3ef', padding: 14, borderRadius: 10, minWidth: 0 }}>
+        <legend style={{ padding: '0 7px', fontWeight: 700 }}>{label}</legend>
+        {field.help ? <small style={{ display: 'block', marginBottom: 10 }}>{field.help}</small> : null}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10 }}>
+          {options.map(option => <label key={option} style={{ display: 'flex', gap: 9, alignItems: 'center', padding: 11, border: '1px solid #dae4ef', borderRadius: 9, cursor: 'pointer', background: selected.includes(option) ? '#eaf3fc' : '#fff', fontWeight: selected.includes(option) ? 700 : 500 }}>
+            <input type="checkbox" name={field.key} value={option} checked={selected.includes(option)}
+              onChange={e => {
+                const next = option === 'Ninguna'
+                  ? (e.target.checked ? ['Ninguna'] : [])
+                  : (e.target.checked
+                      ? [...selected.filter(v => v !== 'Ninguna'), option]
+                      : selected.filter(v => v !== option))
+                update(field.key, next.join('|'))
+              }}
+              style={{ width: 17, height: 17, flexShrink: 0, accentColor: '#195b9e' }} />
+            {option}
+          </label>)}
+        </div>
+      </fieldset>
+    }
     const fieldProps = {
       className: 'tn-input', value, name: field.key,
       'aria-label': field.label,
@@ -324,6 +347,10 @@ export default function CandidateForm() {
                     </div> : null}
                     {addressTitles[field.key] ? <div className="tn-address">Dirección · {addressTitles[field.key]}</div> : null}
                     {fieldEditor(field)}
+                    {field.key === 'social_media_public' && answers.social_media_public === 'Aún no, tengo perfiles privados' ? <div className="tn-label wide" role="alert" style={{ gridColumn: '1 / -1', border: '1px solid #e6c694', borderLeft: '4px solid #b57920', background: '#fff9ec', padding: 15, borderRadius: 9, lineHeight: 1.55, color: '#67481c' }}>
+                      <strong>IMPORTANTE · ANTES DE TU CITA EN EL CAS</strong>
+                      <p style={{ margin: '7px 0 0' }}>Para tu trámite de visa TN/TD, configura <strong>todas tus redes sociales como públicas o abiertas antes de tu cita en el CAS</strong> y mantenlas así durante la revisión consular. Visa Master recomienda hacerlo antes del CAS para llegar preparado; el Departamento de Estado pide perfiles públicos o abiertos, sin establecer específicamente el CAS como fecha límite.</p>
+                    </div> : null}
                   </div>)}
                   {current.id === 'travel' && answers.travel_with_someone === 'Sí' ? peopleEditor('companions') : null}
                   {current.id === 'family' && answers.family_us === 'Sí' ? peopleEditor('relatives') : null}
