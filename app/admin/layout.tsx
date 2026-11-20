@@ -32,6 +32,8 @@ export default async function AdminLayout({
           <Link href="/admin">⌂ Operaciones de hoy</Link>
           <Link href="/admin/prospectos">◎ Prospectos</Link>
           <Link href="/admin/tramites">▤ Trámites</Link>
+          <Link href="/admin/formularios/trade-in-motion">▣ Formularios DS-160</Link>
+          {admin ? <Link href="/admin/formularios/trade-in-motion">✉ Formularios recibidos</Link> : null}
           <Link href="/admin/cobranza">$ Cobranza</Link>
           <Link href="/admin/agenda">▣ Agenda</Link>
 
