@@ -1,0 +1,1385 @@
+{
+  "sections": [
+    {
+      "id": "personal",
+      "title": "Datos personales",
+      "description": "Escribe los datos como aparecen en tus documentos. Las direcciones se capturan por partes.",
+      "fields": [
+        {
+          "key": "full_name",
+          "label": "Nombre completo como aparece en tu pasaporte",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "birth_date",
+          "label": "Fecha de nacimiento",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "birth_city",
+          "label": "Ciudad donde naciste",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "birth_state",
+          "label": "Estado / provincia donde naciste",
+          "type": "select",
+          "options": [
+            "Aguascalientes",
+            "Baja California",
+            "Baja California Sur",
+            "Campeche",
+            "Chiapas",
+            "Chihuahua",
+            "Ciudad de México",
+            "Coahuila",
+            "Colima",
+            "Durango",
+            "Estado de México",
+            "Guanajuato",
+            "Guerrero",
+            "Hidalgo",
+            "Jalisco",
+            "Michoacán",
+            "Morelos",
+            "Nayarit",
+            "Nuevo León",
+            "Oaxaca",
+            "Puebla",
+            "Querétaro",
+            "Quintana Roo",
+            "San Luis Potosí",
+            "Sinaloa",
+            "Sonora",
+            "Tabasco",
+            "Tamaulipas",
+            "Tlaxcala",
+            "Veracruz",
+            "Yucatán",
+            "Zacatecas",
+            "Fuera de México / otro estado o provincia"
+          ],
+          "required": true
+        },
+        {
+          "key": "birth_state_other",
+          "label": "Estado o provincia donde naciste (fuera de México)",
+          "type": "text",
+          "when": {
+            "key": "birth_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          },
+          "required": true
+        },
+        {
+          "key": "birth_country",
+          "label": "País donde naciste",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "marital_status",
+          "label": "Estado civil",
+          "type": "select",
+          "options": [
+            "Soltero(a)",
+            "Casado(a)",
+            "Unión libre",
+            "Divorciado(a)",
+            "Viudo(a)",
+            "Separado(a)"
+          ],
+          "required": true
+        },
+        {
+          "key": "nationality",
+          "label": "Nacionalidad",
+          "type": "text",
+          "placeholder": "Por ejemplo, mexicana",
+          "required": true
+        },
+        {
+          "key": "spouse_name",
+          "label": "Nombre completo de tu cónyuge / pareja",
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Casado(a)",
+              "Unión libre",
+              "Separado(a)"
+            ]
+          }
+        },
+        {
+          "key": "spouse_birth_date",
+          "label": "Fecha de nacimiento de tu cónyuge / pareja",
+          "type": "date",
+          "required": true,
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Casado(a)",
+              "Unión libre",
+              "Separado(a)"
+            ]
+          }
+        },
+        {
+          "key": "spouse_birth_city",
+          "label": "Ciudad donde nació tu cónyuge / pareja",
+          "type": "text",
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Casado(a)",
+              "Unión libre",
+              "Separado(a)"
+            ]
+          }
+        },
+        {
+          "key": "spouse_birth_state",
+          "label": "Estado donde nació tu cónyuge / pareja",
+          "type": "text",
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Casado(a)",
+              "Unión libre",
+              "Separado(a)"
+            ]
+          }
+        },
+        {
+          "key": "spouse_birth_country",
+          "label": "País donde nació tu cónyuge / pareja",
+          "type": "text",
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Casado(a)",
+              "Unión libre",
+              "Separado(a)"
+            ]
+          }
+        },
+        {
+          "key": "former_spouse_name",
+          "label": "Nombre completo del cónyuge anterior",
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Divorciado(a)",
+              "Viudo(a)"
+            ]
+          },
+          "help": "Para divorcio o viudez se solicitan datos de matrimonio anterior, no de pareja actual."
+        },
+        {
+          "key": "former_spouse_birth_date",
+          "label": "Fecha de nacimiento del cónyuge anterior",
+          "type": "date",
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Divorciado(a)",
+              "Viudo(a)"
+            ]
+          }
+        },
+        {
+          "key": "former_spouse_birth_city",
+          "label": "Ciudad donde nació el cónyuge anterior",
+          "type": "text",
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Divorciado(a)",
+              "Viudo(a)"
+            ]
+          }
+        },
+        {
+          "key": "former_spouse_birth_state",
+          "label": "Estado donde nació el cónyuge anterior",
+          "type": "text",
+          "when": {
+            "key": "marital_status",
+            "equals": [
+              "Divorciado(a)",
+              "Viudo(a)"
+            ]
+          }
+        },
+        {
+          "key": "home_street",
+          "label": "Calle y número · domicilio actual",
+          "placeholder": "Calle y número",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "home_neighborhood",
+          "label": "Colonia · domicilio actual",
+          "placeholder": "Colonia",
+          "inlinePrompt": true,
+          "type": "text"
+        },
+        {
+          "key": "home_city",
+          "label": "Ciudad · domicilio actual",
+          "placeholder": "Ciudad",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "home_state",
+          "label": "Estado · domicilio actual",
+          "placeholder": "Selecciona un estado",
+          "inlinePrompt": true,
+          "type": "select",
+          "options": [
+            "Aguascalientes",
+            "Baja California",
+            "Baja California Sur",
+            "Campeche",
+            "Chiapas",
+            "Chihuahua",
+            "Ciudad de México",
+            "Coahuila",
+            "Colima",
+            "Durango",
+            "Estado de México",
+            "Guanajuato",
+            "Guerrero",
+            "Hidalgo",
+            "Jalisco",
+            "Michoacán",
+            "Morelos",
+            "Nayarit",
+            "Nuevo León",
+            "Oaxaca",
+            "Puebla",
+            "Querétaro",
+            "Quintana Roo",
+            "San Luis Potosí",
+            "Sinaloa",
+            "Sonora",
+            "Tabasco",
+            "Tamaulipas",
+            "Tlaxcala",
+            "Veracruz",
+            "Yucatán",
+            "Zacatecas",
+            "Fuera de México / otro estado o provincia"
+          ],
+          "required": true
+        },
+        {
+          "key": "home_state_other",
+          "label": "Estado o provincia fuera de México · domicilio actual",
+          "placeholder": "Escribe el estado o provincia",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "home_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          }
+        },
+        {
+          "key": "home_postal",
+          "label": "Código postal · domicilio actual",
+          "placeholder": "Código postal",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "home_country",
+          "label": "País de tu domicilio fuera de México",
+          "placeholder": "Escribe el país",
+          "inlinePrompt": true,
+          "type": "text",
+          "when": {
+            "key": "home_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          },
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Correo electrónico",
+          "type": "email",
+          "required": true
+        },
+        {
+          "key": "phone",
+          "label": "Teléfono celular",
+          "type": "tel",
+          "required": true
+        },
+        {
+          "key": "employer_phone",
+          "label": "Teléfono del trabajo (opcional)",
+          "type": "tel"
+        }
+      ]
+    },
+    {
+      "id": "passport",
+      "title": "Pasaporte",
+      "description": "Ten a la mano el pasaporte para verificar números y fechas exactas.",
+      "fields": [
+        {
+          "key": "passport_number",
+          "label": "Número de pasaporte",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "passport_issue_city",
+          "label": "Ciudad donde tramitaste tu pasaporte",
+          "type": "text"
+        },
+        {
+          "key": "passport_issued",
+          "label": "Fecha de expedición del pasaporte",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "passport_expires",
+          "label": "Fecha de vencimiento del pasaporte",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "passport_lost",
+          "label": "¿Alguna vez perdiste o te robaron un pasaporte?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "passport_lost_date",
+          "label": "Fecha aproximada de pérdida o robo del pasaporte",
+          "type": "date",
+          "when": {
+            "key": "passport_lost",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "passport_lost_details",
+          "label": "Explica lo ocurrido con el pasaporte",
+          "type": "textarea",
+          "when": {
+            "key": "passport_lost",
+            "equals": "Sí"
+          }
+        }
+      ]
+    },
+    {
+      "id": "travel",
+      "title": "Tu próximo viaje",
+      "description": "Contesta lo que sabes; Visa Master revisará los datos requeridos para el DS-160.",
+      "fields": [
+        {
+          "key": "travel_date",
+          "label": "Fecha aproximada de tu viaje",
+          "type": "date"
+        },
+        {
+          "key": "travel_more_than_24h",
+          "label": "¿Planeas quedarte más de 24 horas?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true
+        },
+        {
+          "key": "travel_duration_amount",
+          "label": "¿Cuánto tiempo planeas permanecer en EE. UU.? (cantidad)",
+          "type": "number",
+          "help": "Escribe solo el número, por ejemplo 7."
+        },
+        {
+          "key": "travel_duration_unit",
+          "label": "Unidad de tiempo",
+          "type": "select",
+          "options": [
+            "Días",
+            "Semanas",
+            "Meses"
+          ]
+        },
+        {
+          "key": "travel_stay_city",
+          "label": "Ciudad donde te hospedarás",
+          "type": "text",
+          "when": {
+            "key": "travel_more_than_24h",
+            "equals": "Sí"
+          },
+          "required": true,
+          "help": "No inventes una dirección si todavía no sabes dónde te hospedarás."
+        },
+        {
+          "key": "travel_stay_address",
+          "label": "Dirección donde te hospedarás",
+          "type": "text",
+          "when": {
+            "key": "travel_more_than_24h",
+            "equals": "Sí"
+          },
+          "required": true,
+          "help": "Obligatorio en Visa Master cuando planeas quedarte más de 24 horas."
+        },
+        {
+          "key": "travel_payer",
+          "label": "¿Quién pagará los gastos de tu viaje?",
+          "type": "select",
+          "options": [
+            "Yo mismo(a)",
+            "Un familiar",
+            "Otra persona",
+            "Mi empleador actual",
+            "Empresa en Estados Unidos",
+            "Otra empresa u organización"
+          ],
+          "required": true
+        },
+        {
+          "key": "travel_payer_person_name",
+          "label": "Nombre completo de la persona que pagará",
+          "type": "text",
+          "when": {
+            "key": "travel_payer",
+            "equals": [
+              "Un familiar",
+              "Otra persona"
+            ]
+          },
+          "required": true
+        },
+        {
+          "key": "travel_payer_relationship",
+          "label": "Parentesco o relación con quien pagará",
+          "type": "select",
+          "options": [
+            "Cónyuge / pareja",
+            "Padre",
+            "Madre",
+            "Hijo(a)",
+            "Hermano(a)",
+            "Abuelo(a)",
+            "Nieto(a)",
+            "Tío(a)",
+            "Primo(a)",
+            "Otro familiar"
+          ],
+          "when": {
+            "key": "travel_payer",
+            "equals": [
+              "Un familiar",
+              "Otra persona"
+            ]
+          },
+          "required": true
+        },
+        {
+          "key": "travel_payer_organization",
+          "label": "Nombre de la empresa u organización que pagará",
+          "type": "text",
+          "when": {
+            "key": "travel_payer",
+            "equals": [
+              "Mi empleador actual",
+              "Empresa en Estados Unidos",
+              "Otra empresa u organización"
+            ]
+          },
+          "required": true
+        },
+        {
+          "key": "travel_with_someone",
+          "label": "¿Viajarás con alguien?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "history",
+      "title": "Historial migratorio",
+      "description": "Las fechas se seleccionan en calendarios. Nunca respondas por suposición.",
+      "fields": [
+        {
+          "key": "visited_us",
+          "label": "¿Has visitado Estados Unidos antes?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "last_visit_date",
+          "label": "Fecha de tu última visita a EE. UU.",
+          "type": "date",
+          "when": {
+            "key": "visited_us",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "last_visit_duration_days",
+          "label": "¿Cuántos días duró tu última visita?",
+          "type": "number",
+          "when": {
+            "key": "visited_us",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "prior_visa",
+          "label": "¿Has tenido una visa estadounidense?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true
+        },
+        {
+          "key": "prior_visa_issued_city",
+          "label": "Ciudad donde te expidieron la visa",
+          "type": "select",
+          "options": [
+            "Ciudad de México",
+            "Ciudad Juárez",
+            "Guadalajara",
+            "Hermosillo",
+            "Matamoros",
+            "Mérida",
+            "Monterrey",
+            "Nogales",
+            "Nuevo Laredo",
+            "Tijuana",
+            "Otra ciudad o país"
+          ],
+          "when": {
+            "key": "prior_visa",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "prior_visa_issued_other",
+          "label": "Indica la ciudad y país de expedición",
+          "type": "text",
+          "when": {
+            "key": "prior_visa_issued_city",
+            "equals": "Otra ciudad o país"
+          },
+          "required": true
+        },
+        {
+          "key": "prior_visa_issue_date",
+          "label": "Fecha de expedición de la visa",
+          "type": "date",
+          "when": {
+            "key": "prior_visa",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "prior_visa_expiration_date",
+          "label": "Fecha de vencimiento de la visa",
+          "type": "date",
+          "when": {
+            "key": "prior_visa",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "visa_denial",
+          "label": "¿Te han negado o cancelado una visa o negado la entrada a EE. UU.?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "visa_denial_kind",
+          "label": "¿Qué ocurrió?",
+          "type": "select",
+          "options": [
+            "Negación de visa",
+            "Cancelación / revocación de visa",
+            "Negación de entrada a Estados Unidos",
+            "Más de una de las anteriores"
+          ],
+          "when": {
+            "key": "visa_denial",
+            "equals": "Sí"
+          },
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "visa_denial_date",
+          "label": "Fecha aproximada del incidente",
+          "type": "date",
+          "when": {
+            "key": "visa_denial",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "visa_denial_details",
+          "label": "Explica qué ocurrió",
+          "type": "textarea",
+          "when": {
+            "key": "visa_denial",
+            "equals": "Sí"
+          },
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "visa_lost",
+          "label": "¿Alguna vez perdiste o te robaron una visa?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "visa_lost_date",
+          "label": "Fecha aproximada de pérdida o robo de visa",
+          "type": "date",
+          "when": {
+            "key": "visa_lost",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "visa_lost_details",
+          "label": "Describe lo sucedido",
+          "type": "textarea",
+          "when": {
+            "key": "visa_lost",
+            "equals": "Sí"
+          },
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "us_immigration_problem",
+          "label": "¿Has tenido algún problema con migración o autoridades en EE. UU.?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "us_immigration_problem_type",
+          "label": "Tipo de situación",
+          "type": "select",
+          "options": [
+            "Detención migratoria",
+            "Deportación / expulsión",
+            "Permanencia mayor a la autorizada",
+            "Problema en el puerto de entrada",
+            "Otro"
+          ],
+          "when": {
+            "key": "us_immigration_problem",
+            "equals": "Sí"
+          },
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "us_immigration_problem_date",
+          "label": "Fecha aproximada de la situación",
+          "type": "date",
+          "when": {
+            "key": "us_immigration_problem",
+            "equals": "Sí"
+          },
+          "required": true
+        },
+        {
+          "key": "us_immigration_problem_details",
+          "label": "Describe qué ocurrió",
+          "type": "textarea",
+          "when": {
+            "key": "us_immigration_problem",
+            "equals": "Sí"
+          },
+          "required": true,
+          "reviewFlag": true
+        }
+      ]
+    },
+    {
+      "id": "family",
+      "title": "Familia",
+      "description": "Los datos de la pareja aparecen en Datos personales según el estado civil.",
+      "fields": [
+        {
+          "key": "father_name",
+          "label": "Nombre completo de tu padre",
+          "type": "text"
+        },
+        {
+          "key": "father_birth_date",
+          "label": "Fecha de nacimiento de tu padre",
+          "type": "date"
+        },
+        {
+          "key": "mother_name",
+          "label": "Nombre completo de tu madre",
+          "type": "text"
+        },
+        {
+          "key": "mother_birth_date",
+          "label": "Fecha de nacimiento de tu madre",
+          "type": "date"
+        },
+        {
+          "key": "family_us",
+          "label": "¿Tienes familiares viviendo en Estados Unidos?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "work",
+      "title": "Trabajo y estudios",
+      "description": "Incluye datos de tu empleo actual, empleos anteriores y escuela, con domicilios separados.",
+      "fields": [
+        {
+          "key": "employer",
+          "label": "Empresa donde trabajas o actividad que realizas",
+          "type": "text"
+        },
+        {
+          "key": "employer_street",
+          "label": "Calle y número · trabajo actual",
+          "placeholder": "Calle y número",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "employer_neighborhood",
+          "label": "Colonia · trabajo actual",
+          "placeholder": "Colonia",
+          "inlinePrompt": true,
+          "type": "text"
+        },
+        {
+          "key": "employer_city",
+          "label": "Ciudad · trabajo actual",
+          "placeholder": "Ciudad",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "employer_state",
+          "label": "Estado · trabajo actual",
+          "placeholder": "Selecciona un estado",
+          "inlinePrompt": true,
+          "type": "select",
+          "options": [
+            "Aguascalientes",
+            "Baja California",
+            "Baja California Sur",
+            "Campeche",
+            "Chiapas",
+            "Chihuahua",
+            "Ciudad de México",
+            "Coahuila",
+            "Colima",
+            "Durango",
+            "Estado de México",
+            "Guanajuato",
+            "Guerrero",
+            "Hidalgo",
+            "Jalisco",
+            "Michoacán",
+            "Morelos",
+            "Nayarit",
+            "Nuevo León",
+            "Oaxaca",
+            "Puebla",
+            "Querétaro",
+            "Quintana Roo",
+            "San Luis Potosí",
+            "Sinaloa",
+            "Sonora",
+            "Tabasco",
+            "Tamaulipas",
+            "Tlaxcala",
+            "Veracruz",
+            "Yucatán",
+            "Zacatecas",
+            "Fuera de México / otro estado o provincia"
+          ],
+          "required": false
+        },
+        {
+          "key": "employer_state_other",
+          "label": "Estado o provincia fuera de México · trabajo actual",
+          "placeholder": "Escribe el estado o provincia",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "employer_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          }
+        },
+        {
+          "key": "employer_postal",
+          "label": "Código postal · trabajo actual",
+          "placeholder": "Código postal",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "employer_country",
+          "label": "País · trabajo actual",
+          "placeholder": "País",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "job_title",
+          "label": "Puesto o actividad principal",
+          "type": "text"
+        },
+        {
+          "key": "job_start",
+          "label": "Fecha en que comenzaste en tu empleo actual",
+          "type": "date"
+        },
+        {
+          "key": "monthly_income",
+          "label": "Ingreso mensual bruto aproximado (MXN, antes de impuestos o deducciones)",
+          "type": "number"
+        },
+        {
+          "key": "previous_job",
+          "label": "¿Has tenido un trabajo anterior?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "key": "previous_employer",
+          "label": "Empresa donde trabajabas anteriormente",
+          "type": "text",
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_street",
+          "label": "Calle y número · trabajo anterior",
+          "placeholder": "Calle y número",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false,
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_neighborhood",
+          "label": "Colonia · trabajo anterior",
+          "placeholder": "Colonia",
+          "inlinePrompt": true,
+          "type": "text",
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_city",
+          "label": "Ciudad · trabajo anterior",
+          "placeholder": "Ciudad",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false,
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_state",
+          "label": "Estado · trabajo anterior",
+          "placeholder": "Selecciona un estado",
+          "inlinePrompt": true,
+          "type": "select",
+          "options": [
+            "Aguascalientes",
+            "Baja California",
+            "Baja California Sur",
+            "Campeche",
+            "Chiapas",
+            "Chihuahua",
+            "Ciudad de México",
+            "Coahuila",
+            "Colima",
+            "Durango",
+            "Estado de México",
+            "Guanajuato",
+            "Guerrero",
+            "Hidalgo",
+            "Jalisco",
+            "Michoacán",
+            "Morelos",
+            "Nayarit",
+            "Nuevo León",
+            "Oaxaca",
+            "Puebla",
+            "Querétaro",
+            "Quintana Roo",
+            "San Luis Potosí",
+            "Sinaloa",
+            "Sonora",
+            "Tabasco",
+            "Tamaulipas",
+            "Tlaxcala",
+            "Veracruz",
+            "Yucatán",
+            "Zacatecas",
+            "Fuera de México / otro estado o provincia"
+          ],
+          "required": false,
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_state_other",
+          "label": "Estado o provincia fuera de México · trabajo anterior",
+          "placeholder": "Escribe el estado o provincia",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "previous_employer_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          }
+        },
+        {
+          "key": "previous_employer_postal",
+          "label": "Código postal · trabajo anterior",
+          "placeholder": "Código postal",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false,
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_country",
+          "label": "País · trabajo anterior",
+          "placeholder": "País",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false,
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_employer_phone",
+          "label": "Teléfono del trabajo anterior",
+          "type": "tel",
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_job_title",
+          "label": "Puesto del trabajo anterior",
+          "type": "text",
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_job_start",
+          "label": "Fecha de inicio en el trabajo anterior",
+          "type": "date",
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "previous_job_end",
+          "label": "Fecha de término del trabajo anterior",
+          "type": "date",
+          "when": {
+            "key": "previous_job",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "education_level",
+          "label": "Último nivel de estudios terminado",
+          "type": "select",
+          "options": [
+            "Primaria",
+            "Secundaria",
+            "Preparatoria / Bachillerato",
+            "Carrera técnica",
+            "Licenciatura",
+            "Maestría",
+            "Doctorado",
+            "Otro"
+          ]
+        },
+        {
+          "key": "school_name",
+          "label": "Institución donde estudiaste",
+          "type": "text"
+        },
+        {
+          "key": "school_street",
+          "label": "Calle y número · institución educativa",
+          "placeholder": "Calle y número",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "school_neighborhood",
+          "label": "Colonia · institución educativa",
+          "placeholder": "Colonia",
+          "inlinePrompt": true,
+          "type": "text"
+        },
+        {
+          "key": "school_city",
+          "label": "Ciudad · institución educativa",
+          "placeholder": "Ciudad",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "school_state",
+          "label": "Estado · institución educativa",
+          "placeholder": "Selecciona un estado",
+          "inlinePrompt": true,
+          "type": "select",
+          "options": [
+            "Aguascalientes",
+            "Baja California",
+            "Baja California Sur",
+            "Campeche",
+            "Chiapas",
+            "Chihuahua",
+            "Ciudad de México",
+            "Coahuila",
+            "Colima",
+            "Durango",
+            "Estado de México",
+            "Guanajuato",
+            "Guerrero",
+            "Hidalgo",
+            "Jalisco",
+            "Michoacán",
+            "Morelos",
+            "Nayarit",
+            "Nuevo León",
+            "Oaxaca",
+            "Puebla",
+            "Querétaro",
+            "Quintana Roo",
+            "San Luis Potosí",
+            "Sinaloa",
+            "Sonora",
+            "Tabasco",
+            "Tamaulipas",
+            "Tlaxcala",
+            "Veracruz",
+            "Yucatán",
+            "Zacatecas",
+            "Fuera de México / otro estado o provincia"
+          ],
+          "required": false
+        },
+        {
+          "key": "school_state_other",
+          "label": "Estado o provincia fuera de México · institución educativa",
+          "placeholder": "Escribe el estado o provincia",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "school_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          }
+        },
+        {
+          "key": "school_postal",
+          "label": "Código postal · institución educativa",
+          "placeholder": "Código postal",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "school_country",
+          "label": "País · institución educativa",
+          "placeholder": "País",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "school_course",
+          "label": "Carrera o curso realizado",
+          "type": "text"
+        },
+        {
+          "key": "school_start",
+          "label": "Fecha de inicio de estudios",
+          "type": "date"
+        },
+        {
+          "key": "school_end",
+          "label": "Fecha de término de estudios",
+          "type": "date"
+        }
+      ]
+    },
+    {
+      "id": "tn",
+      "title": "Información para visa TN",
+      "description": "Preguntas adicionales para revisar oferta, puesto y perfil profesional.",
+      "mode": "TN",
+      "fields": [
+        {
+          "key": "tn_employer",
+          "label": "Nombre de la empresa que te contratará en EE. UU.",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tn_employer_street",
+          "label": "Calle y número · empresa en EE. UU.",
+          "placeholder": "Calle y número",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "tn_employer_neighborhood",
+          "label": "Colonia · empresa en EE. UU.",
+          "placeholder": "Colonia",
+          "inlinePrompt": true,
+          "type": "text"
+        },
+        {
+          "key": "tn_employer_city",
+          "label": "Ciudad · empresa en EE. UU.",
+          "placeholder": "Ciudad",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "tn_employer_state",
+          "label": "Estado / provincia · empresa en EE. UU.",
+          "placeholder": "Estado de EE. UU.",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "tn_employer_postal",
+          "label": "Código postal · empresa en EE. UU.",
+          "placeholder": "Código postal",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "tn_employer_country",
+          "label": "País · empresa en EE. UU.",
+          "placeholder": "País",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "tn_employer_phone",
+          "label": "Teléfono de esa empresa",
+          "type": "tel"
+        },
+        {
+          "key": "tn_position",
+          "label": "Puesto ofrecido",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tn_profession",
+          "label": "Profesión o categoría TN propuesta",
+          "type": "text",
+          "required": true,
+          "help": "El equipo de Visa Master verificará si corresponde a una categoría admitida."
+        },
+        {
+          "key": "tn_duties",
+          "label": "Principales actividades que realizarás",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "tn_salary",
+          "label": "Sueldo ofrecido (USD)",
+          "type": "number"
+        },
+        {
+          "key": "tn_salary_period",
+          "label": "Periodicidad del sueldo",
+          "type": "select",
+          "options": [
+            "Hora",
+            "Semana",
+            "Quincena",
+            "Mes",
+            "Año"
+          ]
+        },
+        {
+          "key": "tn_start_date",
+          "label": "Fecha prevista para comenzar",
+          "type": "date"
+        },
+        {
+          "key": "tn_worksite",
+          "label": "Ciudad donde desempeñarás el trabajo",
+          "type": "text"
+        },
+        {
+          "key": "tn_qualifications",
+          "label": "Estudios o experiencia relacionados con el puesto",
+          "type": "textarea"
+        }
+      ]
+    }
+  ],
+  "companionRelationships": [
+    "Cónyuge / pareja",
+    "Padre",
+    "Madre",
+    "Hijo(a)",
+    "Hermano(a)",
+    "Otro familiar",
+    "Amigo(a)",
+    "Colega / compañero(a)",
+    "Otro"
+  ],
+  "relativeRelationships": [
+    "Cónyuge / pareja",
+    "Prometido(a)",
+    "Hijo(a)",
+    "Hermano(a)",
+    "Padre",
+    "Madre",
+    "Otro familiar"
+  ],
+  "immigrationStatuses": [
+    "Ciudadano(a) estadounidense",
+    "Residente permanente legal (LPR)",
+    "No inmigrante (estatus temporal)",
+    "Otro / No lo sé"
+  ],
+  "familyPayerRelationships": [
+    "Cónyuge / pareja",
+    "Padre",
+    "Madre",
+    "Hijo(a)",
+    "Hermano(a)",
+    "Abuelo(a)",
+    "Nieto(a)",
+    "Tío(a)",
+    "Primo(a)",
+    "Otro familiar"
+  ],
+  "otherPayerRelationships": [
+    "Amigo(a)",
+    "Colega / compañero(a)",
+    "Conocido(a)",
+    "Otro"
+  ]
+}
