@@ -335,14 +335,22 @@
         },
         {
           "key": "social_media_used",
-          "label": "¿Has utilizado redes sociales en los últimos 5 años?",
-          "type": "select",
+          "label": "¿En cuáles de estas redes sociales has tenido presencia en los últimos 5 años?",
+          "type": "multiselect",
           "required": true,
           "options": [
-            "Sí",
-            "No"
+            "Facebook",
+            "Instagram",
+            "X (antes Twitter)",
+            "TikTok",
+            "LinkedIn",
+            "YouTube",
+            "Snapchat",
+            "Reddit",
+            "Otra(s)",
+            "Ninguna"
           ],
-          "help": "Incluye cuentas personales que utilizas o utilizaste, incluso si ahora están inactivas. No compartas contraseñas."
+          "help": "Puedes seleccionar varias redes. Incluye cuentas que utilizas o utilizaste en ese periodo, aunque hoy estén inactivas. Si no has usado ninguna, selecciona «Ninguna». No compartas contraseñas."
         },
         {
           "key": "social_facebook",
@@ -351,9 +359,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "Facebook"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_instagram",
@@ -362,9 +371,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "Instagram"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_x",
@@ -373,9 +383,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "X (antes Twitter)"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_tiktok",
@@ -384,9 +395,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "TikTok"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_linkedin",
@@ -395,9 +407,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "LinkedIn"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_youtube",
@@ -406,9 +419,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "YouTube"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_snapchat",
@@ -417,9 +431,10 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "Snapchat"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_reddit",
@@ -428,20 +443,22 @@
           "placeholder": "@usuario1, @usuario2 (si aplica)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "Reddit"
           },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años."
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
         },
         {
           "key": "social_other",
-          "label": "Otras redes sociales y perfiles utilizados en los últimos 5 años",
+          "label": "Otras redes sociales y sus usuarios o identificadores",
           "type": "textarea",
           "placeholder": "Plataforma — usuario o identificador (uno por línea)",
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "includes": "Otra(s)"
           },
-          "help": "Incluye plataformas y cuentas que no aparecen arriba; si ninguna aplica, deja vacío."
+          "help": "Escribe el nombre de la plataforma y cada usuario utilizado durante los últimos 5 años, uno por línea.",
+          "required": true
         },
         {
           "key": "social_media_public",
@@ -454,7 +471,8 @@
           "required": true,
           "when": {
             "key": "social_media_used",
-            "equals": "Sí"
+            "nonempty": true,
+            "notEquals": "Ninguna"
           },
           "help": "Para visa TN/TD, el Departamento de Estado indica que todos los perfiles deben estar públicos o abiertos para facilitar la revisión consular."
         }
