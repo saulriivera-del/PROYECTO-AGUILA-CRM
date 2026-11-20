@@ -59,6 +59,7 @@ export default function CandidateForm() {
         setAnswers(stored)
         setPeople(cleanPeople(data.draft?.people))
         setSubmitted(data.draft?.status === 'Enviado')
+        setConsent(Boolean(data.draft?.consent_at))
         setSaveStatus(data.draft ? 'Último guardado: ' + new Date(data.draft.updated_at).toLocaleString('es-MX') : 'Sin cambios pendientes')
         setHydrated(true)
       }).catch((e: Error) => { if (active) setError(e.message) })
@@ -268,6 +269,15 @@ export default function CandidateForm() {
               <p>Visa Master ya puede revisar tu información en Proyecto Águila. Si necesitas corregir algo después del envío, comunícate con nuestro equipo.</p>
               <p><a href="https://wa.me/526623499696" target="_blank" rel="noreferrer">Contactar a Visa Master</a></p>
             </section>
+          : !consent ? <section className="tn-card tn-login">
+              <span className="tn-eyebrow">Protección de tu información</span>
+              <h2>Antes de empezar</h2>
+              <p className="tn-muted">Tu información se guardará de forma privada en Visa Master y será utilizada para preparar y revisar tu trámite. Puedes retomar tus respuestas con el mismo correo.</p>
+              <label className="tn-check"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />
+                <span>He leído el <a href="https://visamaster.com.mx/avisodeprivacidad/" target="_blank" rel="noreferrer">aviso de privacidad</a> y autorizo el tratamiento de mis datos para preparar mi solicitud. Sé que esta captura no equivale al envío del DS-160 oficial ni garantiza una visa.</span>
+              </label>
+              <p className="tn-muted">Marca la casilla para acceder al cuestionario.</p>
+            </section>
           : <div className="tn-split">
               <aside className="tn-card tn-sidebar">
                 <strong>Tu progreso</strong>
@@ -294,10 +304,7 @@ export default function CandidateForm() {
                   {current.id === 'travel' && answers.travel_with_someone === 'Sí' ? peopleEditor('companions') : null}
                   {current.id === 'family' && answers.family_us === 'Sí' ? peopleEditor('relatives') : null}
                 </div>
-                {sectionIndex === sections.length - 1 ? <label className="tn-check">
-                  <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />
-                  <span>Confirmo que las respuestas son verdaderas y autorizo a Visa Master a tratar esta información para preparar mi trámite, conforme a su <a href="https://visamaster.com.mx/avisodeprivacidad/" target="_blank" rel="noreferrer">aviso de privacidad</a>. Entiendo que esto no constituye el envío del DS-160 oficial ni garantiza una visa.</span>
-                </label> : null}
+                {sectionIndex === sections.length - 1 ? <p className="tn-note">Aceptaste el aviso de privacidad al comenzar. Verifica tus respuestas antes de enviarlas.</p> : null}
                 {error ? <div className="tn-error" role="alert"><strong>{error}</strong>
                   {missing.length ? <ul>{missing.map(m => <li key={m}>{m}</li>)}</ul> : null}
                 </div> : null}
