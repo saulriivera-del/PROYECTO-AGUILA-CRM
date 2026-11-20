@@ -18,7 +18,7 @@ export default async function TradeInMotionIntakePage({ searchParams }: { search
   const filter = typeof params.status === 'string' ? params.status : 'todos'
   const db = createAdminClient()
   const { data: rawDrafts, error } = await db.from('vm_trade_in_motion_drafts')
-    .select('id, access_id, applicant_email, answers, people, submission_id, status, created_at, updated_at, submitted_at')
+    .select('id, access_id, applicant_email, answers, people, submission_id, status, reviewed_at, created_at, updated_at, submitted_at')
     .eq('organization_id', context.organizationId)
     .order('updated_at', { ascending: false })
     .limit(500)
@@ -44,7 +44,7 @@ export default async function TradeInMotionIntakePage({ searchParams }: { search
   const submissionsById = new Map((submissions ?? []).map(s => [s.submission_id, s]))
   const existing = drafts.map(d => {
     const answers = cleanAnswers(d.answers)
-    const status = d.status === 'Borrador' ? 'Borrador' : submissionsById.get(d.submission_id)?.status === 'En revisión' ? 'En revisión' : 'Recibido'
+    const status = d.status === 'Borrador' ? 'Borrador' : d.reviewed_at || submissionsById.get(d.submission_id)?.status === 'En revisión' ? 'En revisión' : 'Recibido'
     return {
       id: d.id, name: answers.full_name || accessById.get(d.access_id)?.applicant_name || 'Sin nombre todavía', email: d.applicant_email || '',
       folio: accessById.get(d.access_id)?.folio || '', isFolio: Boolean(d.access_id), accessId: d.access_id || '',
