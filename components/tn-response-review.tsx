@@ -54,7 +54,7 @@ export default function TnResponseReview({ answers, people }: { answers: AnswerM
         }}>
           <p style={{ fontWeight: 700, fontSize: 14, color: '#2d4864', margin: 0 }}>{index + 1}. {field.label}</p>
           <p style={{ margin: '8px 0 0', fontSize: 16, color: answers[field.key] ? '#163a62' : '#95a5b3',
-            whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{answers[field.key] || 'Sin respuesta'}</p>
+            whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{field.type === 'multiselect' ? (answers[field.key] ? answers[field.key].split('|').join(', ') : 'Sin respuesta') : (answers[field.key] || 'Sin respuesta')}</p>
         </div>)}
         {selected.id === 'travel' && people.companions.length ? people.companions.map((p,i) => <div key={i} style={{ border: '1px solid #dbe6f0', padding: 15, borderRadius: 10 }}>
           <strong>Acompañante {i + 1}</strong>
