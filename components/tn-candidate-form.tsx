@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
@@ -30,6 +30,8 @@ export default function CandidateForm() {
   const [consent, setConsent] = useState(false)
   const [error, setError] = useState('')
   const [missing, setMissing] = useState<string[]>([])
+  const revision = useRef(0)
+  const saveQueue = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     let active = true
@@ -91,11 +93,17 @@ export default function CandidateForm() {
   }
 
   async function store(action: 'save' | 'submit'): Promise<SaveResult> {
+    // Guardados secuenciales: una respuesta vieja nunca puede llegar después de una nueva.
+    const snapshot = JSON.stringify({ action, answers, people, consent })
+    const atRevision = revision.current
     setSaveStatus(action === 'save' ? 'Guardando…' : 'Enviando…')
+    const previous = saveQueue.current
+    let release: () => void = () => {}
+    saveQueue.current = new Promise<void>(resolve => { release = resolve })
+    await previous
     try {
       const response = await fetch('/api/formularios/trade-in-motion/folio/draft', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, answers, people, consent }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: snapshot,
       })
       const data: SaveResult = await response.json()
       if (!response.ok) {
@@ -104,7 +112,7 @@ export default function CandidateForm() {
         setMissing(data.fields ?? [])
         return data
       }
-      setDirty(false)
+      if (revision.current === atRevision) setDirty(false)
       setSaveStatus(data.submitted ? 'Formulario enviado' : 'Guardado en línea correctamente')
       if (data.submitted) setSubmitted(true)
       return data
@@ -112,6 +120,8 @@ export default function CandidateForm() {
       setSaveStatus('Sin conexión: vuelve a intentar guardar')
       setError('No hay conexión con el servidor. Tus respuestas todavía no se confirmaron como guardadas.')
       return { error: 'Sin conexión' }
+    } finally {
+      release()
     }
   }
 
@@ -122,6 +132,7 @@ export default function CandidateForm() {
   }, [answers, people, dirty, hydrated, submitted])
 
   function update(key: string, value: string) {
+    revision.current += 1
     setAnswers(previous => {
       const next = { ...previous, [key]: value }
       for (let pass = 0; pass < 4; pass++)
@@ -136,6 +147,7 @@ export default function CandidateForm() {
     setMissing([])
   }
   function updatePeople(kind: keyof GroupedPeople, index: number, key: keyof Person, value: string) {
+    revision.current += 1
     setPeople(prev => ({ ...prev,
       [kind]: prev[kind].map((p, i) => i === index ? { ...p, [key]: value } : p),
     }))
@@ -143,12 +155,14 @@ export default function CandidateForm() {
     setSaveStatus('Cambios pendientes…')
   }
   function addPerson(kind: keyof GroupedPeople) {
+    revision.current += 1
     setPeople(prev => ({ ...prev,
       [kind]: [...prev[kind], { id: Date.now(), fullName: '', relationship: '', immigrationStatus: '' }],
     }))
     setDirty(true)
   }
   function removePerson(kind: keyof GroupedPeople, id: number) {
+    revision.current += 1
     setPeople(prev => ({ ...prev, [kind]: prev[kind].filter(p => p.id !== id) }))
     setDirty(true)
   }
