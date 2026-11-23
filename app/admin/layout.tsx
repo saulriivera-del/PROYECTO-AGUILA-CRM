@@ -41,6 +41,7 @@ export default async function AdminLayout({
 
           <span className="nav-divider">Automatización</span>
           <Link href="/admin/motor-citas">⚙ Motor de Citas</Link>
+          <Link href="/admin/demo-automatizacion-ds160">▣ DS-160 · Vista piloto</Link>
 
           {admin ? (
             <>
