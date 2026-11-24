@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "prebuild": "node --test tools/chrome-ceac-pilot/*.test.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
