@@ -1,13 +1,14 @@
 /* Ejecutar con: node --test tools/chrome-ceac-pilot/mapping.test.cjs */
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildPlan, extractNames, dateParts, P1, P2 } = require('./mapping.js');
+const { buildPlan, extractNames, dateParts, resolveCountryOption, P1, P2 } = require('./mapping.js');
 
 const data = {
   full_name:'MARIA ELENA LOPEZ GARCIA', curp_paterno:'LOPEZ', curp_materno:'GARCIA',
   curp_sexo:'Mujer', marital_status:'Soltero(a)',birth_date:'1996-08-02',
   birth_city:'Hermosillo',birth_state:'Sonora',birth_country:'México',
-  nationality:'Mexicana',curp_valor:'LOGM960802MSRPRR00',curp_confirmada:'Sí, coincide con mi documento'
+  nationality:'Mexicana',curp_valor:'LOGM960802MSRPRR00',curp_confirmada:'Sí, coincide con mi documento',
+  other_names_used:'No',name_telecode:'No'
 };
 // Solo datos sintéticos. Nunca se incluyen folios, claves, correos ni datos reales.
 test('extrae nombres solo con coincidencia completa, sin duplicar la pregunta',() => {
@@ -25,7 +26,10 @@ test('identifica nombres de pila capturados solos en Águila sin requerir apelli
   assert.deepEqual(extractNames('LUIS','DEL RIO',''),
     {given:'LUIS',surname:'DEL RIO'});
   const plan = buildPlan({...data,full_name:'Ángel Saúl',curp_paterno:'Rivera',curp_materno:'Espinoza'}, P1);
-  assert.equal(plan.actions.length,10);
+  assert.equal(plan.actions.length,13);
+  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='MARIA ELENA LOPEZ GARCIA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='rblOtherNames_1'&&a.mode==='radioNo'));
+  assert.ok(plan.actions.some(a=>a.suffix==='rblTelecodeQuestion_1'&&a.mode==='radioNo'));
   assert.ok(plan.actions.some(a => a.suffix === 'tbxAPP_SURNAME' && a.value === 'RIVERA ESPINOZA'));
   assert.ok(plan.actions.some(a => a.suffix === 'tbxAPP_GIVEN_NAME' && a.value === 'ANGEL SAUL'));
   assert.equal(plan.pending.some(message => message.includes('no se pueden separar')), false);
@@ -49,7 +53,7 @@ test('página 1 solo propone controles CEAC conocidos',() => {
   assert.equal(plan.actions.length,10);
   assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_GIVEN_NAME'&&a.value==='MARIA ELENA'));
   assert.ok(plan.actions.some(a=>a.suffix==='ddlDOBMonth'&&a.value==='AUG'));
-  assert.equal(plan.actions.some(a=>a.suffix.includes('FULL_NAME_NATIVE')),false);
+  assert.equal(plan.actions.some(a=>a.suffix.includes('FULL_NAME_NATIVE_NA')),false);
 });
 test('página 2 prepara nacionalidad y CURP solo tras confirmación',() => {
   const plan=buildPlan(data,P2);
@@ -68,4 +72,38 @@ test('unión libre y nombres ambiguos quedan para revisión manual',() => {
   assert.equal(plan.actions.some(a=>a.suffix==='ddlAPP_MARITAL_STATUS'),false);
   assert.equal(plan.actions.some(a=>a.suffix==='tbxAPP_SURNAME'),false);
   assert.ok(plan.pending.length>0);
+});
+
+
+test('país de nacimiento: elige la opción real de CEAC y nunca deduce un código ausente',() => {
+  const options=[
+    {code:'',label:'- SELECT ONE -'},
+    {code:'MEX',label:'MEXICO (UNITED MEXICAN STATES)'},
+    {code:'USA',label:'UNITED STATES OF AMERICA'},
+  ];
+  assert.deepEqual(resolveCountryOption(options,'México'),options[1]);
+  assert.deepEqual(resolveCountryOption(options,'mexico'),options[1]);
+  assert.deepEqual(resolveCountryOption(options,'MEX'),options[1]);
+  assert.deepEqual(resolveCountryOption(options,'United States of America'),options[2]);
+  assert.equal(resolveCountryOption(options,'Guatemala'),null);
+  assert.equal(resolveCountryOption([...options,{code:'MX',label:'MEXICO'}],'MEXICO'),null);
+  assert.equal(resolveCountryOption([{code:'NM',label:'NEW MEXICO'}],'México'),null);
+});
+
+test('Nunca responde No de otros nombres o telecódigo por omisión',() => {
+  const noResponses=buildPlan({...data,other_names_used:'No',name_telecode:'No'},P1);
+  assert.equal(noResponses.actions.filter(a=>a.mode==='radioNo').length,2);
+  const unknown=buildPlan({...data,other_names_used:'',name_telecode:''},P1);
+  assert.equal(unknown.actions.some(a=>a.mode==='radioNo'),false);
+  const yes=buildPlan({...data,other_names_used:'Sí',name_telecode:'Sí'},P1);
+  assert.equal(yes.actions.some(a=>a.mode==='radioNo'),false);
+  assert.ok(yes.pending.some(a=>a.includes('Otros nombres utilizados')));
+});
+
+test('Nombre nativo concatena nombres de pila y ambos apellidos solo en caso mexicano',() => {
+  const plan=buildPlan({...data, full_name:'Mariana',curp_paterno:'Bustamante',curp_materno:'Baca',birth_country:'mexico'},P1);
+  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='MARIANA BUSTAMANTE BACA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY'&&a.mode==='selectCountry'&&a.value==='MEXICO'));
+  const otherAlphabet=buildPlan({...data,birth_country:'Japan'},P1);
+  assert.equal(otherAlphabet.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'),false);
 });
