@@ -7,6 +7,7 @@ import {
   type AnswerMap, type GroupedPeople, type Person, type Question,
 } from '@/lib/trade-in-motion'
 import { saveDs160Correction } from '@/app/admin/formularios/trade-in-motion/[id]/corrections'
+import { birthCountryOptions, isValidBirthCountry } from '@/lib/birth-countries'
 
 type Group = 'companions' | 'relatives'
 const inputStyle = { width: '100%', maxWidth: 620, border: '1px solid #bfd0df', borderRadius: 8, padding: '10px 12px', fontSize: 14, background: '#fff', color: '#163a62' }
@@ -43,7 +44,11 @@ export default function Ds160CorrectionEditor({
     .filter(key => originalAnswers[key] !== answers[key]))
 
   const setValue = (key: string, value: string) =>
-    setAnswers(prev => ({ ...prev, [key]: value }))
+    setAnswers(prev => {
+      const next = { ...prev, [key]: value }
+      if (key === 'birth_country') delete next.birth_country_nonmexico_confirmed
+      return next
+    })
   const setSocial = (value: string, checked: boolean) => {
     const current = getSelectedSocialPlatforms(answers.social_media_used ?? '')
     const next = checked ? [...current.filter(p => p !== 'Ninguna' && value !== 'Ninguna'), value] : current.filter(p => p !== value)
@@ -63,6 +68,32 @@ export default function Ds160CorrectionEditor({
           <input type="checkbox" checked={getSelectedSocialPlatforms(value).includes(option)} onChange={e => setSocial(option,e.target.checked)} />
           {option}
         </label>)}
+      </div>
+    }
+    if (f.key === 'birth_country') return <>
+      <select style={inputStyle} value={isValidBirthCountry(value) ? value : ''}
+        onChange={e => setValue('birth_country',e.target.value)}>
+        <option value="">Selecciona el país donde nació</option>
+        <optgroup label="México"><option value="MX">México</option></optgroup>
+        <optgroup label="Otros países y territorios">
+          {birthCountryOptions.filter(item => item.code !== 'MX').map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
+        </optgroup>
+      </select>
+      {value && !isValidBirthCountry(value) && <small role="alert" style={{color:'#995b0d'}}>
+        El valor anterior no corresponde a la lista. Selecciona de nuevo el país.
+      </small>}
+      {value && value !== 'MX' && isValidBirthCountry(value) && <small role="alert" style={{color:'#995b0d'}}>
+        Elegiste un país de nacimiento distinto de México. Confirma la selección en la siguiente pregunta.
+      </small>}
+    </>
+    if (f.key === 'birth_country_nonmexico_confirmed') {
+      const expected = 'Sí, confirmo que nací fuera de México'
+      return <div style={{background:'#fff8eb',borderLeft:'4px solid #bf8724',borderRadius:8,padding:12}}>
+        <strong>¿Estás seguro de que nació fuera de México?</strong>
+        <p>Comprueba el país en los documentos antes de validar el expediente.</p>
+        <input type="checkbox" checked={value === expected}
+          onChange={e => setValue(f.key, e.target.checked ? expected : '')} />
+        {' '}Confirmo que seleccioné el país de nacimiento correcto.
       </div>
     }
     if (f.type === 'select') return <select style={inputStyle} value={value} onChange={e => setValue(f.key,e.target.value)}>
