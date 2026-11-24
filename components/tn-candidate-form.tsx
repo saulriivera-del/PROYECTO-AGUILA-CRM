@@ -23,6 +23,7 @@ export default function CandidateForm() {
   const [loading, setLoading] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [answers, setAnswers] = useState<AnswerMap>({})
+  const [curpAttempted, setCurpAttempted] = useState(false)
   const [people, setPeople] = useState<GroupedPeople>({ companions: [], relatives: [] })
   const [sectionIndex, setSectionIndex] = useState(0)
   const [dirty, setDirty] = useState(false)
@@ -52,7 +53,7 @@ export default function CandidateForm() {
         if (!active) return
         const stored = cleanAnswers(data.draft?.answers)
         setIdentity(data.name || 'Candidato')
-        setAnswers(stored)
+        setAnswers(data.draft && Object.keys(stored).length ? stored : { ...stored, nationality: 'Mexicana' })
         setPeople(cleanPeople(data.draft?.people))
         setSubmitted(data.draft?.status === 'Enviado')
         setConsent(Boolean(data.draft?.consent_at))
@@ -144,6 +145,7 @@ export default function CandidateForm() {
             if (!isVisible(field, next)) delete next[field.key]
       return next
     })
+    if (['full_name','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state'].includes(key)) setCurpAttempted(false)
     setDirty(true)
     setSaveStatus('Cambios pendientes…')
     setError('')
@@ -362,8 +364,9 @@ export default function CandidateForm() {
                     {field.key === 'birth_country' ? <div className="tn-label wide" style={{gridColumn:'1 / -1',border:'1px solid #c8d9e8',padding:16,borderRadius:10,background:'#f6faff'}}>
                       <strong>Verifica tu CURP · Vista de prueba</strong>
                       <p>Esta CURP se calcula de manera aproximada. No es una consulta a RENAPO. Compárala con tu acta o constancia oficial.</p>
-                      <p style={{fontSize:19,fontWeight:800,overflowWrap:'anywhere'}}>{curpSugerida || 'Completa tu nombre como en el pasaporte, primer y segundo apellido, sexo, fecha y estado de nacimiento. Si los apellidos no coinciden con el nombre completo, escribe tu CURP oficial abajo.'}</p>
-                      {curpSugerida ? <button className="tn-button secondary" type="button" onClick={()=>confirmarCurp(curpSugerida,'Sí, coincide con mi documento')}>Sí, coincide exactamente con mi documento</button> : null}
+                      <button className="tn-button secondary" type="button" onClick={()=>setCurpAttempted(true)}>Calcular CURP con Visa Master</button>
+                      <p style={{fontSize:19,fontWeight:800,overflowWrap:'anywhere'}} aria-live="polite">{curpAttempted ? (curpSugerida || 'No pudimos calcularla: verifica nombres y apellidos, sexo, fecha y estado de nacimiento. Si no coincide el nombre del pasaporte con los apellidos, puedes escribir tu CURP oficial abajo.') : 'Presiona el botón para generar una CURP sugerida.'}</p>
+                      {curpAttempted && curpSugerida ? <button className="tn-button secondary" type="button" onClick={()=>confirmarCurp(curpSugerida,'Sí, coincide con mi documento')}>Sí, coincide exactamente con mi documento</button> : null}
                       <p>Si no coincide, escribe aquí tu CURP oficial de 18 caracteres:</p>
                       <input className="tn-input" maxLength={18} aria-label="CURP oficial" value={answers.curp_valor || ''} onChange={e=>update('curp_valor',e.target.value.toUpperCase())}/>
                       <button className="tn-button secondary" style={{marginTop:8}} type="button" onClick={()=>confirmarCurp(answers.curp_valor || '','No, la corregí con mi documento')}>Confirmar CURP de mi documento</button>
