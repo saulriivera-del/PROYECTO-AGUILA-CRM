@@ -41,8 +41,9 @@ export default function Ds160PilotDemoPage() {
       </div>
       <div style={{...card, background:'#edf5fc', marginTop:16}}>
         <strong>Qué está desarrollado y qué falta</strong>
-        <p style={{margin:'9px 0 0', lineHeight:1.6}}>El flujo de aprobación de datos personales y su lectura desde la extensión están programados en ramas de prueba. Faltan la migración de base de datos, las pruebas de extremo a extremo y el mapa real de campos CEAC. Por ahora ninguna acción de esta demo llena ni presenta un DS-160 oficial.</p>
+        <p style={{margin:'9px 0 0', lineHeight:1.6}}>Águila ya tiene el flujo de aprobación y la lectura autenticada de datos personales. La extensión Chrome v0.2, disponible en el repositorio principal, prepara hasta 10 campos en Datos personales 1 y 2 campos en Datos personales 2. Falta validar el llenado extremo a extremo en CEAC con una solicitud ficticia; esta demo no modifica ninguna solicitud oficial.</p>
       </div>
+      <section style={{...card,marginTop:20}}><h2 style={{fontSize:18,marginTop:0}}>Extensión piloto disponible</h2><p>Descarga el repositorio desde GitHub, extrae la carpeta <code>tools/chrome-ceac-pilot</code> y en Chrome abre <code>chrome://extensions</code> → Modo desarrollador → Cargar descomprimida. Abre la ficha aprobada del candidato en Águila y la página CEAC en otra pestaña.</p><p><a href="https://github.com/saulriivera-del/PROYECTO-AGUILA-CRM/tree/main/tools/chrome-ceac-pilot" target="_blank" rel="noopener noreferrer">Ver extensión y guía de instalación en GitHub</a></p><p style={{fontSize:12,color:palette.muted}}>Usar solo con expedientes ficticios hasta completar la validación. La aprobación de Mariana sigue siendo obligatoria.</p></section>
       <section style={{marginTop:24}}>
         <h2 style={{fontSize:19}}>¿Qué vista quieres revisar?</h2>
         <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
@@ -80,7 +81,7 @@ export default function Ds160PilotDemoPage() {
             <button style={button(showIssue)} onClick={()=>setShowIssue(v=>!v)}>{showIssue?'Ocultar ejemplo de error':'Simular campo con error'}</button>
             {showIssue && <p style={{color:'#a04d24'}} role="alert">Revisar: los apellidos deben coincidir exactamente con el pasaporte. No se autorizará la sección hasta corregirlo.</p>}</>}
           {step==='aprobacion' && <><p>El operador autorizado comprueba que los datos están completos y cotejados. La aprobación queda asociada al expediente.</p><p><strong>Control:</strong> Si cambian las respuestas, la aprobación debe repetirse.</p></>}
-          {step==='extension' && <><p>En Chrome, la extensión consulta los datos aprobados y prepara el mapeo a CEAC.</p><p><strong>Mapeados a CEAC hoy:</strong> 0 campos oficiales comprobados.</p><p>El autollenado real está bloqueado hasta validar casillas y pruebas con información ficticia.</p></>}
+          {step==='extension' && <><p>En Chrome, la extensión consulta los datos aprobados y prepara el mapeo a CEAC.</p><p><strong>Mapeo piloto:</strong> hasta 12 campos (10 en Personal 1 y 2 en Personal 2), pendientes de comprobar en una sesión de CEAC.</p><p>La extensión pide revisión y clic humano por pantalla, y nunca firma ni envía una solicitud.</p></>}
           {role==='administracion' && <div style={{background:'#f4f7fa',borderRadius:8,padding:12,marginTop:16,fontSize:13}}>
             <strong>Supervisión del administrador</strong>
             <p style={{marginBottom:0}}>Aquí se podrá consultar quién autorizó, cuándo, si hubo cambios y qué campos quedaron pendientes.</p>
