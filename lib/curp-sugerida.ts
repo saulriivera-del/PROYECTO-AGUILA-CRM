@@ -35,6 +35,11 @@ export function nombresDesdeNombreCompleto(completo: string, paterno: string, ma
     const remaining = tokens.filter((_, i) => i < positions[0] || i >= positions[0] + family.length)
     if (remaining.length) return remaining.join(' ')
   }
+  // Algunos pasaportes presentan nombres y apellidos por separado. Si el campo
+  // de nombre contiene únicamente nombres de pila, reutilizarlos sin obligar
+  // al solicitante a repetir sus nombres. Ante coincidencia parcial con uno
+  // de los apellidos capturados, no adivinar cuál dato es correcto.
+  if (tokens.length <= 3 && !tokens.some(token => family.includes(token))) return full
   return ''
 }
 function nombreClave(s: string) {
