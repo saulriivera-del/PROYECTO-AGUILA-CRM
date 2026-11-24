@@ -8,6 +8,7 @@ export default async function AdminLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   const context = await requireAuthContext()
   const admin = isAdministrator(context.role)
+  const ds160Access = admin || context.role.trim().toLowerCase() === 'reception'
 
   const initials = context.fullName
     .split(' ')
@@ -32,8 +33,16 @@ export default async function AdminLayout({
           <Link href="/admin">⌂ Operaciones de hoy</Link>
           <Link href="/admin/prospectos">◎ Prospectos</Link>
           <Link href="/admin/tramites">▤ Trámites</Link>
-          <Link href="/admin/formularios/trade-in-motion">▣ Formularios DS-160</Link>
-          {admin ? <Link href="/admin/formularios/trade-in-motion">✉ Formularios recibidos</Link> : null}
+          {ds160Access ? (
+            <details className="crm-nav-group" open>
+              <summary>▣ DS-160</summary>
+              <div className="crm-nav-subitems">
+                <Link href="/admin/formularios/trade-in-motion">Formularios DS-160</Link>
+                <Link href="/admin/formularios/trade-in-motion?status=recibidos">Formularios recibidos</Link>
+                <Link href="/admin/demo-automatizacion-ds160">Automatización DS-160 <span className="crm-nav-pilot">Piloto</span></Link>
+              </div>
+            </details>
+          ) : null}
           <Link href="/admin/cobranza">$ Cobranza</Link>
           <Link href="/admin/agenda">▣ Agenda</Link>
 
@@ -41,7 +50,6 @@ export default async function AdminLayout({
 
           <span className="nav-divider">Automatización</span>
           <Link href="/admin/motor-citas">⚙ Motor de Citas</Link>
-          <Link href="/admin/demo-automatizacion-ds160">▣ DS-160 · Vista piloto</Link>
 
           {admin ? (
             <>
