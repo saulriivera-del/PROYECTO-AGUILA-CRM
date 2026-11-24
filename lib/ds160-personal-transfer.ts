@@ -4,6 +4,7 @@
  * Solo se importa desde código de servidor (usa node:crypto).
  */
 import { createHash } from 'node:crypto'
+import { isValidBirthCountry } from './birth-countries'
 import {
   cleanAnswers, getSelectedSocialPlatforms, isRequired, isVisible,
   sections, type AnswerMap,
@@ -44,6 +45,8 @@ export function personalProblems(raw: unknown): PersonalProblem[] {
       continue
     }
     if (!value) continue
+    if (field.key === 'birth_country' && !isValidBirthCountry(value))
+      problems.push({ key: field.key, label: field.label + ' (elige un país de la lista)' })
     if (field.type === 'date' && !validDate(value)) problems.push({ key: field.key, label: field.label + ' (fecha inválida)' })
     if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) problems.push({ key: field.key, label: field.label + ' (correo inválido)' })
     if (field.type === 'tel' && !/^\d{10,15}$/.test(value.replace(/\D/g,''))) problems.push({ key: field.key, label: field.label + ' (teléfono inválido)' })
