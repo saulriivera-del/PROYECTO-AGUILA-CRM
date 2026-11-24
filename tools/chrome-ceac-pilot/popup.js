@@ -17,27 +17,42 @@ function normalize(s) {
     .toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 function selectOption(options, action) {
-  if (!options || !Array.isArray(options)) return false;
+  if (!Array.isArray(options)) return null;
+  if (action.mode === 'selectCountry')
+    return pilot.resolveCountryOption(options, action.value);
   const desired = normalize(action.value);
-  return options.some(opt => {
+  const matches = options.filter(opt => {
     if (action.mode === 'selectValue') return opt.code === action.value;
     if (action.mode === 'selectMonth')
       return normalize(opt.code).slice(0, 3) === desired || normalize(opt.label).slice(0, 3) === desired;
     if (action.suffix === 'ddlDOBDay')
-      return Number(opt.code) === Number(action.value) ||
-        Number(opt.label) === Number(action.value);
+      return Number(opt.code) === Number(action.value) || Number(opt.label) === Number(action.value);
     return normalize(opt.label) === desired;
   });
+  return matches.length === 1 ? matches[0] : null;
 }
 function compatibleAction(action, fields) {
   const found = fields.filter(f => f.id && f.id.endsWith('_' + action.suffix));
   if (found.length !== 1) return {ok:false, reason:'No se encontró un control único para ' + action.label};
   const field = found[0];
-  if (action.mode === 'text' && !['input','textarea'].includes(field.tag))
-    return {ok:false,reason:'Tipo inesperado en ' + action.label};
-  if (action.mode !== 'text' && (field.tag !== 'select' || !selectOption(field.options,action)))
-    return {ok:false,reason:'Opción exacta no encontrada en el catálogo CEAC: ' + action.label};
-  return {ok:true};
+  if (action.mode === 'radioNo') {
+    if (field.tag !== 'input' || field.type !== 'radio' || normalize(field.optionLabel) !== 'NO')
+      return {ok:false,reason:'No se pudo verificar que la opción No corresponda a '+action.label};
+    return {ok:true, action};
+  }
+  if (action.mode === 'text') {
+    if (!['input','textarea'].includes(field.tag))
+      return {ok:false,reason:'Tipo inesperado en '+action.label};
+    return {ok:true, action};
+  }
+  if (field.tag !== 'select')
+    return {ok:false,reason:'Tipo inesperado en '+action.label};
+  const option=selectOption(field.options,action);
+  if (!option)
+    return {ok:false,reason:'Opción exacta no encontrada en el catálogo CEAC: '+action.label};
+  // Guardar el código REAL de esta sesión, no uno inferido del país.
+  return {ok:true,action:{...action,mode:'selectValue',displayValue:action.value,
+    value:option.code,expectedLabel:option.label}};
 }
 
 // Función aislada ejecutada SOLO en la pestaña activa de CEAC, tras un clic.
@@ -54,6 +69,7 @@ function inspectCeac() {
   }).map(el => ({
     id:el.id || '',name:el.name || '',tag:el.tagName.toLowerCase(),
     type:(el.getAttribute('type') || '').toLowerCase(),
+    optionLabel:el.type === 'radio' ? [...(el.labels || [])].map(l => (l.textContent || '').trim()).join(' ') : undefined,
     options:el.tagName === 'SELECT'
       ? [...el.options].map(o => ({code:o.value,label:(o.textContent || '').trim()}))
       : undefined,
@@ -122,14 +138,15 @@ function fillCeacPage(request) {
       location.pathname !== request.path || ![p1,p2].includes(request.path))
     return {error:'La pestaña cambió; no se realizó ninguna escritura.'};
   const allowed = request.path === p1
-    ? new Set(['tbxAPP_SURNAME','tbxAPP_GIVEN_NAME','ddlAPP_GENDER','ddlAPP_MARITAL_STATUS',
+    ? new Set(['tbxAPP_SURNAME','tbxAPP_GIVEN_NAME','tbxAPP_FULL_NAME_NATIVE',
+      'rblOtherNames_1','rblTelecodeQuestion_1','ddlAPP_GENDER','ddlAPP_MARITAL_STATUS',
       'ddlDOBDay','ddlDOBMonth','tbxDOBYear','tbxAPP_POB_CITY','tbxAPP_POB_ST_PROVINCE','ddlAPP_POB_CNTRY'])
     : new Set(['ddlAPP_NATL','tbxAPP_NATIONAL_ID']);
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const candidates = [];
   for (const action of request.actions) {
-    if (!allowed.has(action.suffix) || !['text','selectValue','selectText','selectMonth'].includes(action.mode))
+    if (!allowed.has(action.suffix) || !['text','selectValue','radioNo'].includes(action.mode))
       return {error:'Acción no permitida: se canceló toda la operación.'};
     const found = [...document.querySelectorAll('input,select,textarea')]
       .filter(el => el.id && el.id.endsWith('_'+action.suffix) && !el.disabled && el.getClientRects().length);
@@ -138,22 +155,30 @@ function fillCeacPage(request) {
     if (action.mode === 'text') {
       if (!['INPUT','TEXTAREA'].includes(el.tagName) || el.type === 'hidden') return {error:'Tipo inesperado en '+action.label};
       candidates.push({el,action,value:action.value});
+    } else if (action.mode === 'radioNo') {
+      const labels=[...(el.labels || [])].map(l=>norm(l.textContent)).filter(Boolean);
+      if (el.type !== 'radio' || labels.length !== 1 || labels[0] !== 'NO')
+        return {error:'No se confirmó la etiqueta No en '+action.label+'. Ningún dato aplicado.'};
+      candidates.push({el,action,value:true});
     } else {
       if (el.tagName !== 'SELECT') return {error:'Control inesperado en '+action.label};
-      const option=[...el.options].find(o => {
-        if(action.mode==='selectValue') return o.value===action.value;
-        if(action.mode==='selectMonth') return norm(o.value).slice(0,3)===norm(action.value) || norm(o.textContent).slice(0,3)===norm(action.value);
-        if(action.suffix==='ddlDOBDay') return Number(o.value)===Number(action.value) || Number(o.textContent)===Number(action.value);
-        return norm(o.textContent)===norm(action.value);
-      });
-      if(!option) return {error:'Valor CEAC no disponible: '+action.label+'. Ningún dato aplicado.'};
-      candidates.push({el,action,value:option.value});
+      const options=[...el.options].filter(o => o.value===action.value &&
+        (!('expectedLabel' in action) || norm(o.textContent)===norm(action.expectedLabel)));
+      if(options.length!==1) return {error:'Valor CEAC ya no disponible: '+action.label+'. Ningún dato aplicado.'};
+      candidates.push({el,action,value:options[0].value});
     }
   }
   // No envía formularios, no cambia de página, no pulsa Next/Sign/Submit.
   // Verificar valores después: algunos selects CEAC pueden desencadenar un postback.
   let applied=0;
-  for (const {el,value} of candidates) {
+  // Los radios se aplican al final por si CEAC desencadena cambios de campos.
+  candidates.sort((a,b)=>Number(a.action.mode==='radioNo')-Number(b.action.mode==='radioNo'));
+  for (const {el,value,action} of candidates) {
+    if (action.mode === 'radioNo') {
+      if (!el.checked) el.click();
+      applied++;
+      continue;
+    }
     const proto=el.tagName==='SELECT' ? HTMLSelectElement.prototype :
       el.tagName==='TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const setter=Object.getOwnPropertyDescriptor(proto,'value')?.set;
@@ -185,12 +210,12 @@ $('prepare').addEventListener('click',async () => {
     const actions=[], pending=[...plan.pending];
     for (const action of plan.actions) {
       const check=compatibleAction(action,scanned.fields);
-      if(check.ok) actions.push(action); else pending.push(check.reason);
+      if(check.ok) actions.push(check.action); else pending.push(check.reason);
     }
     if (!actions.length) pending.unshift('No hay campos compatibles para llenar en esta pantalla.');
     $('page').textContent=plan.page+' · Vista previa';
     $('count').textContent=String(actions.length);
-    actions.forEach(a=>item($('actions'),a.label+' → '+a.value));
+    actions.forEach(a=>item($('actions'),a.label+' → '+(a.displayValue || a.value)));
     pending.forEach(msg=>item($('pending'),msg));
     $('preview').style.display='block';
     $('output').textContent=JSON.stringify(scanned,null,2);
