@@ -71,6 +71,7 @@ La retención de **archivos adjuntos originales en ChatGPT** no está controlada
 |---|---|---|---|
 | Personal Information 1 | Sí, parcialmente | Piloto v0.3.3 | Pendiente de corroboración completa en CEAC |
 | Personal Information 2 | Sí, parcialmente | Piloto v0.3.3 | Pendiente |
+| Travel Companions Information | Sí, por observación visual de ramas Sí/No y catálogo de parentescos | `travel_with_someone`, `people.companions`; faltan campos de grupo y separar apellidos | Pendiente de inspector y prueba de autollenado |
 | Resto | No | Por levantar | Pendiente |
 
 En cada nueva inspección, agregar la ruta exacta y los campos condicionales al registro antes de ampliar el código de llenado. La **extensión reconoce la página por su ruta**, de modo que no se confundan campos entre pantallas.
