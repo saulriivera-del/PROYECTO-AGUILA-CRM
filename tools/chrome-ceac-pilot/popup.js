@@ -51,7 +51,9 @@ function compatibleAction(action, fields) {
   if (!option)
     return {ok:false,reason:'Opción exacta no encontrada en el catálogo CEAC: '+action.label};
   // Guardar el código REAL de esta sesión, no uno inferido del país.
-  return {ok:true,action:{...action,mode:'selectValue',displayValue:action.value,
+  return {ok:true,action:{...action,mode:'selectValue',
+    displayValue:action.mode==='selectCountry' ?
+      (action.value==='MX' ? 'México' : action.value)+' (CEAC: '+option.label+')' : action.value,
     value:option.code,expectedLabel:option.label}};
 }
 
@@ -213,6 +215,11 @@ $('prepare').addEventListener('click',async () => {
       if(check.ok) actions.push(check.action); else pending.push(check.reason);
     }
     if (!actions.length) pending.unshift('No hay campos compatibles para llenar en esta pantalla.');
+    // El país de nacimiento es crítico: no permitir una transferencia parcial
+    // si CEAC no ofrece exactamente la opción del expediente.
+    const countryMissing = scanned.path === pilot.P1 &&
+      !actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY');
+    if (countryMissing) pending.unshift('BLOQUEADO: no se identificó el país de nacimiento en CEAC. No rellenes esta página hasta revisar la opción exacta. Usa «Inspeccionar estructura CEAC» para comparar las opciones, sin capturar datos personales.');
     $('page').textContent=plan.page+' · Vista previa';
     $('count').textContent=String(actions.length);
     actions.forEach(a=>item($('actions'),a.label+' → '+(a.displayValue || a.value)));
@@ -220,16 +227,17 @@ $('prepare').addEventListener('click',async () => {
     $('preview').style.display='block';
     $('output').textContent=JSON.stringify(scanned,null,2);
     prepared={ceacTab:ceac.id,crmTab:cm.id,draftId:result.draftId,
-      approved:JSON.stringify(result.answers),path:scanned.path,actions};
-    status('Lista preparada. Confirma los campos antes de continuar.');
+      approved:JSON.stringify(result.answers),path:scanned.path,actions,countryMissing};
+    status(countryMissing ? 'País de nacimiento sin coincidencia. Llenado bloqueado para evitar errores en CEAC.' :
+      'Lista preparada. Confirma los campos antes de continuar.');
   }catch(e){status(e.message || 'No se pudo preparar la transferencia.');}
   finally{$('prepare').disabled=false;}
 });
 $('confirm').addEventListener('change',() => {
-  $('fill').disabled = !prepared || !prepared.actions.length || !$('confirm').checked;
+  $('fill').disabled = !prepared || !prepared.actions.length || prepared.countryMissing || !$('confirm').checked;
 });
 $('fill').addEventListener('click',async () => {
-  if(!prepared || !$('confirm').checked) return;
+  if(!prepared || prepared.countryMissing || !$('confirm').checked) return;
   $('fill').disabled=true;status('Validando autorización antes de escribir...');
   try {
     const tab=await currentCEAC();
