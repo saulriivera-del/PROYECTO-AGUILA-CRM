@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.4.0** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.4.1** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.4.0**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.4.1**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Mapear todo el DS-160, pantalla por pantalla
@@ -21,6 +21,22 @@
 4. Si una pregunta tiene respuestas condicionales, inspecciona cada rama cuando CEAC la muestre. Nunca envíes la solicitud ficticia.
 5. Cada pantalla se identifica por su ruta independiente. El cuaderno de mapeo se conserva en `docs/ds160-full-form-mapping-workbook.md`.
 6. **No confundas mapear con rellenar**: los botones **Preparar y comparar campos** y **Rellenar esta pantalla** siguen limitados estrictamente a Personal Information 1 y 2, con aprobación humana previa.
+
+## Comparar preguntas condicionales para TN, TD y B1/B2
+
+Esta extensión permite un ensayo seguro de **ANTES / DESPUÉS** sin leer ni modificar respuestas oficiales.
+
+1. Abre la página de CEAC que quieres estudiar. En la extensión selecciona el **perfil TN, TD o B1/B2** según la solicitud de prueba actual.
+2. Pulsa **1. Guardar estructura ANTES de cambiar la respuesta** y regresa a CEAC.
+3. Modifica manualmente una sola alternativa de la pregunta con datos ficticios. Por ejemplo, una respuesta que muestre u oculte un bloque de dirección.
+4. Vuelve a abrir la extensión. Verifica el mismo perfil, describe brevemente la rama (sin datos personales) y pulsa **2. Comparar DESPUÉS de cambiar la respuesta**.
+5. Aparecerán controles **nuevos**, **ocultos** y **modificados**. Pulsa **Copiar diferencias para mapearlas** y comparte el reporte para actualizar el mapa del cuestionario y las notas del cliente.
+6. Si CEAC cambió a otra URL o pestaña, la extensión exigirá empezar de nuevo. Algunos cambios disparan postbacks o validaciones; sólo se compara la estructura que ya esté visible.
+7. Elige **Eliminar estructura inicial guardada** al terminar la rama, antes de empezar otra solicitud de prueba.
+
+La comparación conserva únicamente **metadatos estructurales** (no valores introducidos, ni radios marcados, ni Application ID) en `chrome.storage.session`, memoria temporal de Chrome. Se puede borrar manualmente y se elimina al finalizar la sesión de navegador. El operador debe revisar los reportes antes de compartirlos. **No existe recorrido automático de todas las combinaciones:** las preguntas se responden manualmente por seguridad y se inspecciona cada rama realmente visible.
+
+El registro independiente por perfil está documentado en `docs/ds160-tn-td-b1b2-conditional-matrix.md`. Los perfiles TD y B1/B2 **aún no tienen autollenado**; el motor de escritura solo admite Personal Information 1 y 2 con las autorizaciones del piloto actual.
 
 ## Detectar y vincular Application ID
 1. Deja abierta una única ficha de candidato **recibida con consentimiento** en Águila, con CEAC como pestaña activa.
@@ -43,7 +59,7 @@
 8. No pulses **Sign and Submit**, no presentes un DS-160 de prueba y no uses los datos de una persona real para validar un mapeo no comprobado.
 
 ## Controles
-- Permisos limitados: `activeTab`, `scripting`, y acceso web **solo al dominio del CRM** para leer el expediente a través de la sesión autenticada del operador.
+- Permisos limitados: `activeTab`, `scripting`, `storage` para metadatos efímeros de comparación y acceso web **solo al dominio del CRM** para leer el expediente a través de la sesión autenticada del operador.
 - Los datos autorizados se consultan de nuevo inmediatamente antes del llenado. No se copian cookies, tokens, claves de acceso ni datos a almacenamiento local.
 - No hay acceso a contraseña de CEAC, CAPTCHA o página de firma. El Application ID visible puede detectarse con un clic y se registra únicamente después de confirmación del operador.
 - El país de nacimiento se selecciona en Águila desde una lista ISO de 249 países y territorios. **México viene preseleccionado** si el expediente todavía no contiene respuesta; no se reemplazan respuestas guardadas de otros países. Si se elige un país distinto de México, la persona debe confirmar explícitamente la elección y mantener consistente el estado/provincia de nacimiento.
