@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
 import { sugerirCurp, formatoCurp, nombresDesdeNombreCompleto, curpConfirmadaParaAvanzar } from '@/lib/curp-sugerida'
-import { birthCountryOptions, isValidBirthCountry } from '@/lib/birth-countries'
+import { birthCountryOptions, isValidBirthCountry, birthCountryMatchesState } from '@/lib/birth-countries'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
@@ -178,6 +178,12 @@ export default function CandidateForm() {
       setMissing([])
       return
     }
+    if (index > 0 && !birthCountryMatchesState(answers.birth_country || '', answers.birth_state || '')) {
+      setSectionIndex(0)
+      setError('Revisa el país y el estado de nacimiento: deben corresponder entre sí.')
+      setMissing([])
+      return
+    }
     if (index > 0 && !curpConfirmadaParaAvanzar(answers)) {
       setSectionIndex(0)
       setError('Para continuar, revisa tu CURP y pulsa «Confirmo que esta CURP coincide con mi documento oficial».')
@@ -302,6 +308,8 @@ export default function CandidateForm() {
         {isForeign ? <div role="alert" style={{border:'1px solid #e8cda2',borderLeft:'4px solid #bd8428',background:'#fff9eb',borderRadius:8,padding:12,marginTop:10}}>
           <strong>¿Estás seguro de tu selección?</strong>
           <p style={{margin:'6px 0'}}>Elegiste un país de nacimiento distinto de México. Verifica tus documentos; este dato se usará para preparar el DS-160.</p>
+          {answers.birth_state !== 'Fuera de México / otro estado o provincia' ?
+            <p style={{fontWeight:600}}>Revisa también «Estado / provincia donde naciste» y elige «Fuera de México / otro estado o provincia».</p> : null}
           <label style={{display:'flex',gap:8,alignItems:'flex-start'}}>
             <input type="checkbox"
               checked={answers.birth_country_nonmexico_confirmed===acknowledgement}
