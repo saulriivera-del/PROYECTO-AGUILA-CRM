@@ -23,7 +23,6 @@ export default function CandidateForm() {
   const [loading, setLoading] = useState(false)
   const [hydrated, setHydrated] = useState(false)
   const [answers, setAnswers] = useState<AnswerMap>({})
-  const [curpAttempted, setCurpAttempted] = useState(false)
   const [people, setPeople] = useState<GroupedPeople>({ companions: [], relatives: [] })
   const [sectionIndex, setSectionIndex] = useState(0)
   const [dirty, setDirty] = useState(false)
@@ -145,7 +144,6 @@ export default function CandidateForm() {
             if (!isVisible(field, next)) delete next[field.key]
       return next
     })
-    if (['full_name','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state'].includes(key)) setCurpAttempted(false)
     setDirty(true)
     setSaveStatus('Cambios pendientes…')
     setError('')
@@ -206,6 +204,9 @@ export default function CandidateForm() {
   }
   const progress = countProgress(answers, people)
   const curpSugerida = sugerirCurp({nombres:nombresDesdeNombreCompleto(answers.full_name || '', answers.curp_paterno || '', answers.curp_materno || ''),paterno:answers.curp_paterno,materno:answers.curp_materno,fecha:answers.birth_date,sexo:answers.curp_sexo,entidad:answers.birth_state})
+  // Mostrar la sugerencia dentro del campo sin guardarla hasta la confirmación.
+  // Respetar incluso una edición manual vacía: nunca sobreescribir lo escrito por el usuario.
+  const curpValorVisible = answers.curp_valor ?? (curpSugerida || '')
   const current = sections[sectionIndex]
 
   function peopleEditor(kind: keyof GroupedPeople) {
@@ -362,15 +363,17 @@ export default function CandidateForm() {
                     {addressTitles[field.key] ? <div className="tn-address">Dirección · {addressTitles[field.key]}</div> : null}
                     {fieldEditor(field)}
                     {field.key === 'birth_country' ? <div className="tn-label wide" style={{gridColumn:'1 / -1',border:'1px solid #c8d9e8',padding:16,borderRadius:10,background:'#f6faff'}}>
-                      <strong>Verifica tu CURP · Vista de prueba</strong>
-                      <p>Esta CURP se calcula de manera aproximada. No es una consulta a RENAPO. Compárala con tu acta o constancia oficial.</p>
-                      <button className="tn-button secondary" type="button" onClick={()=>setCurpAttempted(true)}>Calcular CURP con Visa Master</button>
-                      <p style={{fontSize:19,fontWeight:800,overflowWrap:'anywhere'}} aria-live="polite">{curpAttempted ? (curpSugerida || 'No pudimos calcularla: verifica nombres y apellidos, sexo, fecha y estado de nacimiento. Si no coincide el nombre del pasaporte con los apellidos, puedes escribir tu CURP oficial abajo.') : 'Presiona el botón para generar una CURP sugerida.'}</p>
-                      {curpAttempted && curpSugerida ? <button className="tn-button secondary" type="button" onClick={()=>confirmarCurp(curpSugerida,'Sí, coincide con mi documento')}>Sí, coincide exactamente con mi documento</button> : null}
-                      <p>Si no coincide, escribe aquí tu CURP oficial de 18 caracteres:</p>
-                      <input className="tn-input" maxLength={18} aria-label="CURP oficial" value={answers.curp_valor || ''} onChange={e=>update('curp_valor',e.target.value.toUpperCase())}/>
-                      <button className="tn-button secondary" style={{marginTop:8}} type="button" onClick={()=>confirmarCurp(answers.curp_valor || '','No, la corregí con mi documento')}>Confirmar CURP de mi documento</button>
-                      <p aria-live="polite">{answers.curp_confirmada ? 'Confirmado por el solicitante: '+answers.curp_confirmada : 'Pendiente de confirmación; no se usará una CURP sin confirmar.'}</p>
+                      <strong>Confirma tu CURP</strong>
+                      <p>Visa Master sugiere tu CURP automáticamente con los datos capturados. Verifícala con tu constancia oficial: no es una consulta a RENAPO.</p>
+                      <label htmlFor="tn-curp-autocompletada">CURP (puedes corregirla aquí si no coincide)</label>
+                      <input id="tn-curp-autocompletada" className="tn-input" maxLength={18} aria-label="CURP sugerida o corregida" value={curpValorVisible} onChange={e=>update('curp_valor',e.target.value.toUpperCase())}/>
+                      {!curpSugerida && !answers.curp_valor ? <p role="status">Si no se genera, revisa tus nombres, apellidos, sexo, fecha y estado de nacimiento, o escribe la CURP de tu constancia.</p> : null}
+                      <button className="tn-button secondary" style={{marginTop:8}} type="button"
+                        disabled={!formatoCurp(curpValorVisible) || Boolean(answers.curp_confirmada)}
+                        onClick={()=>confirmarCurp(curpValorVisible,curpValorVisible===curpSugerida?'Sí, coincide con mi documento':'No, la corregí con mi documento')}>
+                        Confirmo que esta CURP coincide con mi documento oficial
+                      </button>
+                      <p aria-live="polite">{answers.curp_confirmada ? 'CURP confirmada. Si necesitas corregirla, edita el campo y vuelve a confirmar.' : 'Pendiente de confirmación. Águila no usará una CURP sugerida sin verificar.'}</p>
                     </div> : null}
                     {field.key === 'social_media_public' && answers.social_media_public === 'Aún no, tengo perfiles privados' ? <div className="tn-label wide" role="alert" style={{ gridColumn: '1 / -1', border: '1px solid #e6c694', borderLeft: '4px solid #b57920', background: '#fff9ec', padding: 15, borderRadius: 9, lineHeight: 1.55, color: '#67481c' }}>
                       <strong>IMPORTANTE · ANTES DE TU CITA EN EL CAS</strong>
