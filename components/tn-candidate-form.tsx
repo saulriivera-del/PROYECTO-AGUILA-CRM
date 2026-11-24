@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
+import { sugerirCurp, formatoCurp } from '@/lib/curp-sugerida'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
@@ -135,6 +136,8 @@ export default function CandidateForm() {
     revision.current += 1
     setAnswers(previous => {
       const next = { ...previous, [key]: value }
+      if (['full_name','curp_nombres','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state'].includes(key)) { delete next.curp_valor; delete next.curp_confirmada }
+      if (key === 'curp_valor') delete next.curp_confirmada
       for (let pass = 0; pass < 4; pass++)
         for (const section of sections)
           for (const field of section.fields)
@@ -145,6 +148,13 @@ export default function CandidateForm() {
     setSaveStatus('Cambios pendientes…')
     setError('')
     setMissing([])
+  }
+  function confirmarCurp(valor: string, estado: string) {
+    const curp = valor.trim().toUpperCase()
+    if (!formatoCurp(curp)) { setError('Revisa la CURP: debe tener 18 caracteres correctos.'); return }
+    revision.current += 1
+    setAnswers(prev => ({...prev, curp_valor: curp, curp_confirmada: estado}))
+    setDirty(true); setSaveStatus('Cambios pendientes…'); setError('')
   }
   function updatePeople(kind: keyof GroupedPeople, index: number, key: keyof Person, value: string) {
     revision.current += 1
@@ -193,6 +203,7 @@ export default function CandidateForm() {
     if (result.error) setDirty(true)
   }
   const progress = countProgress(answers, people)
+  const curpSugerida = sugerirCurp({nombres:answers.curp_nombres,paterno:answers.curp_paterno,materno:answers.curp_materno,fecha:answers.birth_date,sexo:answers.curp_sexo,entidad:answers.birth_state})
   const current = sections[sectionIndex]
 
   function peopleEditor(kind: keyof GroupedPeople) {
@@ -228,6 +239,7 @@ export default function CandidateForm() {
     </div>
   }
   function fieldEditor(field: Question) {
+    if (field.key === 'curp_valor' || field.key === 'curp_confirmada') return null
     const required = isRequired(field, answers)
     const label = field.label + (required ? ' *' : '')
     const value = answers[field.key] ?? ''
