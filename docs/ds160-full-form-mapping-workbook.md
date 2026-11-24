@@ -4,6 +4,12 @@
 
 **Extensión v0.4.1:** el mapa de ramas condicionales por perfil TN, TD y B1/B2 se trabaja en `docs/ds160-tn-td-b1b2-conditional-matrix.md`. La extensión compara estructuras **antes y después de una respuesta manual** y las clasifica por perfil y ruta, sin leer respuestas del solicitante.
 
+## Política de manejo de videos de prueba
+
+Por solicitud del responsable de Visa Master, los videos se usan **solo como fuente temporal** para identificar preguntas, etiquetas, opciones, rutas y condiciones. Documentar las observaciones como texto dentro de este cuaderno y la matriz de TN/TD/B1-B2, sin copiar datos personales y sin subir videos, audio ni capturas al repositorio o a Águila. Eliminar los archivos de trabajo temporales al concluir la revisión.
+
+La retención de **archivos adjuntos originales en ChatGPT** no está controlada por GitHub ni por este procedimiento; su eliminación requiere controles del usuario en el producto correspondiente. No se debe prometer que borrar copias locales elimina el adjunto original.
+
 ## Procedimiento para leer cada página
 
 1. Abre CEAC con **una solicitud de prueba**, resuelve CAPTCHA y navegación manualmente.

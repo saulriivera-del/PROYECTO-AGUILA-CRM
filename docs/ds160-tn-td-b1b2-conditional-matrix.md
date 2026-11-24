@@ -55,6 +55,30 @@ Para verificarlo en CEAC:
 - Anotar si la condición depende de la duración, de contar con planes concretos o de otra respuesta; no asumir que todas son equivalentes.
 - Diseñar la ayuda al cliente según el enunciado exacto observado.
 
+
+## Observaciones de pantalla CEAC — B1/B2, Travel Information
+
+**Origen:** revisión visual de una grabación de prueba el 24 de noviembre de 2026. Se conserva **solo esta transcripción de la estructura y opciones**, no el video, fotogramas, audio, respuestas ni datos personales. Los códigos HTML de los selectores y la obligatoriedad deben verificarse con el inspector de Chrome. Los hallazgos siguientes **no se extienden por suposición a TN o TD**.
+
+**Raíz de pantalla observada:** `/GenNIV/General/complete/complete_travel.aspx` (la grabación muestra la página *Travel Information*).
+
+- **Purpose of Trip to the U.S.:** categoría visible `TEMP. BUSINESS OR PLEASURE VISITOR (B)`.
+- **Specify:** opción visible `BUSINESS OR TOURISM (TEMPORARY VISITOR) (B1/B2)`.
+- **Have you made specific travel plans?** Sí / No. Se observan estructuras distintas dependiendo de esta respuesta.
+
+| Respuesta / condición observada | Preguntas y controles visibles |
+|---|---|
+| Planes específicos = **Sí** | `Date of Arrival in U.S.`, `Arrival Flight (if known)`, `Arrival City`, `Date of Departure from U.S.`, `Departure Flight (if known)`, `Departure City`, lista repetible de `locations you plan to visit` (Add Another / Remove), dirección donde permanecerá en EE. UU., pagador |
+| Planes específicos = **No** | `Intended Date of Arrival`, `Intended Length of Stay in U.S.`, pagador. La grabación no permite concluir qué otros bloques aparecen más abajo en esta rama |
+| `Address Where You Will Stay in the U.S.` (observado en la rama Sí) | `Street Address (Line 1)`, `Street Address (Line 2) *Optional*`, `City`, `State`, `ZIP Code (if known)` |
+| `Person/Entity Paying for Your Trip` | Opciones de catálogo que se leen: `SELF`, `OTHER PERSON`, `PRESENT EMPLOYER`, `EMPLOYER IN THE U.S.`, `OTHER COMPANY/ORGANIZATION` |
+| Pagador = **OTHER PERSON** | `Surnames of Person Paying for Trip`, `Given Names of Person Paying for Trip`, `Telephone Number`, `Email Address` (casilla `Does Not Apply`), `Relationship to You`, pregunta sobre si el domicilio de esa persona coincide con el domicilio particular o postal |
+| `Relationship to You` del pagador | Opciones visibles `CHILD`, `PARENT`, `SPOUSE`, `OTHER RELATIVE`, `FRIEND`, `OTHER` |
+
+**Regla corregida para el cuestionario:** la pregunta oficial observada que cambia el itinerario es **«Have you made specific travel plans?»**, no «¿Planeas quedarte más de 24 horas?». Águila aún contiene `travel_more_than_24h` como regla propia. Antes de cambiar producción, se necesita diseñar el campo `travel_plans_specific` y el detalle por rama, y verificar los campos faltantes con inspector. **No afirmar que la dirección esté condicionada a más de 24 horas**.
+
+**Advertencia sobre alcance:** esta grabación permite identificar etiquetas y opciones visibles, pero no demuestra valores internos HTML, todos los estados o todas las ramas. No se ha hecho envío ni prueba automatizada completa.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
