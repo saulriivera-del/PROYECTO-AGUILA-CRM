@@ -17,8 +17,8 @@ function scanCeacFields() {
     const id = node.getAttribute('id') || '';
     const name = node.getAttribute('name') || '';
     const role = node.getAttribute('role') || '';
-    const label = id ? document.querySelectorAll('label[for]').length &&
-      [...document.querySelectorAll('label[for]')].find(l => l.htmlFor === id)?.textContent?.trim().slice(0, 100) : '' : '';
+    const matchingLabel = id ? [...document.querySelectorAll('label[for]')].find(l => l.htmlFor === id) : null;
+    const label = matchingLabel?.textContent?.trim().slice(0, 100) || '';
     const options = tag === 'select' ? [...node.options].map(x => ({ code: x.value, label: (x.textContent || '').trim().slice(0, 60) })).slice(0, 35) : undefined;
     return { index, tag, type, id, name, role, label: label || undefined, options };
   };
