@@ -12,25 +12,19 @@
           "required": true
         },
         {
-          "key": "curp_nombres",
-          "label": "Nombre(s) de pila para calcular tu CURP",
-          "type": "text",
-          "help": "Escríbelos como aparecen en tu acta de nacimiento. Solo si quieres generar una sugerencia."
-        },
-        {
           "key": "curp_paterno",
-          "label": "Primer apellido para calcular tu CURP",
+          "label": "Primer apellido",
           "type": "text"
         },
         {
           "key": "curp_materno",
-          "label": "Segundo apellido para calcular tu CURP",
+          "label": "Segundo apellido",
           "type": "text",
-          "help": "Si no tienes segundo apellido, deja este campo vacío."
+          "help": "Si no tienes segundo apellido, puedes dejarlo en blanco."
         },
         {
           "key": "curp_sexo",
-          "label": "Sexo para el cálculo de CURP",
+          "label": "Sexo",
           "type": "select",
           "options": [
             "Hombre",
