@@ -53,7 +53,7 @@ export default function CandidateForm() {
         if (!active) return
         const stored = cleanAnswers(data.draft?.answers)
         setIdentity(data.name || 'Candidato')
-        setAnswers(data.draft && Object.keys(stored).length ? stored : { ...stored, nationality: 'Mexicana' })
+        setAnswers({ ...stored, nationality: stored.nationality || 'Mexicana', birth_country: stored.birth_country || 'MX' })
         setPeople(cleanPeople(data.draft?.people))
         setSubmitted(data.draft?.status === 'Enviado')
         setConsent(Boolean(data.draft?.consent_at))
