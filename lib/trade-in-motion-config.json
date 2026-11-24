@@ -12,6 +12,32 @@
           "required": true
         },
         {
+          "key": "curp_nombres",
+          "label": "Nombre(s) de pila para calcular tu CURP",
+          "type": "text",
+          "help": "Escríbelos como aparecen en tu acta de nacimiento. Solo si quieres generar una sugerencia."
+        },
+        {
+          "key": "curp_paterno",
+          "label": "Primer apellido para calcular tu CURP",
+          "type": "text"
+        },
+        {
+          "key": "curp_materno",
+          "label": "Segundo apellido para calcular tu CURP",
+          "type": "text",
+          "help": "Si no tienes segundo apellido, deja este campo vacío."
+        },
+        {
+          "key": "curp_sexo",
+          "label": "Sexo para el cálculo de CURP",
+          "type": "select",
+          "options": [
+            "Hombre",
+            "Mujer"
+          ]
+        },
+        {
           "key": "birth_date",
           "label": "Fecha de nacimiento",
           "type": "date",
@@ -79,6 +105,21 @@
           "label": "País donde naciste",
           "type": "text",
           "required": true
+        },
+        {
+          "key": "curp_valor",
+          "label": "CURP confirmada por el solicitante",
+          "type": "text",
+          "help": "Solo se usa la CURP comprobada en tus documentos; el cálculo preliminar no es oficial."
+        },
+        {
+          "key": "curp_confirmada",
+          "label": "Estado de confirmación de CURP",
+          "type": "select",
+          "options": [
+            "Sí, coincide con mi documento",
+            "No, la corregí con mi documento"
+          ]
         },
         {
           "key": "marital_status",
