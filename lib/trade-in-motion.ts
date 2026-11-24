@@ -108,6 +108,11 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
       if (selectedSocial.includes(platform.option) && !answers[platform.key]?.trim())
         problems.push('Captura el usuario o identificador de ' + platform.option)
   }
+  // No aceptar una CURP capturada sin verificación explícita del solicitante.
+  if (answers.curp_valor && !answers.curp_confirmada) problems.push('Confirma la CURP con tus documentos oficiales')
+  if (answers.curp_confirmada && !answers.curp_valor) problems.push('Falta la CURP confirmada')
+  if (answers.curp_valor && !/^[A-Z]{4}\\d{6}[HM][A-Z]{5}[0-9A-J]\\d$/.test(answers.curp_valor))
+    problems.push('La CURP debe tener 18 caracteres con formato válido')
   if (!answers.full_name || !answers.phone || !answers.email) problems.push('Nombre, teléfono y correo son necesarios')
   if (!/^\d{10,15}$/.test((answers.phone || '').replace(/\D/g, ''))) problems.push('Teléfono: de 10 a 15 dígitos')
   if (answers.travel_with_someone === 'Sí') {

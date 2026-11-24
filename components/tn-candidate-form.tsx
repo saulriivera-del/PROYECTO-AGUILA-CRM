@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
+import { sugerirCurp, formatoCurp } from '@/lib/curp-sugerida'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
@@ -135,6 +136,8 @@ export default function CandidateForm() {
     revision.current += 1
     setAnswers(previous => {
       const next = { ...previous, [key]: value }
+      if (['full_name','curp_nombres','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state'].includes(key)) { delete next.curp_valor; delete next.curp_confirmada }
+      if (key === 'curp_valor') delete next.curp_confirmada
       for (let pass = 0; pass < 4; pass++)
         for (const section of sections)
           for (const field of section.fields)
@@ -145,6 +148,13 @@ export default function CandidateForm() {
     setSaveStatus('Cambios pendientes…')
     setError('')
     setMissing([])
+  }
+  function confirmarCurp(valor: string, estado: string) {
+    const curp = valor.trim().toUpperCase()
+    if (!formatoCurp(curp)) { setError('Revisa la CURP: debe tener 18 caracteres correctos.'); return }
+    revision.current += 1
+    setAnswers(prev => ({...prev, curp_valor: curp, curp_confirmada: estado}))
+    setDirty(true); setSaveStatus('Cambios pendientes…'); setError('')
   }
   function updatePeople(kind: keyof GroupedPeople, index: number, key: keyof Person, value: string) {
     revision.current += 1
@@ -193,6 +203,7 @@ export default function CandidateForm() {
     if (result.error) setDirty(true)
   }
   const progress = countProgress(answers, people)
+  const curpSugerida = sugerirCurp({nombres:answers.curp_nombres,paterno:answers.curp_paterno,materno:answers.curp_materno,fecha:answers.birth_date,sexo:answers.curp_sexo,entidad:answers.birth_state})
   const current = sections[sectionIndex]
 
   function peopleEditor(kind: keyof GroupedPeople) {
@@ -228,6 +239,7 @@ export default function CandidateForm() {
     </div>
   }
   function fieldEditor(field: Question) {
+    if (field.key === 'curp_valor' || field.key === 'curp_confirmada') return null
     const required = isRequired(field, answers)
     const label = field.label + (required ? ' *' : '')
     const value = answers[field.key] ?? ''
@@ -347,6 +359,16 @@ export default function CandidateForm() {
                     </div> : null}
                     {addressTitles[field.key] ? <div className="tn-address">Dirección · {addressTitles[field.key]}</div> : null}
                     {fieldEditor(field)}
+                    {field.key === 'birth_country' ? <div className="tn-label wide" style={{gridColumn:'1 / -1',border:'1px solid #c8d9e8',padding:16,borderRadius:10,background:'#f6faff'}}>
+                      <strong>Verifica tu CURP · Vista de prueba</strong>
+                      <p>Esta CURP se calcula de manera aproximada. No es una consulta a RENAPO. Compárala con tu acta o constancia oficial.</p>
+                      <p style={{fontSize:19,fontWeight:800,overflowWrap:'anywhere'}}>{curpSugerida || 'Completa los nombres, apellidos, sexo, fecha y entidad de nacimiento.'}</p>
+                      {curpSugerida ? <button className="tn-button secondary" type="button" onClick={()=>confirmarCurp(curpSugerida,'Sí, coincide con mi documento')}>Sí, coincide exactamente con mi documento</button> : null}
+                      <p>Si no coincide, escribe aquí tu CURP oficial de 18 caracteres:</p>
+                      <input className="tn-input" maxLength={18} aria-label="CURP oficial" value={answers.curp_valor || ''} onChange={e=>update('curp_valor',e.target.value.toUpperCase())}/>
+                      <button className="tn-button secondary" style={{marginTop:8}} type="button" onClick={()=>confirmarCurp(answers.curp_valor || '','No, la corregí con mi documento')}>Confirmar CURP de mi documento</button>
+                      <p aria-live="polite">{answers.curp_confirmada ? 'Confirmado por el solicitante: '+answers.curp_confirmada : 'Pendiente de confirmación; no se usará una CURP sin confirmar.'}</p>
+                    </div> : null}
                     {field.key === 'social_media_public' && answers.social_media_public === 'Aún no, tengo perfiles privados' ? <div className="tn-label wide" role="alert" style={{ gridColumn: '1 / -1', border: '1px solid #e6c694', borderLeft: '4px solid #b57920', background: '#fff9ec', padding: 15, borderRadius: 9, lineHeight: 1.55, color: '#67481c' }}>
                       <strong>IMPORTANTE · ANTES DE TU CITA EN EL CAS</strong>
                       <p style={{ margin: '7px 0 0' }}>Para tu trámite de visa TN/TD, configura <strong>todas tus redes sociales como públicas o abiertas antes de tu cita en el CAS</strong> y mantenlas así durante la revisión consular. Visa Master recomienda hacerlo antes del CAS para llegar preparado; el Departamento de Estado pide perfiles públicos o abiertos, sin establecer específicamente el CAS como fecha límite.</p>
