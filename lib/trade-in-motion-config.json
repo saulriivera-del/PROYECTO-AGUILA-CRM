@@ -133,8 +133,9 @@
           "key": "nationality",
           "label": "Nacionalidad",
           "type": "text",
-          "placeholder": "Por ejemplo, mexicana",
-          "required": true
+          "placeholder": "Mexicana",
+          "required": true,
+          "help": "Si tienes otra nacionalidad, puedes cambiar este dato."
         },
         {
           "key": "spouse_name",
