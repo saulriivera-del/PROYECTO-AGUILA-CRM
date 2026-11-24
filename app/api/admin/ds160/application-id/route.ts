@@ -47,7 +47,11 @@ export async function GET(request: Request) {
     .select('application_id,status,linked_at').eq('organization_id', context.organizationId)
     .eq('draft_id', id).order('linked_at', { ascending: false }).limit(10)
   if (linkError) return reply({ error: 'El registro de Application IDs no está disponible' }, 503)
-  const name = typeof draft.answers?.full_name === 'string' ? draft.answers.full_name.trim() : ''
+  const { data: correction, error: correctionError } = await db.from('vm_ds160_corrections')
+    .select('answers').eq('draft_id', id).eq('organization_id', context.organizationId).maybeSingle()
+  if (correctionError) return reply({ error: 'No fue posible revisar el nombre corregido' }, 503)
+  const effective = correction?.answers ?? draft.answers
+  const name = typeof effective?.full_name === 'string' ? effective.full_name.trim() : ''
   return reply({
     schema: SCHEMA, draftId: draft.id,
     applicantName: name.slice(0, 120) || 'Expediente sin nombre',
