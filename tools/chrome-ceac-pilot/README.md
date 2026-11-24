@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.3.3** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.4.0** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,8 +11,16 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.3.3**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.4.0**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
+
+## Mapear todo el DS-160, pantalla por pantalla
+1. Abre cualquier página de respuesta del DS-160 en `https://ceac.state.gov/GenNIV/General/complete/…aspx`.
+2. Pulsa **Mapear esta pantalla (sin datos personales)**. El modo de mapeo **no requiere seleccionar un candidato en Águila** y funciona en páginas distintas de Personal 1 y 2.
+3. Pulsa **Copiar estructura para mapearla** y pega el contenido en el chat. Incluye únicamente metadatos: ruta de página, IDs y tipos de controles, etiquetas asociadas y catálogos de selectores. No incluye datos capturados, selección actual, cookies ni Application ID.
+4. Si una pregunta tiene respuestas condicionales, inspecciona cada rama cuando CEAC la muestre. Nunca envíes la solicitud ficticia.
+5. Cada pantalla se identifica por su ruta independiente. El cuaderno de mapeo se conserva en `docs/ds160-full-form-mapping-workbook.md`.
+6. **No confundas mapear con rellenar**: los botones **Preparar y comparar campos** y **Rellenar esta pantalla** siguen limitados estrictamente a Personal Information 1 y 2, con aprobación humana previa.
 
 ## Detectar y vincular Application ID
 1. Deja abierta una única ficha de candidato **recibida con consentimiento** en Águila, con CEAC como pestaña activa.
