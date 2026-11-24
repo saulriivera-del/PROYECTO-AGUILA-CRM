@@ -79,6 +79,32 @@ Para verificarlo en CEAC:
 
 **Advertencia sobre alcance:** esta grabación permite identificar etiquetas y opciones visibles, pero no demuestra valores internos HTML, todos los estados o todas las ramas. No se ha hecho envío ni prueba automatizada completa.
 
+## Observaciones de pantalla CEAC — Travel Companions Information
+
+**Origen:** grabación de prueba de 29 segundos revisada el 24 de noviembre de 2026, continuando el recorrido previo de B1/B2. **La clase de visa no se ve en esta pantalla**: confirmar en CEAC que corresponde al perfil de prueba antes de extender estos hallazgos a TN o TD. Se conserva exclusivamente la estructura textual, sin video, fotogramas ni respuestas del solicitante.
+
+**Ruta identificada visualmente:** `/GenNIV/General/complete/complete_travelcompanions.aspx`. Las ID de HTML y códigos de opción no se conocen hasta usar el inspector de Chrome.
+
+| Condición que se vio | Preguntas/controles visibles |
+|---|---|
+| `Are there other persons traveling with you?` = **No** | No se solicita detalle de acompañantes |
+| `Are there other persons traveling with you?` = **Yes** | Aparece `Are you traveling as part of a group or organization?` (Yes/No) |
+| Grupo u organización = **No** | Sección repetible `Enter person(s) traveling with you`; `Surnames of Person Traveling with You`, `Given Names of Person Traveling with You`, `Relationship with Person`; acciones `Add Another` y `Remove` |
+| Grupo u organización = **Yes** | `Enter the name of the group you are traveling with.` y campo `Group Name` (sin nombres individuales visibles en esa rama) |
+
+**Catálogo visible de `Relationship with Person`:** `PARENT`, `SPOUSE`, `CHILD`, `OTHER RELATIVE`, `FRIEND`, `BUSINESS ASSOCIATE`, `OTHER` (además de `-SELECT ONE-`). El orden visual puede diferir del mostrado aquí; verificar valores de CEAC antes de programar autollenado.
+
+**Correspondencia con Águila actualmente:**
+- `travel_with_someone` ya captura si va acompañado.
+- `people.companions[].fullName` captura un nombre junto, pero CEAC separa **Surnames** y **Given Names**: hace falta desglosarlos o separar con verificación inequívoca.
+- `people.companions[].relationship` usa categorías en español parecidas, pero faltan equivalencias exactas del catálogo.
+- Falta `travel_companions_group` (Sí/No) y, si Sí, `travel_companions_group_name` (nombre de organización o grupo).
+- No inferir respuesta predeterminada a «¿viajas con un grupo u organización?». En particular, viajar con familiares no necesariamente implica ir como parte de un grupo organizado.
+
+**Anotaciones sugeridas al cliente (pendientes de implementar):** «Indica si viajarás con otras personas. Si respondes Sí, dinos si viajas como parte de un grupo u organización. Si no es un grupo, anota nombres y apellidos de cada acompañante tal como aparecen en sus pasaportes y selecciona tu relación con ellos. Si es un grupo, escribe su nombre». Mantener los botones de añadir/quitar acompañantes según la rama.
+
+**Estado:** preguntas y opciones observadas visualmente; **sin comprobación de IDs, códigos HTML ni prueba del autollenado**. No se han cambiado los campos de producción del CRM.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
