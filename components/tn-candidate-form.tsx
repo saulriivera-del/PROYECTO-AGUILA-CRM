@@ -359,6 +359,16 @@ export default function CandidateForm() {
                     </div> : null}
                     {addressTitles[field.key] ? <div className="tn-address">Dirección · {addressTitles[field.key]}</div> : null}
                     {fieldEditor(field)}
+                    {field.key === 'birth_country' ? <div className="tn-label wide" style={{gridColumn:'1 / -1',border:'1px solid #c8d9e8',padding:16,borderRadius:10,background:'#f6faff'}}>
+                      <strong>Verifica tu CURP · Vista de prueba</strong>
+                      <p>Esta CURP se calcula de manera aproximada. No es una consulta a RENAPO. Compárala con tu acta o constancia oficial.</p>
+                      <p style={{fontSize:19,fontWeight:800,overflowWrap:'anywhere'}}>{curpSugerida || 'Completa los nombres, apellidos, sexo, fecha y entidad de nacimiento.'}</p>
+                      {curpSugerida ? <button className="tn-button secondary" type="button" onClick={()=>confirmarCurp(curpSugerida,'Sí, coincide con mi documento')}>Sí, coincide exactamente con mi documento</button> : null}
+                      <p>Si no coincide, escribe aquí tu CURP oficial de 18 caracteres:</p>
+                      <input className="tn-input" maxLength={18} aria-label="CURP oficial" value={answers.curp_valor || ''} onChange={e=>update('curp_valor',e.target.value.toUpperCase())}/>
+                      <button className="tn-button secondary" style={{marginTop:8}} type="button" onClick={()=>confirmarCurp(answers.curp_valor || '','No, la corregí con mi documento')}>Confirmar CURP de mi documento</button>
+                      <p aria-live="polite">{answers.curp_confirmada ? 'Confirmado por el solicitante: '+answers.curp_confirmada : 'Pendiente de confirmación; no se usará una CURP sin confirmar.'}</p>
+                    </div> : null}
                     {field.key === 'social_media_public' && answers.social_media_public === 'Aún no, tengo perfiles privados' ? <div className="tn-label wide" role="alert" style={{ gridColumn: '1 / -1', border: '1px solid #e6c694', borderLeft: '4px solid #b57920', background: '#fff9ec', padding: 15, borderRadius: 9, lineHeight: 1.55, color: '#67481c' }}>
                       <strong>IMPORTANTE · ANTES DE TU CITA EN EL CAS</strong>
                       <p style={{ margin: '7px 0 0' }}>Para tu trámite de visa TN/TD, configura <strong>todas tus redes sociales como públicas o abiertas antes de tu cita en el CAS</strong> y mantenlas así durante la revisión consular. Visa Master recomienda hacerlo antes del CAS para llegar preparado; el Departamento de Estado pide perfiles públicos o abiertos, sin establecer específicamente el CAS como fecha límite.</p>
