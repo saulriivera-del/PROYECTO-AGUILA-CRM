@@ -1,4 +1,4 @@
-/* Visa Master · CEAC piloto v0.3.2 | funciones puras, sin datos persistentes. */
+/* Visa Master · CEAC piloto v0.3.3 | funciones puras, sin datos persistentes. */
 (function (root) {
   'use strict';
   const P1 = '/GenNIV/General/complete/complete_personal.aspx';
@@ -34,21 +34,30 @@
   // Comparar un país declarado con las opciones REALES de CEAC.
   // No se inventan valores del catálogo ni se selecciona por índice.
   function resolveCountryOption(options, country) {
-    const normalized = v => normalize(v).replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+    const normalized = v => normalize(v).replace(/[^A-Z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
     const wanted = normalized(country);
     if (!wanted || !Array.isArray(options)) return null;
     const mexico = ['MEXICO','MEX','MX'].includes(wanted);
+    const englishRegion = /^[A-Z]{2}$/.test(wanted)
+      ? new Intl.DisplayNames(['en'], {type:'region'}).of(wanted)
+      : null;
+    const english = englishRegion ? normalized(englishRegion) : '';
     const candidates = options.filter(option => {
       const label = normalized(option.label);
       const code = normalized(option.code);
       if (!label || !code) return false;
       if (mexico) {
-        return label === 'MEXICO' ||
-          (['MEX','MX','MEXICO'].includes(code) && /^MEXICO(?: |$)/.test(label));
+        // CEAC utiliza códigos propios que no siempre son MX o MEX.
+        // Aceptar su etiqueta «MEXICO» aun cuando el código difiera,
+        // siempre que la opción sea ÚNICA y empiece por el nombre del país.
+        return /^(MEXICO|UNITED MEXICAN STATES)(?: |$)/.test(label);
       }
-      // Otros países: solo etiqueta literal o código de país introducido
-      // explícitamente, siempre con coincidencia única.
-      return label === wanted || (wanted.length <= 3 && code === wanted);
+      if (label === wanted || (wanted.length <= 3 && code === wanted)) return true;
+      if (english && (label === english ||
+          label.startsWith(english + ' (') || label.startsWith(english + ' ,'))) return true;
+      if (wanted === 'US' && (label === 'UNITED STATES OF AMERICA' ||
+          label === 'UNITED STATES')) return true;
+      return false;
     });
     return candidates.length === 1 ? candidates[0] : null;
   }
