@@ -23,7 +23,7 @@ export function canonicalBirthCountry(value: string): string {
   if (!original) return ''
   const asCode = original.toUpperCase()
   if (ISO_COUNTRIES.has(asCode)) return asCode
-  const norm = (text: string) => text.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
+  const norm = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z]/g, '').toUpperCase()
   const normalized = norm(original)
   const aliases: Record<string, string> = {
