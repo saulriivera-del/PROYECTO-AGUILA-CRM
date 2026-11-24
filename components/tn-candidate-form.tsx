@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
 import { sugerirCurp, formatoCurp, nombresDesdeNombreCompleto, curpConfirmadaParaAvanzar } from '@/lib/curp-sugerida'
+import { birthCountryOptions, isValidBirthCountry } from '@/lib/birth-countries'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
@@ -136,8 +137,9 @@ export default function CandidateForm() {
     revision.current += 1
     setAnswers(previous => {
       const next = { ...previous, [key]: value }
-      if (['full_name','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state'].includes(key)) { delete next.curp_valor; delete next.curp_confirmada }
+      if (['full_name','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state','birth_country'].includes(key)) { delete next.curp_valor; delete next.curp_confirmada }
       if (key === 'curp_valor') delete next.curp_confirmada
+      if (key === 'birth_country') delete next.birth_country_nonmexico_confirmed
       for (let pass = 0; pass < 4; pass++)
         for (const section of sections)
           for (const field of section.fields)
@@ -163,6 +165,19 @@ export default function CandidateForm() {
 
   function irASeccion(destino: number) {
     const index = Math.max(0, Math.min(sections.length - 1, destino))
+    if (index > 0 && !isValidBirthCountry(answers.birth_country || '')) {
+      setSectionIndex(0)
+      setError('Selecciona el país de nacimiento de la lista antes de continuar.')
+      setMissing([])
+      return
+    }
+    if (index > 0 && answers.birth_country !== 'MX' &&
+        answers.birth_country_nonmexico_confirmed !== 'Sí, confirmo que nací fuera de México') {
+      setSectionIndex(0)
+      setError('Elegiste un país de nacimiento distinto de México. Confírmalo para continuar.')
+      setMissing([])
+      return
+    }
     if (index > 0 && !curpConfirmadaParaAvanzar(answers)) {
       setSectionIndex(0)
       setError('Para continuar, revisa tu CURP y pulsa «Confirmo que esta CURP coincide con mi documento oficial».')
@@ -263,10 +278,39 @@ export default function CandidateForm() {
     </div>
   }
   function fieldEditor(field: Question) {
-    if (field.key === 'curp_valor' || field.key === 'curp_confirmada') return null
+    if (field.key === 'curp_valor' || field.key === 'curp_confirmada' || field.key === 'birth_country_nonmexico_confirmed') return null
     const required = isRequired(field, answers)
     const label = field.label + (required ? ' *' : '')
     const value = answers[field.key] ?? ''
+    if (field.key === 'birth_country') {
+      const isForeign = isValidBirthCountry(value) && value !== 'MX'
+      const acknowledgement = 'Sí, confirmo que nací fuera de México'
+      return <div className="tn-label wide" key={field.key} style={{gridColumn:'1 / -1'}}>
+        <label htmlFor="tn-birth-country">{label}</label>
+        <small>Selecciona el país en la lista completa. México aparece al principio para evitar errores de captura.</small>
+        <select id="tn-birth-country" className="tn-input" name="birth_country" value={isValidBirthCountry(value) ? value : ''}
+          onChange={e => update('birth_country', e.target.value)}>
+          <option value="">Selecciona el país donde naciste</option>
+          <optgroup label="México">
+            <option value="MX">México</option>
+          </optgroup>
+          <optgroup label="Otros países y territorios">
+            {birthCountryOptions.filter(item=>item.code!=='MX').map(item=><option value={item.code} key={item.code}>{item.name}</option>)}
+          </optgroup>
+        </select>
+        {value && !isValidBirthCountry(value) ? <p role="alert" style={{color:'#925217'}}>El valor anterior del país no coincide con la lista. Selecciona de nuevo tu país de nacimiento.</p> : null}
+        {isForeign ? <div role="alert" style={{border:'1px solid #e8cda2',borderLeft:'4px solid #bd8428',background:'#fff9eb',borderRadius:8,padding:12,marginTop:10}}>
+          <strong>¿Estás seguro de tu selección?</strong>
+          <p style={{margin:'6px 0'}}>Elegiste un país de nacimiento distinto de México. Verifica tus documentos; este dato se usará para preparar el DS-160.</p>
+          <label style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+            <input type="checkbox"
+              checked={answers.birth_country_nonmexico_confirmed===acknowledgement}
+              onChange={e=>update('birth_country_nonmexico_confirmed',e.target.checked ? acknowledgement : '')}/>
+            <span>Confirmo que mi país de nacimiento no es México y que seleccioné el país correcto.</span>
+          </label>
+        </div> : null}
+      </div>
+    }
     if (field.type === 'multiselect') {
       const selected = getSelectedSocialPlatforms(value)
       const options = field.options ?? []
