@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Visa Master · Inspector DS-160 (piloto)",
+  "version": "0.1.0",
+  "description": "Inspección local de estructura de campos de CEAC. No lee respuestas ni guarda ni envía solicitudes.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Inspeccionar campos CEAC"
+  }
+}
