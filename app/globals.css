@@ -1378,3 +1378,16 @@ body.modal-open{overflow:hidden}
   .payment-history-row { align-items:flex-start; flex-direction:column; }
   .smart-process-actions { justify-content:flex-start; }
 }
+
+
+/* DS-160: grupo accesible en el menú principal */
+.crm-nav-group{margin:2px 0;color:#fff}
+.crm-nav-group>summary{list-style:none;cursor:pointer;padding:13px 14px;border-radius:11px;font-weight:760;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.crm-nav-group>summary::-webkit-details-marker{display:none}
+.crm-nav-group>summary::after{content:'⌄';font-size:1.05rem;transition:transform .15s ease}
+.crm-nav-group:not([open])>summary::after{transform:rotate(-90deg)}
+.crm-nav-group>summary:hover,.crm-nav-group>summary:focus-visible{background:rgba(255,255,255,.12)}
+.crm-nav-subitems{display:grid;gap:3px;padding:0 0 3px 13px}
+.crm-nav .crm-nav-subitems a{font-weight:550;font-size:.85rem;padding:10px 12px;line-height:1.4}
+.crm-nav-pilot{font-size:.64rem;color:#d2e4f9;border:1px solid rgba(255,255,255,.27);border-radius:8px;padding:2px 5px;margin-left:4px;white-space:nowrap}
+@media(max-width:850px){.crm-nav-group{flex:0 0 auto;min-width:210px}.crm-nav-subitems a{white-space:normal!important}}

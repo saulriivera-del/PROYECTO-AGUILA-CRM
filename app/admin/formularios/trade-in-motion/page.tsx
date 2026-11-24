@@ -67,9 +67,10 @@ export default async function TradeInMotionIntakePage({ searchParams }: { search
   const all = [...existing, ...pending, ...pendingFolio]
   const filtered = all.filter(d =>
     (!query || (d.name + ' ' + d.email + ' ' + d.folio).toLowerCase().includes(query)) &&
-    (filter === 'todos' || d.status === filter))
+    (filter === 'todos' || (filter === 'recibidos' ? (d.status === 'Recibido' || d.status === 'En revisión') : d.status === filter)))
   const statusFilters = [
     { value: 'todos', label: 'Todos' },
+    { value: 'recibidos', label: 'Recibidos y en revisión' },
     { value: 'Pendiente', label: 'Sin comenzar' },
     { value: 'Borrador', label: 'Borradores' },
     { value: 'Recibido', label: 'Recibidos' },
