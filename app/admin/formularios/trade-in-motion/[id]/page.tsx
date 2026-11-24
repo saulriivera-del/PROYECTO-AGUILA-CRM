@@ -6,7 +6,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { cleanAnswers, cleanPeople, countProgress } from '@/lib/trade-in-motion'
 import TnResponseReview from '@/components/tn-response-review'
 import Ds160CorrectionEditor from '@/components/ds160-correction-editor'
-import { markReview, markFolioReview } from './actions'
+import { markReview, markFolioReview, approveDs160Personal } from './actions'
+import { personalDigest, personalProblems } from '@/lib/ds160-personal-transfer'
 
 export const dynamic = 'force-dynamic'
 export default async function CandidateResponsesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +16,7 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
   if (!isAdministrator(context.role) && context.role !== 'reception') redirect('/admin?error=Acceso%20restringido')
   const db = createAdminClient()
   const { data: draft } = await db.from('vm_trade_in_motion_drafts')
-    .select('id, access_id, applicant_email, organization_id, answers, people, submission_id, status, reviewed_at, created_at, updated_at, submitted_at, consent_at')
+    .select('id, access_id, applicant_email, organization_id, answers, people, submission_id, status, reviewed_at, created_at, updated_at, submitted_at, consent_at, ds160_personal_approved_at, ds160_personal_approved_by, ds160_personal_approved_digest')
     .eq('id', id).eq('organization_id', context.organizationId).maybeSingle()
   if (!draft) notFound()
   const [{ data: correction }, { data: editHistory }] = await Promise.all([
@@ -40,6 +41,15 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
   const answers = cleanAnswers(correction?.answers ?? draft.answers)
   const people = cleanPeople(correction?.people ?? draft.people)
   const progress = countProgress(answers, people)
+  const personalMissing = personalProblems(answers)
+  const personallyApproved = Boolean(
+    draft.ds160_personal_approved_at && draft.ds160_personal_approved_by &&
+    draft.ds160_personal_approved_digest === personalDigest(answers) &&
+    Math.max(new Date(draft.updated_at).getTime(), correction?.updated_at ? new Date(correction.updated_at).getTime() : 0) <= new Date(draft.ds160_personal_approved_at).getTime() &&
+    personalMissing.length === 0
+  )
+  const canApprovePersonal = draft.status === 'Enviado' && Boolean(draft.consent_at) &&
+    personalMissing.length === 0 && !personallyApproved
   const state = draft.status === 'Borrador' ? 'Borrador' : correction ? 'Corregido · Pendiente de aprobación' : draft.reviewed_at || submission?.status === 'En revisión' ? 'En revisión' : 'Recibido'
   const date = (value: string) => new Intl.DateTimeFormat('es-MX', {
     timeZone: 'America/Hermosillo', dateStyle: 'medium', timeStyle: 'short',
@@ -66,6 +76,26 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
     {draft.status === 'Enviado' && <Ds160CorrectionEditor draftId={draft.id}
       originalAnswers={originalAnswers} initialAnswers={answers} initialPeople={people}
       initialVersion={correction?.version ?? 0} />}
+    <section style={{ margin: '22px 0', padding: 18, border: '1px solid #bfd1e4', borderRadius: 12 }}>
+      <h2>DS-160 · Autorización de datos personales</h2>
+      <p>Solo los datos revisados y corregidos podrán prepararse para Chrome. Esta autorización no guarda ni envía el DS-160 oficial a CEAC.</p>
+      {personalMissing.length > 0 ? <div role="alert">
+        <strong>Campos que deben corregirse antes de autorizar:</strong>
+        <ul>{personalMissing.slice(0, 12).map(problem => <li key={problem.key}>{problem.label}</li>)}</ul>
+      </div> : null}
+      {personallyApproved
+        ? <p style={{ color: '#176541', fontWeight: 700 }}>Datos personales aprobados para preparar transferencia. Abre este expediente desde Chrome para continuar las pruebas de extensión.</p>
+        : canApprovePersonal
+          ? <form action={approveDs160Personal}>
+              <input type="hidden" name="id" value={draft.id} />
+              <label style={{ display: 'block', marginBottom: 12 }}>
+                <input type="checkbox" name="confirmed_documents" value="yes" required />
+                Confirmo que cotejé las respuestas corregidas con los documentos del solicitante.
+              </label>
+              <button type="submit" className="primary-button">Aprobar datos personales para Chrome</button>
+            </form>
+          : <p>Primero verifica el consentimiento y corrige los campos obligatorios. Si se modifica un dato aprobado, necesitará nueva autorización.</p>}
+    </section>
     <h2 style={{ marginTop: 28 }}>{correction ? 'Respuestas corregidas para automatización' : 'Respuestas recibidas'}</h2>
     <TnResponseReview answers={answers} people={people} />
     {correction && <details style={{ marginTop: 20, padding: 16, background: '#f7f9fb', borderRadius: 11 }}>
