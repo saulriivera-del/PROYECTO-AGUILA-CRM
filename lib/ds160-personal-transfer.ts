@@ -4,7 +4,7 @@
  * Solo se importa desde código de servidor (usa node:crypto).
  */
 import { createHash } from 'node:crypto'
-import { isValidBirthCountry } from './birth-countries'
+import { isValidBirthCountry, birthCountryMatchesState } from './birth-countries'
 import {
   cleanAnswers, getSelectedSocialPlatforms, isRequired, isVisible,
   sections, type AnswerMap,
@@ -55,6 +55,12 @@ export function personalProblems(raw: unknown): PersonalProblem[] {
     if (field.type === 'multiselect' && (getSelectedSocialPlatforms(value).join('|') !== value || !getSelectedSocialPlatforms(value).length))
       problems.push({ key: field.key, label: field.label + ' (selección inválida)' })
   }
+  if (isValidBirthCountry(answers.birth_country || '') && answers.birth_state &&
+      !birthCountryMatchesState(answers.birth_country, answers.birth_state))
+    problems.push({ key: 'birth_state', label: 'País y estado de nacimiento no coinciden' })
+  if (answers.birth_country && answers.birth_country !== 'MX' &&
+      answers.birth_country_nonmexico_confirmed !== 'Sí, confirmo que nací fuera de México')
+    problems.push({ key: 'birth_country_nonmexico_confirmed', label: 'Falta confirmar país de nacimiento fuera de México' })
   return problems
 }
 
