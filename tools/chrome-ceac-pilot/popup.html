@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visa Master · Piloto DS-160</title>
+<style>
+  body{width:390px;max-height:590px;overflow:auto;margin:0;padding:16px;box-sizing:border-box;font:13px system-ui,-apple-system,sans-serif;color:#173b5a;background:#fff}
+  h1{font-size:17px;margin:0 0 6px}h2{font-size:14px;margin:17px 0 7px}p{line-height:1.5;margin:9px 0}
+  button{border:0;background:#135b9a;color:#fff;border-radius:8px;padding:11px 12px;font:600 13px system-ui;cursor:pointer;width:100%;margin:6px 0}
+  button.secondary{border:1px solid #b9ccdd;color:#173b5a;background:#f7fafc}button:disabled{opacity:.5;cursor:not-allowed}
+  .warning{background:#fff8e8;border-left:3px solid #af7822;padding:9px;border-radius:4px}
+  .box{background:#f2f7fc;border:1px solid #dce8f1;border-radius:9px;padding:11px}
+  ul{padding-left:20px;line-height:1.45}li{margin:5px 0;overflow-wrap:anywhere}
+  .muted,small{color:#62798c}#status{font-weight:650}#preview{display:none}
+  label{display:flex;align-items:flex-start;gap:9px;margin:12px 0;font-size:12px;line-height:1.4}
+  input[type=checkbox]{margin-top:3px}pre{white-space:pre-wrap;word-break:break-word;max-height:190px;overflow:auto;background:#f6f8fb;padding:7px}
+</style></head>
+<body>
+<h1>Visa Master · Piloto DS-160</h1>
+<p class="muted">Datos personales 1 y 2. El operador revisa cada pantalla; no se guarda ni envía la solicitud.</p>
+<div class="box">
+  <strong>1. Recuperar datos aprobados</strong>
+  <p>Abre la ficha del candidato aprobada en otra pestaña de <strong>crm.visamaster.com.mx</strong> y mantén CEAC como pestaña activa.</p>
+  <button id="prepare">Preparar y comparar campos</button>
+  <button id="inspect" class="secondary">Inspeccionar estructura CEAC</button>
+  <p id="status" role="status">Esperando una pantalla de Datos personales en CEAC.</p>
+</div>
+<section id="preview">
+  <h2 id="page"></h2>
+  <p><strong>Campos compatibles:</strong> <span id="count">0</span></p>
+  <ul id="actions"></ul>
+  <h2>Pendientes de revisión manual</h2>
+  <ul id="pending"></ul>
+  <div class="warning">Confirma que la solicitud abierta en CEAC corresponde al mismo candidato. El piloto no identifica el Application ID ni confirma automáticamente su identidad.</div>
+  <label><input type="checkbox" id="confirm">He comprobado el candidato y revisado la lista de campos. Autorizo rellenar únicamente los campos compatibles de esta pantalla.</label>
+  <button id="fill" disabled>Rellenar esta pantalla (sin enviar)</button>
+</section>
+<details><summary>Detalles de inspección (sin valores)</summary><pre id="output"></pre></details>
+<small>Sin almacenamiento, sin CAPTCHA, sin firma, sin botón Siguiente. La confirmación del cliente y la aprobación de Mariana en Águila siguen siendo obligatorias.</small>
+<script src="mapping.js"></script>
+<script src="popup.js"></script>
+</body></html>
