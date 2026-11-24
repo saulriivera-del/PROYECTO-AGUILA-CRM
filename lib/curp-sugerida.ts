@@ -13,6 +13,18 @@ const PARTICULAS = new Set(['DE','DEL','LA','LAS','LOS','Y','DA','DAS','DO','DOS
 const INCONVENIENTES = new Set(['BACA','BAKA','BUEI','BUEY','CACA','CACO','CAGA','CAGO','CAKA','CAKO','COGE','COGI','COJA','COJE','COJI','COJO','COLA','CULO','FALO','FETO','GETA','GUEI','GUEY','JETA','JOTO','KACA','KACO','KAGA','KAGO','KAKA','KAKO','KOGE','KOGI','KOJA','KOJE','KOJI','KOJO','KOLA','KULO','LILO','LOCA','LOCO','LOKA','LOKO','MAME','MAMO','MEAR','MEAS','MEON','MIAR','MION','MOCO','MOKO','MULA','MULO','NACA','NACO','PEDA','PEDO','PENE','PIPI','PITO','POPO','PUTA','PUTO','QULO','RATA','ROBA','ROBE','ROBO','RUIN','SENO','TETA','VACA','VAGA','VAGO','VAKA','VUEI','VUEY','WUEI','WUEY'])
 function normaliza(s: string) { return s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/Ñ/g,'X').replace(/[^A-Z ]/g,' ').replace(/\s+/g,' ').trim() }
 function apellido(s: string) { return normaliza(s).split(' ').filter(t => t && !PARTICULAS.has(t))[0] || '' }
+// Extrae los nombres sin pedirlos de nuevo. No adivina si los apellidos no coinciden.
+export function nombresDesdeNombreCompleto(completo: string, paterno: string, materno: string): string {
+  const full = normaliza(completo)
+  const ap1 = normaliza(paterno)
+  const ap2 = normaliza(materno)
+  if (!full || !ap1) return ''
+  const suffix = [ap1, ap2].filter(Boolean).join(' ')
+  if (full.endsWith(' ' + suffix)) return full.slice(0, -suffix.length).trim()
+  // Si el pasaporte presenta primero los apellidos, conservar el orden sin inventar nombres.
+  if (full.startsWith(suffix + ' ')) return full.slice(suffix.length).trim()
+  return ''
+}
 function nombreClave(s: string) {
   const a = normaliza(s).split(' ').filter(Boolean)
   if (a.length > 1 && (a[0] === 'JOSE' || a[0] === 'MARIA' || a[0] === 'MA')) return a[1]
