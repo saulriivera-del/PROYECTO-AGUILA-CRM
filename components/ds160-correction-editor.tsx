@@ -30,6 +30,14 @@ export default function Ds160CorrectionEditor({
   const [problem, setProblem] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
   const section = sections.find(s => s.id === sectionId) ?? sections[0]
+  const sectionIndex = sections.findIndex(s => s.id === section.id)
+  const missingInSection = section.fields.filter(f => isVisible(f, answers) && isRequired(f, answers) && !String(answers[f.key] ?? '').trim())
+  const navigateSection = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= sections.length) return
+    setSectionId(sections[nextIndex].id)
+    setProblem('')
+    document.getElementById('ds160-correction-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
   const issues = validateSubmission(answers, people)
   const changed = new Set(Object.keys({ ...originalAnswers, ...answers })
     .filter(key => originalAnswers[key] !== answers[key]))
@@ -127,7 +135,12 @@ export default function Ds160CorrectionEditor({
         {sections.map(s=><button type="button" key={s.id} onClick={()=>setSectionId(s.id)}
           aria-pressed={sectionId===s.id} style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid #bcd0e2', background: sectionId===s.id ? '#205f95' : '#f7faff', color:sectionId===s.id?'white':'#285b86', cursor:'pointer' }}>{s.title}</button>)}
       </nav>
-      <h3 style={{ marginTop: 10 }}>{section.title}</h3>
+      <h3 id="ds160-correction-section" style={{ marginTop: 10, scrollMarginTop: 90 }}>{section.title}</h3>
+      <p role="status" style={{ fontSize: 13, color: missingInSection.length ? '#926016' : '#21643f' }}>
+        Sección {sectionIndex + 1} de {sections.length} · {missingInSection.length
+          ? missingInSection.length + ' campo(s) obligatorio(s) pendiente(s) de revisar.'
+          : 'Campos obligatorios de esta sección completos.'}
+      </p>
       <div style={{ display: 'grid', gap: 16 }}>
         {section.fields.filter(f => isVisible(f,answers)).map(f=><label key={f.key} style={{ display: 'grid', gap: 6, borderBottom: '1px solid #edf2f6', paddingBottom: 12 }}>
           <span style={{ fontWeight: 650, color: '#294f73' }}>{f.label}{isRequired(f,answers) ? ' *' : ''}{changed.has(f.key) ? ' · Modificado' : ''}</span>
@@ -137,6 +150,12 @@ export default function Ds160CorrectionEditor({
       </div>
       {section.id === 'travel' && answers.travel_with_someone === 'Sí' && peopleEditor('companions','Acompañantes de viaje')}
       {section.id === 'family' && answers.family_us === 'Sí' && peopleEditor('relatives','Familiares en Estados Unidos')}
+      <nav aria-label="Avanzar entre secciones" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 24, padding: '16px 0', borderTop: '1px solid #d9e4ee' }}>
+        <button type="button" className="secondary-button" disabled={sectionIndex === 0 || pending} onClick={() => navigateSection(sectionIndex - 1)}>← Anterior</button>
+        <span style={{ fontSize: 13, color: '#60778a' }}>Sección {sectionIndex + 1} de {sections.length}</span>
+        <button type="button" className="primary-button" disabled={sectionIndex === sections.length - 1 || pending} onClick={() => navigateSection(sectionIndex + 1)}>Siguiente →</button>
+      </nav>
+      {missingInSection.length > 0 && <p role="status" style={{ color: '#926016', fontSize: 13 }}>Pendiente en esta sección: {missingInSection.map(f => f.label).join(', ')}. Puedes continuar y regresar a corregir; no se aprobará el expediente hasta validar sus respuestas.</p>}
       <div style={{ marginTop: 20, borderTop: '1px solid #d9e4ee', paddingTop: 16 }}>
         <label style={{ display:'grid', gap:6, fontWeight: 650 }}>Motivo de la corrección
           <textarea value={reason} maxLength={500} onChange={e=>setReason(e.target.value)} style={{...inputStyle,minHeight:70}}
