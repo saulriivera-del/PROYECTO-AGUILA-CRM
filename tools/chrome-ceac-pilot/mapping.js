@@ -1,4 +1,4 @@
-/* Visa Master · CEAC piloto v0.3.1 | funciones puras, sin datos persistentes. */
+/* Visa Master · CEAC piloto v0.3.2 | funciones puras, sin datos persistentes. */
 (function (root) {
   'use strict';
   const P1 = '/GenNIV/General/complete/complete_personal.aspx';
@@ -31,6 +31,27 @@
     return given.length
       ? { given: given.join(' '), surname: surnames.join(' ') } : null;
   }
+  // Comparar un país declarado con las opciones REALES de CEAC.
+  // No se inventan valores del catálogo ni se selecciona por índice.
+  function resolveCountryOption(options, country) {
+    const normalized = v => normalize(v).replace(/[^A-Z0-9]+/g,' ').replace(/\\s+/g,' ').trim();
+    const wanted = normalized(country);
+    if (!wanted || !Array.isArray(options)) return null;
+    const mexico = ['MEXICO','MEX','MX'].includes(wanted);
+    const candidates = options.filter(option => {
+      const label = normalized(option.label);
+      const code = normalized(option.code);
+      if (!label || !code) return false;
+      if (mexico) {
+        return label === 'MEXICO' ||
+          (['MEX','MX','MEXICO'].includes(code) && /^MEXICO(?: |$)/.test(label));
+      }
+      // Otros países: solo etiqueta literal o código de país introducido
+      // explícitamente, siempre con coincidencia única.
+      return label === wanted || (wanted.length <= 3 && code === wanted);
+    });
+    return candidates.length === 1 ? candidates[0] : null;
+  }
   function dateParts(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
     const parsed = new Date(date + 'T00:00:00Z');
@@ -49,6 +70,11 @@
       if (names) {
         add('tbxAPP_SURNAME', 'Apellidos', 'text', names.surname);
         add('tbxAPP_GIVEN_NAME', 'Nombre(s)', 'text', names.given);
+        // Español: nombre completo en caracteres latinos, con los apellidos.
+        // Para otros alfabetos se requiere una versión documental específica.
+        if (['MEXICO','MÉXICO'].includes(normalize(answers.birth_country)))
+          add('tbxAPP_FULL_NAME_NATIVE','Nombre completo en alfabeto nativo','text',names.given + ' ' + names.surname);
+        else pending.push('Nombre en alfabeto nativo: confirmar escritura original en documentos.');
       } else pending.push('Comprobar manualmente nombres y apellidos del pasaporte: no se pueden separar con certeza.');
       const gender = { 'Hombre':'M', 'Mujer':'F' }[answers.curp_sexo];
       if (gender) add('ddlAPP_GENDER','Sexo','selectValue',gender);
@@ -66,8 +92,16 @@
       const state = answers.birth_state === 'Fuera de México / otro estado o provincia'
         ? answers.birth_state_other : answers.birth_state;
       add('tbxAPP_POB_ST_PROVINCE','Estado de nacimiento','text',normalize(state));
-      add('ddlAPP_POB_CNTRY','País de nacimiento','selectText',normalize(answers.birth_country));
-      pending.push('Nombre en alfabeto nativo, otros nombres, telecódigo y casillas «No aplica»: revisar en CEAC.');
+      add('ddlAPP_POB_CNTRY','País de nacimiento','selectCountry',normalize(answers.birth_country));
+      // Solo marcar NO con respuesta explícita del cliente. Si responde Sí,
+      // CEAC despliega datos adicionales, que siguen siendo manuales.
+      if (answers.other_names_used === 'No')
+        add('rblOtherNames_1','Otros nombres utilizados: No','radioNo','No');
+      else pending.push('Otros nombres utilizados: revisar respuesta en Águila y completar manualmente en CEAC.');
+      if (answers.name_telecode === 'No')
+        add('rblTelecodeQuestion_1','Telecódigo de nombre: No','radioNo','No');
+      else pending.push('Telecódigo de nombre: revisar respuesta en Águila y completar manualmente en CEAC.');
+      pending.push('Casillas «Does Not Apply»: comprobar manualmente; no marcarlas por suposición.');
     } else if (path === P2) {
       const nationality = normalize(answers.nationality);
       if (['MEXICANA','MEXICANO','MEXICO','MÉXICO'].includes(nationality))
@@ -80,7 +114,7 @@
     } else return { page: null, actions: [], pending: ['La página CEAC no corresponde a Datos personales 1 o 2.'] };
     return { page: path === P1 ? 'Datos personales 1' : 'Datos personales 2', path, actions, pending };
   }
-  const api = { buildPlan, extractNames, dateParts, P1, P2 };
+  const api = { buildPlan, extractNames, dateParts, resolveCountryOption, P1, P2 };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.VmCeacPilot = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
