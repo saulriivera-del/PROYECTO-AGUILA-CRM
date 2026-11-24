@@ -1,108 +1,89 @@
-'use client'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { requireAuthContext } from '@/lib/auth-context'
+import { isAdministrator } from '@/lib/admin-access'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { cleanAnswers } from '@/lib/trade-in-motion'
+import Ds160PilotDemo from '@/components/ds160-pilot-demo'
 
-import { useState } from 'react'
+export const dynamic = 'force-dynamic'
 
-type Step = 'captura' | 'revision' | 'aprobacion' | 'extension'
-type Role = 'recepcion' | 'administracion'
+export default async function Ds160AutomationPilotPage() {
+  const context = await requireAuthContext()
+  if (!isAdministrator(context.role) && context.role.trim().toLowerCase() !== 'reception') {
+    redirect('/admin?error=Acceso%20restringido')
+  }
 
-const steps: { key: Step; title: string; desc: string }[] = [
-  { key: 'captura', title: '1. Cliente', desc: 'Responde el cuestionario en Águila' },
-  { key: 'revision', title: '2. Mariana', desc: 'Coteja datos y documentos' },
-  { key: 'aprobacion', title: '3. Aprobación', desc: 'Autoriza la sección personal' },
-  { key: 'extension', title: '4. Chrome', desc: 'Prepara datos para CEAC' },
-]
-const fields = [
-  { label: 'Nombre conforme al pasaporte', value: 'PERSONA DE PRUEBA', key: 'full_name', note: 'Debe separarse en nombres y apellidos antes de CEAC' },
-  { label: 'Fecha de nacimiento', value: '1990-08-15', key: 'birth_date', note: 'La extensión adaptará día, mes y año' },
-  { label: 'Ciudad de nacimiento', value: 'HERMOSILLO', key: 'birth_city', note: 'Esperando correspondencia oficial' },
-  { label: 'Nacionalidad', value: 'Mexicana', key: 'nationality', note: 'Esperando catálogo de CEAC' },
-]
-const palette = { navy:'#193b5b', muted:'#60758b', border:'#d9e4ee', blue:'#1f65a0' }
-export default function Ds160PilotDemoPage() {
-  const [step, setStep] = useState<Step>('captura')
-  const [role, setRole] = useState<Role>('administracion')
-  const [showIssue, setShowIssue] = useState(false)
-  const stage = steps.findIndex(s => s.key === step)
-  const button = (active: boolean) => ({
-    background: active ? '#1c5f98' : '#fff', color: active ? '#fff' : palette.navy,
-    border: '1px solid ' + (active ? '#1c5f98' : palette.border),
-    borderRadius: 9, padding: '10px 14px', cursor: 'pointer', fontWeight: 650 as const,
+  // Vista de solo lectura. Solo expedientes de la organización del operador.
+  // No consulta columnas experimentales de aprobación ni intenta enviar datos a CEAC.
+  const db = createAdminClient()
+  const { data, count, error } = await db.from('vm_trade_in_motion_drafts')
+    .select('id,answers,applicant_email,reviewed_at,submitted_at', { count: 'exact' })
+    .eq('organization_id', context.organizationId)
+    .eq('status', 'Enviado')
+    .order('submitted_at', { ascending: false })
+    .limit(100)
+
+  const received = (data ?? []).map(draft => {
+    const answers = cleanAnswers(draft.answers)
+    return {
+      id: draft.id as string,
+      name: answers.full_name || draft.applicant_email || 'Solicitante sin nombre',
+      email: draft.applicant_email as string | null,
+      state: draft.reviewed_at ? 'En revisión' : 'Recibido',
+      submittedAt: draft.submitted_at as string | null,
+    }
   })
-  const card = { border: '1px solid ' + palette.border, background: '#fff', borderRadius: 13, padding: 19 }
+  const date = (value: string | null) => value
+    ? new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Hermosillo', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+    : 'Fecha no disponible'
+
   return (
-    <div style={{maxWidth:1120, margin:'0 auto', padding:'24px 22px 55px', color:palette.navy}}>
-      <div style={{display:'flex', gap:12, justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap'}}>
-        <div>
-          <small style={{fontWeight:750, letterSpacing:'0.12em', color:palette.blue}}>VISA MASTER · PILOTO DS-160</small>
-          <h1 style={{fontSize:29, margin:'8px 0'}}>Automatización desde Águila</h1>
-          <p style={{color:palette.muted, lineHeight:1.6, maxWidth:720}}>Recorre la experiencia prevista para clientes, recepción y administración. Esta pantalla usa información inventada para que puedas dar comentarios sin cambiar expedientes reales.</p>
-        </div>
-        <span style={{padding:'9px 12px', border:'1px solid #e8cfa3', borderRadius:24, color:'#805518', background:'#fff8eb', fontWeight:700}}>DEMO INTERACTIVA · NO ENVÍA DATOS</span>
-      </div>
-      <div style={{...card, background:'#edf5fc', marginTop:16}}>
-        <strong>Qué está desarrollado y qué falta</strong>
-        <p style={{margin:'9px 0 0', lineHeight:1.6}}>El flujo de aprobación de datos personales y su lectura desde la extensión están programados en ramas de prueba. Faltan la migración de base de datos, las pruebas de extremo a extremo y el mapa real de campos CEAC. Por ahora ninguna acción de esta demo llena ni presenta un DS-160 oficial.</p>
-      </div>
-      <section style={{marginTop:24}}>
-        <h2 style={{fontSize:19}}>¿Qué vista quieres revisar?</h2>
-        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-          <button style={button(role==='administracion')} onClick={() => setRole('administracion')}>Mi vista · Administrador</button>
-          <button style={button(role==='recepcion')} onClick={() => setRole('recepcion')}>Vista de Mariana · Recepción</button>
-        </div>
-        <p style={{fontSize:13, color:palette.muted, marginTop:10}}>{role==='administracion' ? 'Administrador: ve el expediente, la autorización y una futura bitácora de aprobaciones.' : 'Recepción: revisa el expediente, corrige incidencias y autoriza la transferencia.'}</p>
+    <>
+      <section style={{ maxWidth: 1120, margin: '0 auto', padding: '28px 22px 8px' }}>
+        <p style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', color: '#1f65a0' }}>VISA MASTER · AUTOMATIZACIÓN DS-160</p>
+        <h1 style={{ color: '#193b5b', margin: '8px 0' }}>Expedientes recibidos en Águila</h1>
+        <p style={{ color: '#60758b', lineHeight: 1.6 }}>
+          Los formularios ya enviados aparecen aquí automáticamente, sin importarlos de nuevo.
+          Desde esta lista puedes abrir cada expediente para revisar sus respuestas.
+          El autollenado oficial de CEAC sigue desactivado hasta validar las equivalencias.
+        </p>
+        {error ? (
+          <p role="alert" style={{ color: '#a62439', background: '#fff0f2', padding: 14, borderRadius: 10 }}>
+            No se pudieron consultar los formularios en este momento. Los expedientes siguen guardados en Águila.
+          </p>
+        ) : (
+          <section style={{ background: '#fff', border: '1px solid #d9e4ee', borderRadius: 14, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 10 }}>
+              <h2 style={{ fontSize: 19, color: '#193b5b', margin: 0 }}>Formularios recibidos</h2>
+              <span style={{ color: '#315f89', fontWeight: 700 }}>{count ?? received.length} recibidos en total</span>
+            </div>
+            {received.length === 0 ? (
+              <p style={{ color: '#60758b' }}>Todavía no hay formularios enviados para esta organización.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+                {received.map(item => (
+                  <div key={item.id} style={{ padding: 14, border: '1px solid #e0e8f1', borderRadius: 11, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                    <div>
+                      <strong style={{ color: '#193b5b' }}>{item.name}</strong>
+                      {item.email && item.name !== item.email ? <div style={{ fontSize: 12, color: '#60758b', marginTop: 3 }}>{item.email}</div> : null}
+                      <div style={{ fontSize: 12, color: '#60758b', marginTop: 4 }}>{item.state} · Enviado: {date(item.submittedAt)}</div>
+                    </div>
+                    <Link href={'/admin/formularios/trade-in-motion/' + item.id} style={{ color: '#1f65a0', fontWeight: 700 }}>Abrir expediente para revisar</Link>
+                  </div>
+                ))}
+              </div>
+            )}
+            {received.length === 100 && (count ?? 0) > 100
+              ? <p style={{ fontSize: 13, color: '#60758b' }}>Aquí aparecen los 100 más recientes. <Link href="/admin/formularios/trade-in-motion?status=recibidos">Ver el resto en Formularios recibidos</Link>.</p>
+              : null}
+          </section>
+        )}
+        <p style={{ fontSize: 13, color: '#60758b', marginTop: 14 }}>
+          La revisión y aprobación real para la extensión continúan en desarrollo. Abajo puedes explorar el flujo simulado, sin modificar respuestas.
+        </p>
       </section>
-      <section style={{marginTop:23}}>
-        <h2 style={{fontSize:19}}>Flujo del trámite</h2>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(185px,1fr))', gap:10}}>
-          {steps.map((s,i)=><button key={s.key} onClick={()=>{setStep(s.key);setShowIssue(false)}} style={{...button(step===s.key), textAlign:'left', minHeight:86}}>
-            <div style={{fontWeight:750, marginBottom:5}}>{s.title}</div>
-            <div style={{fontSize:12, fontWeight:400, opacity:.9}}>{s.desc}</div>
-          </button>)}
-        </div>
-      </section>
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:16, marginTop:20}}>
-        <section style={card}>
-          <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center',flexWrap:'wrap'}}>
-            <h2 style={{fontSize:19, margin:0}}>Expediente de demostración</h2>
-            <span style={{fontSize:12, fontWeight:700, background:'#edf3f9', padding:'6px 10px',borderRadius:15}}>{stage===0?'Borrador':stage===1?'En revisión':stage===2?'Aprobado':'Preparado'}</span>
-          </div>
-          <p style={{fontSize:13,color:palette.muted}}>Folio: VM-DEMO-001 · Persona ficticia</p>
-          {fields.map(f=><div key={f.key} style={{borderTop:'1px solid '+palette.border, padding:'12px 0'}}>
-            <div style={{fontSize:12,color:palette.muted}}>{f.label}</div>
-            <div style={{fontWeight:700,marginTop:4}}>{f.value}</div>
-            {stage>=1 && <small style={{color:'#59718b'}}>{f.note}</small>}
-          </div>)}
-        </section>
-        <section style={card}>
-          <h2 style={{fontSize:19,margin:'0 0 12px'}}>Acción de esta etapa</h2>
-          {step==='captura' && <><p>El cliente captura los datos en el formulario propio de Águila y los envía a recepción.</p><p><strong>Estado:</strong> En espera de revisión documental.</p></>}
-          {step==='revision' && <><p>Mariana compara las respuestas con el pasaporte y documentos, y detecta errores antes de autorizarlas.</p>
-            <button style={button(showIssue)} onClick={()=>setShowIssue(v=>!v)}>{showIssue?'Ocultar ejemplo de error':'Simular campo con error'}</button>
-            {showIssue && <p style={{color:'#a04d24'}} role="alert">Revisar: los apellidos deben coincidir exactamente con el pasaporte. No se autorizará la sección hasta corregirlo.</p>}</>}
-          {step==='aprobacion' && <><p>El operador autorizado comprueba que los datos están completos y cotejados. La aprobación queda asociada al expediente.</p><p><strong>Control:</strong> Si cambian las respuestas, la aprobación debe repetirse.</p></>}
-          {step==='extension' && <><p>En Chrome, la extensión consulta los datos aprobados y prepara el mapeo a CEAC.</p><p><strong>Mapeados a CEAC hoy:</strong> 0 campos oficiales comprobados.</p><p>El autollenado real está bloqueado hasta validar casillas y pruebas con información ficticia.</p></>}
-          {role==='administracion' && <div style={{background:'#f4f7fa',borderRadius:8,padding:12,marginTop:16,fontSize:13}}>
-            <strong>Supervisión del administrador</strong>
-            <p style={{marginBottom:0}}>Aquí se podrá consultar quién autorizó, cuándo, si hubo cambios y qué campos quedaron pendientes.</p>
-          </div>}
-          <button style={{...button(false),width:'100%',marginTop:20}} onClick={()=>{setStep(steps[(stage+1)%steps.length].key);setShowIssue(false)}}>Simular siguiente etapa</button>
-        </section>
-      </div>
-      <section style={{...card,marginTop:20}}>
-        <h2 style={{fontSize:19,marginTop:0}}>Mapa de campos que vamos a validar en CEAC</h2>
-        <div style={{overflowX:'auto'}}>
-          <table style={{borderCollapse:'collapse',width:'100%',fontSize:13}}>
-            <thead><tr style={{textAlign:'left',background:'#f2f6fa'}}><th style={{padding:11}}>Águila</th><th style={{padding:11}}>Transformación</th><th style={{padding:11}}>Estado</th></tr></thead>
-            <tbody>
-              <tr><td style={{padding:11}}>full_name</td><td style={{padding:11}}>Separar nombres y apellidos según pasaporte</td><td style={{padding:11}}>Pendiente</td></tr>
-              <tr><td style={{padding:11}}>birth_date</td><td style={{padding:11}}>Convertir en día, mes y año</td><td style={{padding:11}}>Pendiente</td></tr>
-              <tr><td style={{padding:11}}>birth_city</td><td style={{padding:11}}>Ubicar campo oficial correspondiente</td><td style={{padding:11}}>Pendiente</td></tr>
-              <tr><td style={{padding:11}}>nationality</td><td style={{padding:11}}>Homologar país con el catálogo oficial</td><td style={{padding:11}}>Pendiente</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p style={{fontSize:12,color:palette.muted}}>Las equivalencias se validarán manualmente una vez por sección y se volverán a comprobar cuando cambie CEAC.</p>
-      </section>
-    </div>
+      <Ds160PilotDemo />
+    </>
   )
 }
