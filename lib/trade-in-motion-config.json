@@ -102,6 +102,29 @@
           "required": true
         },
         {
+          "key": "other_nationality",
+          "label": "¿Tienes o has tenido alguna otra nacionalidad aparte de la mexicana?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "help": "Contesta según tu situación real, incluyendo nacionalidades que hayas tenido anteriormente. Si no tienes otra nacionalidad, selecciona «No» y continúa; las preguntas adicionales se ocultarán."
+        },
+        {
+          "key": "other_nationality_country",
+          "label": "¿De qué otro país tienes o tuviste nacionalidad?",
+          "type": "text",
+          "placeholder": "Escribe el país",
+          "when": {
+            "key": "other_nationality",
+            "equals": "Sí"
+          },
+          "required": true,
+          "help": "Si has tenido más de una nacionalidad adicional, escríbelas todas. Este campo se revisará antes de trasladar la información a CEAC."
+        },
+        {
           "key": "spouse_name",
           "label": "Nombre completo de tu cónyuge / pareja",
           "type": "text",
