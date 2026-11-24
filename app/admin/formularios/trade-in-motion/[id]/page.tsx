@@ -36,6 +36,10 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
       .eq('submission_id', draft.submission_id)
       .eq('organization_id', context.organizationId).maybeSingle()
     : { data: null }
+  const { data: ds160Links } = await db.from('vm_ds160_application_links')
+    .select('application_id,status,linked_at')
+    .eq('draft_id',id).eq('organization_id',context.organizationId)
+    .order('linked_at',{ascending:false}).limit(10)
   const originalAnswers = cleanAnswers(draft.answers)
   const originalPeople = cleanPeople(draft.people)
   const answers = cleanAnswers(correction?.answers ?? draft.answers)
@@ -73,6 +77,13 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
     <p style={{ background: '#f4f7fa', borderLeft: '3px solid #256ba9', padding: 14, fontSize: 13, color: '#536e88' }}>
       Información confidencial. Las respuestas son aportadas por el candidato y deben verificarse con documentación antes de presentar el DS-160 oficial. {draft.consent_at ? 'Aceptó el aviso de privacidad al enviar.' : 'Aún no ha enviado ni aceptado el aviso de privacidad.'}
     </p>
+    <section style={{ margin:'22px 0', padding:18, border:'1px solid #bfd1e4', borderRadius:12 }}>
+      <h2>DS-160 · Application ID vinculado</h2>
+      {ds160Links?.length ? <ul>{ds160Links.map(link => <li key={link.application_id}>
+        <strong>{link.application_id}</strong> · {link.status} · Vinculado: {date(link.linked_at)}
+      </li>)}</ul> : <p>Sin identificador CEAC registrado en este expediente.</p>}
+      <p style={{fontSize:13,color:'#60778a'}}>La extensión permite detectar un ID visible en CEAC y guardarlo únicamente tras confirmación del operador. Un ID registrado no significa que el DS-160 haya sido enviado.</p>
+    </section>
     {draft.status === 'Enviado' && <Ds160CorrectionEditor draftId={draft.id}
       originalAnswers={originalAnswers} initialAnswers={answers} initialPeople={people}
       initialVersion={correction?.version ?? 0} />}
