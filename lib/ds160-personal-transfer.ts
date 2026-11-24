@@ -4,6 +4,7 @@
  * Solo se importa desde código de servidor (usa node:crypto).
  */
 import { createHash } from 'node:crypto'
+import { isValidBirthCountry, birthCountryMatchesState } from './birth-countries'
 import {
   cleanAnswers, getSelectedSocialPlatforms, isRequired, isVisible,
   sections, type AnswerMap,
@@ -44,6 +45,8 @@ export function personalProblems(raw: unknown): PersonalProblem[] {
       continue
     }
     if (!value) continue
+    if (field.key === 'birth_country' && !isValidBirthCountry(value))
+      problems.push({ key: field.key, label: field.label + ' (elige un país de la lista)' })
     if (field.type === 'date' && !validDate(value)) problems.push({ key: field.key, label: field.label + ' (fecha inválida)' })
     if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) problems.push({ key: field.key, label: field.label + ' (correo inválido)' })
     if (field.type === 'tel' && !/^\d{10,15}$/.test(value.replace(/\D/g,''))) problems.push({ key: field.key, label: field.label + ' (teléfono inválido)' })
@@ -52,6 +55,12 @@ export function personalProblems(raw: unknown): PersonalProblem[] {
     if (field.type === 'multiselect' && (getSelectedSocialPlatforms(value).join('|') !== value || !getSelectedSocialPlatforms(value).length))
       problems.push({ key: field.key, label: field.label + ' (selección inválida)' })
   }
+  if (isValidBirthCountry(answers.birth_country || '') && answers.birth_state &&
+      !birthCountryMatchesState(answers.birth_country, answers.birth_state))
+    problems.push({ key: 'birth_state', label: 'País y estado de nacimiento no coinciden' })
+  if (answers.birth_country && answers.birth_country !== 'MX' &&
+      answers.birth_country_nonmexico_confirmed !== 'Sí, confirmo que nací fuera de México')
+    problems.push({ key: 'birth_country_nonmexico_confirmed', label: 'Falta confirmar país de nacimiento fuera de México' })
   return problems
 }
 

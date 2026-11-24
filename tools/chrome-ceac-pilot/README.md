@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.3.2** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.3.3** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.3.2**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.3.3**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Detectar y vincular Application ID
@@ -38,10 +38,11 @@
 - Permisos limitados: `activeTab`, `scripting`, y acceso web **solo al dominio del CRM** para leer el expediente a través de la sesión autenticada del operador.
 - Los datos autorizados se consultan de nuevo inmediatamente antes del llenado. No se copian cookies, tokens, claves de acceso ni datos a almacenamiento local.
 - No hay acceso a contraseña de CEAC, CAPTCHA o página de firma. El Application ID visible puede detectarse con un clic y se registra únicamente después de confirmación del operador.
+- El país de nacimiento se selecciona en Águila desde una lista ISO de 249 países y territorios. **México viene preseleccionado** si el expediente todavía no contiene respuesta; no se reemplazan respuestas guardadas de otros países. Si se elige un país distinto de México, la persona debe confirmar explícitamente la elección y mantener consistente el estado/provincia de nacimiento.
 - Solo dos rutas CEAC exactas; 13 controles previstos de Personal 1 (incluidos nombre nativo y dos radios **No** basados en respuesta expresa) y 2 de Personal 2. Cada selector y cada opción deben verificarse en CEAC.
 - Si CEAC cambia los controles, catálogo o ruta, el campo se bloquea y aparece como pendiente. El país de nacimiento se compara contra el catálogo completo de la sesión y se usa el código disponible, no uno inventado ni una posición por índice.
 - **Otros nombres** y **telecódigo** solo se marcan «No» si el cliente eligió explícitamente «No» en el cuestionario y la etiqueta de la opción se comprueba en CEAC. Una respuesta «Sí» o ausente se deja pendiente para revisión manual. **Does Not Apply** nunca se marca por inferencia.
-- Águila admite nombres de pila separados de los apellidos (por ejemplo «Ángel Saúl» / «Rivera» / «Espinoza») o nombre completo con apellidos en la misma línea. La extensión rellena Surnames y Given Names; si hay un apellido parcialmente coincidente, datos ambiguos o faltantes, no inventa la separación y pide revisión manual. El nombre en alfabeto nativo sigue pendiente de captura manual.
+- Águila admite nombres de pila separados de los apellidos (por ejemplo «Ángel Saúl» / «Rivera» / «Espinoza») o nombre completo con apellidos en la misma línea. La extensión rellena Surnames y Given Names; si hay un apellido parcialmente coincidente, datos ambiguos o faltantes, no inventa la separación y pide revisión manual. Para nacidos en México, también prepara el nombre completo en alfabeto nativo si los nombres y apellidos son inequívocos; los demás casos requieren verificación manual.
 - El valor sugerido de CURP nunca se usa si no se ha marcado explícitamente confirmado por el cliente.
 - Los campos siguen requiriendo verificación humana después de llenarse; el sitio CEAC puede actualizarse por sus propios eventos.
 - **Este piloto no hace clic en Siguiente, Guardar, Firmar o Enviar**, ni intenta sortear los mecanismos de control del portal.
@@ -62,4 +63,4 @@ Las pruebas usan **datos sintéticos** y no acceden a CEAC ni a Águila.
 - Validar al menos dos perfiles sintéticos de diferentes estructuras de nombre y un perfil con respuestas condicionales.
 - Documentar el resultado, tiempos y campos faltantes para ampliar luego a pasaporte.
 
-**Nota importante:** las 10 acciones del primer paso y las 2 del segundo son **máximos técnicos**; el número real puede ser menor según los campos y opciones visibles. Esta versión es una herramienta de operador y no certifica que CEAC acepte una solicitud.
+**Nota importante:** las 13 acciones del primer paso y las 2 del segundo son **máximos técnicos**; el número real puede ser menor según los campos y opciones visibles. Esta versión es una herramienta de operador y no certifica que CEAC acepte una solicitud.

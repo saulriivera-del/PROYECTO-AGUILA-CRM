@@ -1,5 +1,6 @@
 import config from './trade-in-motion-config.json'
 import { curpConfirmadaParaAvanzar } from './curp-sugerida'
+import { canonicalBirthCountry, isValidBirthCountry, birthCountryMatchesState } from './birth-countries'
 
 export type AnswerMap = Record<string, string>
 export type Person = { id: number; fullName: string; relationship: string; immigrationStatus?: string }
@@ -57,6 +58,8 @@ export function cleanAnswers(raw: unknown): AnswerMap {
     const originalValue = provided[field.key]
     if (typeof originalValue !== 'string') continue
     let value: string = originalValue
+    // Compatibilidad con valores previos capturados como texto libre.
+    if (field.key === 'birth_country') value = canonicalBirthCountry(value)
     // Compatibilidad con borradores de la versión anterior, que usaba Sí/No.
     if (field.key === 'social_media_used') {
       if (value === 'No') value = 'Ninguna'
@@ -93,6 +96,8 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     const value = answers[field.key] ?? ''
     if (isRequired(field, answers) && !value) problems.push(field.label)
     if (!value) continue
+    if (field.key === 'birth_country' && !isValidBirthCountry(value))
+      problems.push('País de nacimiento: selecciona una opción de la lista')
     if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) problems.push(field.label + ' (correo inválido)')
     if (field.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) problems.push(field.label + ' (fecha inválida)')
     if (field.type === 'number' && !Number.isFinite(Number(value))) problems.push(field.label + ' (número inválido)')
@@ -100,6 +105,14 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     if (field.type === 'multiselect' && !getSelectedSocialPlatforms(value).length)
       problems.push(field.label + ' (selecciona una opción válida)')
   }
+  if (isValidBirthCountry(answers.birth_country || '') && answers.birth_state &&
+      !birthCountryMatchesState(answers.birth_country, answers.birth_state))
+    problems.push('Revisa el estado de nacimiento: debe corresponder al país elegido')
+  // El aviso de otros países también se comprueba en el servidor: no basta con
+  // saltarse la pantalla para enviar un país no mexicano sin confirmar.
+  if (answers.birth_country && answers.birth_country !== 'MX' &&
+      answers.birth_country_nonmexico_confirmed !== 'Sí, confirmo que nací fuera de México')
+    problems.push('Confirma que elegiste un país de nacimiento distinto de México')
   const selectedSocial = getSelectedSocialPlatforms(answers.social_media_used ?? '')
   if (answers.social_media_used &&
       selectedSocial.join('|') !== answers.social_media_used)

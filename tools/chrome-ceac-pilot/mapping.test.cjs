@@ -90,6 +90,31 @@ test('país de nacimiento: elige la opción real de CEAC y nunca deduce un códi
   assert.equal(resolveCountryOption([{code:'NM',label:'NEW MEXICO'}],'México'),null);
 });
 
+test('país de nacimiento: México se identifica con código propio de CEAC y código MX de Águila',() => {
+  const options = [
+    {code:'',label:'- SELECT ONE -'},
+    {code:'Q_MEX1',label:'MEXICO (UNITED MEXICAN STATES)'},
+    {code:'NM',label:'NEW MEXICO'}
+  ];
+  assert.deepEqual(resolveCountryOption(options,'MX'),options[1]);
+  assert.deepEqual(resolveCountryOption(options,'México'),options[1]);
+  assert.equal(resolveCountryOption([{code:'NM',label:'NEW MEXICO'}],'MX'),null);
+  assert.equal(resolveCountryOption([...options,{code:'MEX2',label:'MEXICO'}],'MX'),null);
+  const plan = buildPlan({...data,birth_country:'MX'},P1);
+  assert.ok(plan.actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY'&&a.value==='MX'));
+  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='MARIA ELENA LOPEZ GARCIA'));
+});
+
+test('ISO US se compara de forma inequívoca con catálogo CEAC',() => {
+  const options=[
+    {code:'USA',label:'UNITED STATES OF AMERICA'},
+    {code:'UM',label:'U.S. MINOR OUTLYING ISLANDS'},
+    {code:'CA',label:'CANADA'}
+  ];
+  assert.deepEqual(resolveCountryOption(options,'US'),options[0]);
+  assert.deepEqual(resolveCountryOption(options,'CA'),options[2]);
+});
+
 test('Nunca responde No de otros nombres o telecódigo por omisión',() => {
   const noResponses=buildPlan({...data,other_names_used:'No',name_telecode:'No'},P1);
   assert.equal(noResponses.actions.filter(a=>a.mode==='radioNo').length,2);
