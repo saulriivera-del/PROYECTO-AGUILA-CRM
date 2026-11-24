@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.4.1** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.4.2** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.4.1**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.4.2**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Mapear todo el DS-160, pantalla por pantalla
@@ -30,11 +30,11 @@ Esta extensión permite un ensayo seguro de **ANTES / DESPUÉS** sin leer ni mod
 2. Pulsa **1. Guardar estructura ANTES de cambiar la respuesta** y regresa a CEAC.
 3. Modifica manualmente una sola alternativa de la pregunta con datos ficticios. Por ejemplo, una respuesta que muestre u oculte un bloque de dirección.
 4. Vuelve a abrir la extensión. Verifica el mismo perfil, describe brevemente la rama (sin datos personales) y pulsa **2. Comparar DESPUÉS de cambiar la respuesta**.
-5. Aparecerán controles **nuevos**, **ocultos** y **modificados**. Pulsa **Copiar diferencias para mapearlas** y comparte el reporte para actualizar el mapa del cuestionario y las notas del cliente.
-6. Si CEAC cambió a otra URL o pestaña, la extensión exigirá empezar de nuevo. Algunos cambios disparan postbacks o validaciones; sólo se compara la estructura que ya esté visible.
+5. Si permanece en la misma URL, aparecerán controles **nuevos**, **ocultos** y **modificados**. Si CEAC navegó a otra URL dentro del formulario, se registrarán **las dos pantallas completas por separado**, con sus rutas, sin considerar todos los campos de destino como nuevos de la pantalla original. Pulsa **Copiar diferencias para mapearlas** y comparte el reporte para actualizar el mapa del cuestionario y las notas del cliente.
+6. Si CEAC cambió de URL dentro de la **misma pestaña**, se registrará como transición de páginas, no como diferencia de controles; el operador anotará qué respuesta provocó el salto. Si cambió de pestaña, sí es necesario volver a iniciar. Algunos cambios disparan postbacks o validaciones.
 7. Elige **Eliminar estructura inicial guardada** al terminar la rama, antes de empezar otra solicitud de prueba.
 
-La comparación conserva únicamente **metadatos estructurales** (no valores introducidos, ni radios marcados, ni Application ID) en `chrome.storage.session`, memoria temporal de Chrome. Se puede borrar manualmente y se elimina al finalizar la sesión de navegador. El operador debe revisar los reportes antes de compartirlos. **No existe recorrido automático de todas las combinaciones:** las preguntas se responden manualmente por seguridad y se inspecciona cada rama realmente visible.
+El botón **Registrar DESPUÉS** funciona incluso cuando CEAC pasa a la página de cónyuge, dirección o viaje. El reporte incluye `before.path` y `after.path` y sus inventarios separados; no afirma automáticamente qué pregunta causó la navegación.\n\nLa comparación conserva únicamente **metadatos estructurales** (no valores introducidos, ni radios marcados, ni Application ID) en `chrome.storage.session`, memoria temporal de Chrome. Se puede borrar manualmente y se elimina al finalizar la sesión de navegador. El operador debe revisar los reportes antes de compartirlos. **No existe recorrido automático de todas las combinaciones:** las preguntas se responden manualmente por seguridad y se inspecciona cada rama realmente visible.
 
 El registro independiente por perfil está documentado en `docs/ds160-tn-td-b1b2-conditional-matrix.md`. Los perfiles TD y B1/B2 **aún no tienen autollenado**; el motor de escritura solo admite Personal Information 1 y 2 con las autorizaciones del piloto actual.
 
