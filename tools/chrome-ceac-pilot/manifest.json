@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Visa Master · Piloto DS-160 (datos personales)",
-  "version": "0.4.0",
-  "description": "Piloto de autollenado supervisado de Datos personales 1 y 2, inspector de estructura de todas las páginas CEAC y vinculación confirmada de Application ID; no guarda, firma ni envía solicitudes.",
+  "version": "0.4.1",
+  "description": "Inspector CEAC de páginas y ramas condicionales TN/TD/B1-B2; autollenado supervisado de Datos personales 1 y 2 sin guardar ni enviar solicitudes.",
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "https://crm.visamaster.com.mx/*"
