@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.2.0** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.3.0** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,8 +11,18 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.2.0**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.3.0**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
+
+## Detectar y vincular Application ID
+1. Deja abierta una única ficha de candidato **recibida con consentimiento** en Águila, con CEAC como pestaña activa.
+2. Cuando CEAC muestre el Application ID, pulsa **Detectar Application ID en CEAC**.
+3. La extensión buscará la etiqueta «Application ID» y un código de diez caracteres que inicia con AA; no leerá las respuestas del formulario.
+4. Comprueba que el candidato seleccionado en Águila y el código de CEAC coinciden con lo esperado. Marca la casilla de confirmación y pulsa **Confirmar y guardar en Águila**.
+5. El CRM registra ese código con estado **En elaboración**. Esto no envía, guarda ni firma la solicitud en CEAC.
+6. Si CEAC no muestra el ID o aparecen varios, el botón no guardará ninguno. La lectura se realiza mediante pulsación, no vigilancia automática.
+
+**Infraestructura:** requiere la migración `supabase/ds160_application_links.sql` y la ruta de API `/api/admin/ds160/application-id`. La vinculación no sustituye el chequeo de identidad ni la revisión del DS-160.
 
 ## Primer ensayo con datos ficticios
 1. El operador recupera un DS-160 ficticio. Mariana selecciona consulado, resuelve CAPTCHA, acepta los avisos y responde la pregunta de seguridad **manualmente**. Nada de esto se automatiza.
@@ -27,7 +37,7 @@
 ## Controles
 - Permisos limitados: `activeTab`, `scripting`, y acceso web **solo al dominio del CRM** para leer el expediente a través de la sesión autenticada del operador.
 - Los datos autorizados se consultan de nuevo inmediatamente antes del llenado. No se copian cookies, tokens, claves de acceso ni datos a almacenamiento local.
-- No hay acceso a contraseña de CEAC, CAPTCHA, Application ID o página de firma.
+- No hay acceso a contraseña de CEAC, CAPTCHA o página de firma. El Application ID visible puede detectarse con un clic y se registra únicamente después de confirmación del operador.
 - Solo dos rutas CEAC exactas; únicamente 12 sufijos de campos preaprobados: 10 Personal 1, 2 Personal 2.
 - Si CEAC cambia los controles, catálogo o ruta, el campo se bloquea y aparece como pendiente. No se buscan opciones por índice.
 - No se marca **No**, **Does Not Apply** ni otro radio por inferencia.
@@ -40,7 +50,7 @@
 Si tienes Node.js instalado en tu ordenador, ejecuta:
 
 ```bash
-node --test tools/chrome-ceac-pilot/mapping.test.cjs
+node --test tools/chrome-ceac-pilot/*.test.cjs
 ```
 
 Las pruebas usan **datos sintéticos** y no acceden a CEAC ni a Águila.
