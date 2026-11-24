@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Visa Master · Piloto DS-160 (datos personales)",
-  "version": "0.4.1",
-  "description": "Inspector CEAC de páginas y ramas condicionales TN/TD/B1-B2; autollenado supervisado de Datos personales 1 y 2 sin guardar ni enviar solicitudes.",
+  "version": "0.4.2",
+  "description": "Inspector CEAC de pantallas y transiciones entre páginas TN/TD/B1-B2; autollenado supervisado de Datos personales 1 y 2 sin presentar solicitudes.",
   "permissions": [
     "activeTab",
     "scripting",
