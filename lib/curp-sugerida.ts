@@ -68,3 +68,11 @@ export function sugerirCurp(data: CurpInput): string | null {
   return c17+verificador(c17)
 }
 export function formatoCurp(value: string) { return /^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-J]\d$/.test(value) }
+
+/** La sugerencia no equivale a confirmación del solicitante. */
+export function curpConfirmadaParaAvanzar(data: { curp_valor?: string; curp_confirmada?: string }): boolean {
+  return formatoCurp(data.curp_valor || '') && (
+    data.curp_confirmada === 'Sí, coincide con mi documento' ||
+    data.curp_confirmada === 'No, la corregí con mi documento'
+  )
+}
