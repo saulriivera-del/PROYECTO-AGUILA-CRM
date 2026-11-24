@@ -97,8 +97,24 @@
         {
           "key": "birth_country",
           "label": "País donde naciste",
-          "type": "text",
-          "required": true
+          "type": "select",
+          "required": true,
+          "help": "Selecciona el país donde realmente naciste. México aparece destacado. Esta respuesta se utilizará para preparar el DS-160."
+        },
+        {
+          "key": "birth_country_nonmexico_confirmed",
+          "label": "Confirmación de nacimiento fuera de México",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Sí, confirmo que nací fuera de México"
+          ],
+          "when": {
+            "key": "birth_country",
+            "nonempty": true,
+            "notEquals": "MX"
+          },
+          "help": "Es obligatorio confirmar si eliges un país distinto de México."
         },
         {
           "key": "curp_valor",
