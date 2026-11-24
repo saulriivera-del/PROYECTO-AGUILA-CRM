@@ -35,3 +35,10 @@ export function canonicalBirthCountry(value: string): string {
   const matched = birthCountryOptions.filter(item => norm(item.name) === normalized)
   return matched.length === 1 ? matched[0].code : original
 }
+
+/** Evita enviar al DS-160 combinaciones incompatibles de país y estado. */
+export function birthCountryMatchesState(country: string, state: string): boolean {
+  if (!isValidBirthCountry(country) || !state) return false
+  const outsideMexico = 'Fuera de México / otro estado o provincia'
+  return country === 'MX' ? state !== outsideMexico : state === outsideMexico
+}
