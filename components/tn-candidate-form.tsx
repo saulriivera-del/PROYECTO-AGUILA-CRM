@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
 import { sugerirCurp, formatoCurp, nombresDesdeNombreCompleto, curpConfirmadaParaAvanzar } from '@/lib/curp-sugerida'
-import { birthCountryOptions, isValidBirthCountry, birthCountryMatchesState } from '@/lib/birth-countries'
+import { DEFAULT_BIRTH_COUNTRY, birthCountryOptions, isValidBirthCountry, birthCountryMatchesState } from '@/lib/birth-countries'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
@@ -53,7 +53,7 @@ export default function CandidateForm() {
         if (!active) return
         const stored = cleanAnswers(data.draft?.answers)
         setIdentity(data.name || 'Candidato')
-        setAnswers({ ...stored, nationality: stored.nationality || 'Mexicana', birth_country: stored.birth_country || 'MX' })
+        setAnswers({ ...stored, nationality: stored.nationality || 'Mexicana', birth_country: stored.birth_country || DEFAULT_BIRTH_COUNTRY })
         setPeople(cleanPeople(data.draft?.people))
         setSubmitted(data.draft?.status === 'Enviado')
         setConsent(Boolean(data.draft?.consent_at))
