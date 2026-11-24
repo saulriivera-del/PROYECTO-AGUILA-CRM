@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "prebuild": "node --test tools/chrome-ceac-pilot/*.test.cjs"
+    "prebuild": "node --test tools/chrome-ceac-pilot/*.test.cjs && node --experimental-strip-types --test lib/birth-countries.test.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.3",
