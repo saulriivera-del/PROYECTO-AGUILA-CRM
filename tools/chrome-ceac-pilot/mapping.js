@@ -105,7 +105,7 @@
     } else if (path === P2) {
       const nationality = normalize(answers.nationality);
       if (['MEXICANA','MEXICANO','MEXICO','MÉXICO'].includes(nationality))
-        add('ddlAPP_NATL','Nacionalidad mexicana','selectText','MEXICO');
+        add('ddlAPP_NATL','Nacionalidad mexicana','selectCountry','MEXICO');
       else pending.push('Nacionalidad no mexicana: elegir manualmente el país en CEAC.');
       if (answers.curp_confirmada && /^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-J]\d$/.test(normalize(answers.curp_valor)))
         add('tbxAPP_NATIONAL_ID','Identificación nacional (CURP confirmada)','text',normalize(answers.curp_valor));
