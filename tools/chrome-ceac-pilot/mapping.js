@@ -81,7 +81,7 @@
         add('tbxAPP_GIVEN_NAME', 'Nombre(s)', 'text', names.given);
         // Español: nombre completo en caracteres latinos, con los apellidos.
         // Para otros alfabetos se requiere una versión documental específica.
-        if (['MEXICO','MÉXICO'].includes(normalize(answers.birth_country)))
+        if (['MX','MEX','MEXICO','MÉXICO'].includes(normalize(answers.birth_country)))
           add('tbxAPP_FULL_NAME_NATIVE','Nombre completo en alfabeto nativo','text',names.given + ' ' + names.surname);
         else pending.push('Nombre en alfabeto nativo: confirmar escritura original en documentos.');
       } else pending.push('Comprobar manualmente nombres y apellidos del pasaporte: no se pueden separar con certeza.');
