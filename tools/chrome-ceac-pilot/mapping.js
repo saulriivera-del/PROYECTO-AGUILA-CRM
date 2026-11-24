@@ -1,4 +1,4 @@
-/* Visa Master · CEAC piloto v0.2 | funciones puras, sin datos persistentes. */
+/* Visa Master · CEAC piloto v0.3.1 | funciones puras, sin datos persistentes. */
 (function (root) {
   'use strict';
   const P1 = '/GenNIV/General/complete/complete_personal.aspx';
@@ -8,15 +8,28 @@
   const normalizedTokens = s => normalize(s).split(' ').filter(Boolean);
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
+  // Águila captura nombres y apellidos en campos separados. También se admiten
+  // formularios anteriores donde el nombre completo ya incluye ambos apellidos.
+  // Nunca inferir nombres de un apellido incompleto o parcialmente coincidente.
   function extractNames(fullName, firstSurname, secondSurname) {
     const full = normalizedTokens(fullName);
-    const surnames = normalizedTokens([firstSurname, secondSurname].filter(Boolean).join(' '));
-    if (full.length <= surnames.length || surnames.length === 0) return null;
-    const starts = surnames.every((s,i) => full[i] === s);
-    const ends = surnames.every((s,i) => full[full.length-surnames.length+i] === s);
-    if (starts === ends) return null; // Ambiguo o no coincide: requiere revisión manual.
-    const names = starts ? full.slice(surnames.length) : full.slice(0,-surnames.length);
-    return names.length ? { given: names.join(' '), surname: surnames.join(' ') } : null;
+    const first = normalizedTokens(firstSurname);
+    const surnames = [...first, ...normalizedTokens(secondSurname)];
+    if (!full.length || !first.length) return null;
+    const starts = full.length > surnames.length &&
+      surnames.every((part, i) => full[i] === part);
+    const ends = full.length > surnames.length &&
+      surnames.every((part, i) => full[full.length - surnames.length + i] === part);
+    let given;
+    if (starts !== ends) {
+      given = starts ? full.slice(surnames.length) : full.slice(0, -surnames.length);
+    } else if (!starts && !ends &&
+      full.length <= 3 && // Caso nuevo: solo nombres de pila capturados en Águila.
+      !full.some(part => surnames.includes(part))) {
+      given = full;
+    } else return null;
+    return given.length
+      ? { given: given.join(' '), surname: surnames.join(' ') } : null;
   }
   function dateParts(date) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
