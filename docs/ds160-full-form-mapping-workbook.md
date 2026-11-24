@@ -2,6 +2,8 @@
 
 **Estado:** diseño incremental. Sólo los selectores de Datos personales 1 y 2 tienen un mapeo preliminar probado con datos sintéticos. El resto de rutas, nombres de campos y opciones se documentará a partir de la inspección de cada página CEAC **realmente visible**; no se inventan controles.
 
+**Extensión v0.4.1:** el mapa de ramas condicionales por perfil TN, TD y B1/B2 se trabaja en `docs/ds160-tn-td-b1b2-conditional-matrix.md`. La extensión compara estructuras **antes y después de una respuesta manual** y las clasifica por perfil y ruta, sin leer respuestas del solicitante.
+
 ## Procedimiento para leer cada página
 
 1. Abre CEAC con **una solicitud de prueba**, resuelve CAPTCHA y navegación manualmente.
