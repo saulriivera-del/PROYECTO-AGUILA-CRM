@@ -5,6 +5,7 @@ import { isAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cleanAnswers, cleanPeople, countProgress } from '@/lib/trade-in-motion'
 import TnResponseReview from '@/components/tn-response-review'
+import Ds160CorrectionEditor from '@/components/ds160-correction-editor'
 import { markReview, markFolioReview } from './actions'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,15 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
     .select('id, access_id, applicant_email, organization_id, answers, people, submission_id, status, reviewed_at, created_at, updated_at, submitted_at, consent_at')
     .eq('id', id).eq('organization_id', context.organizationId).maybeSingle()
   if (!draft) notFound()
+  const [{ data: correction }, { data: editHistory }] = await Promise.all([
+    db.from('vm_ds160_corrections').select('answers,people,version,updated_at').eq('draft_id',id).eq('organization_id',context.organizationId).maybeSingle(),
+    db.from('vm_ds160_correction_history').select('version,editor_id,reason,created_at').eq('draft_id',id).eq('organization_id',context.organizationId).order('created_at',{ascending:false}).limit(30),
+  ])
+  const editorIds = [...new Set((editHistory ?? []).map(h=>h.editor_id))]
+  const { data: editors } = editorIds.length
+    ? await db.from('profiles').select('id,full_name').eq('organization_id',context.organizationId).in('id',editorIds)
+    : { data: [] }
+  const editorNames = new Map((editors ?? []).map(p => [p.id,p.full_name]))
   const { data: access } = draft.access_id ? await db.from('vm_trade_in_motion_access')
     .select('folio,applicant_name').eq('id',draft.access_id).eq('organization_id',context.organizationId).maybeSingle() : {data:null}
   const { data: submission } = draft.status === 'Enviado'
@@ -25,10 +35,12 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
       .eq('submission_id', draft.submission_id)
       .eq('organization_id', context.organizationId).maybeSingle()
     : { data: null }
-  const answers = cleanAnswers(draft.answers)
-  const people = cleanPeople(draft.people)
+  const originalAnswers = cleanAnswers(draft.answers)
+  const originalPeople = cleanPeople(draft.people)
+  const answers = cleanAnswers(correction?.answers ?? draft.answers)
+  const people = cleanPeople(correction?.people ?? draft.people)
   const progress = countProgress(answers, people)
-  const state = draft.status === 'Borrador' ? 'Borrador' : draft.reviewed_at || submission?.status === 'En revisión' ? 'En revisión' : 'Recibido'
+  const state = draft.status === 'Borrador' ? 'Borrador' : correction ? 'Corregido · Pendiente de aprobación' : draft.reviewed_at || submission?.status === 'En revisión' ? 'En revisión' : 'Recibido'
   const date = (value: string) => new Intl.DateTimeFormat('es-MX', {
     timeZone: 'America/Hermosillo', dateStyle: 'medium', timeStyle: 'short',
   }).format(new Date(value))
@@ -51,6 +63,24 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
     <p style={{ background: '#f4f7fa', borderLeft: '3px solid #256ba9', padding: 14, fontSize: 13, color: '#536e88' }}>
       Información confidencial. Las respuestas son aportadas por el candidato y deben verificarse con documentación antes de presentar el DS-160 oficial. {draft.consent_at ? 'Aceptó el aviso de privacidad al enviar.' : 'Aún no ha enviado ni aceptado el aviso de privacidad.'}
     </p>
+    {draft.status === 'Enviado' && <Ds160CorrectionEditor draftId={draft.id}
+      originalAnswers={originalAnswers} initialAnswers={answers} initialPeople={people}
+      initialVersion={correction?.version ?? 0} />}
+    <h2 style={{ marginTop: 28 }}>{correction ? 'Respuestas corregidas para automatización' : 'Respuestas recibidas'}</h2>
     <TnResponseReview answers={answers} people={people} />
+    {correction && <details style={{ marginTop: 20, padding: 16, background: '#f7f9fb', borderRadius: 11 }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Ver las respuestas originales del cliente (sin modificaciones)</summary>
+      <div style={{ marginTop: 16 }}><TnResponseReview answers={originalAnswers} people={originalPeople} /></div>
+    </details>}
+    {(editHistory ?? []).length > 0 && <section style={{ marginTop: 25 }}>
+      <h2>Historial de correcciones</h2>
+      <p style={{ fontSize: 13, color: '#647c90' }}>Se conserva cada versión para conocer los cambios realizados y su responsable.</p>
+      <div style={{ display: 'grid', gap: 9 }}>{(editHistory ?? []).map(entry => (
+        <div key={entry.version} style={{ padding: 12, border: '1px solid #dce6ef', borderRadius: 9, background: '#fff' }}>
+          <strong>Versión {entry.version}</strong> · {date(entry.created_at)} · {editorNames.get(entry.editor_id) || 'Operador de Visa Master'}
+          <div style={{ marginTop: 5, color: '#5a7186' }}>{entry.reason}</div>
+        </div>
+      ))}</div>
+    </section>}
   </div>
 }
