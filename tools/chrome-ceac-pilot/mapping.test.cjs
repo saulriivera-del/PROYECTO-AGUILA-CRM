@@ -27,7 +27,7 @@ test('identifica nombres de pila capturados solos en Águila sin requerir apelli
     {given:'LUIS',surname:'DEL RIO'});
   const plan = buildPlan({...data,full_name:'Ángel Saúl',curp_paterno:'Rivera',curp_materno:'Espinoza'}, P1);
   assert.equal(plan.actions.length,13);
-  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='MARIA ELENA LOPEZ GARCIA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='ANGEL SAUL RIVERA ESPINOZA'));
   assert.ok(plan.actions.some(a=>a.suffix==='rblOtherNames_1'&&a.mode==='radioNo'));
   assert.ok(plan.actions.some(a=>a.suffix==='rblTelecodeQuestion_1'&&a.mode==='radioNo'));
   assert.ok(plan.actions.some(a => a.suffix === 'tbxAPP_SURNAME' && a.value === 'RIVERA ESPINOZA'));
@@ -50,7 +50,7 @@ test('rechaza fechas imposibles y con formatos ambiguos',() => {
 });
 test('página 1 solo propone controles CEAC conocidos',() => {
   const plan=buildPlan(data,P1);
-  assert.equal(plan.actions.length,10);
+  assert.equal(plan.actions.length,13);
   assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_GIVEN_NAME'&&a.value==='MARIA ELENA'));
   assert.ok(plan.actions.some(a=>a.suffix==='ddlDOBMonth'&&a.value==='AUG'));
   assert.equal(plan.actions.some(a=>a.suffix.includes('FULL_NAME_NATIVE_NA')),false);
