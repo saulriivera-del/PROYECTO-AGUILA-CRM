@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Visa Master · Piloto DS-160 (datos personales)",
+  "version": "0.2.0",
+  "description": "Lee datos personales aprobados de Águila y permite rellenar una pantalla CEAC por acción del operador. No guarda ni envía solicitudes.",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["https://crm.visamaster.com.mx/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Visa Master · Datos personales DS-160"
+  }
+}
