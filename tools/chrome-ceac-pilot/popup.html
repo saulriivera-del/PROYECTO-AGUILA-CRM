@@ -47,6 +47,32 @@
   <small>Una inspección por pantalla y por cada rama condicional. No rellena, guarda ni envía formularios.</small>
 </section>
 <section class="box" style="margin-top:15px">
+  <h2>Preguntas condicionales por tipo de visa</h2>
+  <p>Escoge la visa, captura la estructura inicial, cambia una respuesta <strong>manualmente en CEAC</strong> y vuelve a abrir la extensión para comparar.</p>
+  <label for="visa-profile" style="display:block;margin-bottom:5px">Tipo de visa a mapear</label>
+  <select id="visa-profile" style="width:100%;padding:9px;border:1px solid #b9ccdd;border-radius:8px;color:#173b5a;background:#fff">
+    <option value="TN">TN · Trabajo</option>
+    <option value="TD">TD · Dependiente de TN</option>
+    <option value="B1/B2">B1/B2 · Visitante</option>
+  </select>
+  <button id="branch-before" class="secondary">1. Guardar estructura ANTES de cambiar la respuesta</button>
+  <p id="branch-status" role="status">Sin estructura inicial guardada.</p>
+  <label for="branch-trigger" style="display:block;margin-bottom:5px">Qué respuesta cambiaste (sin datos personales)</label>
+  <input id="branch-trigger" type="text" maxlength="100" placeholder="Ej. Estancia &gt; 24 horas = Sí"
+    style="box-sizing:border-box;width:100%;padding:9px;border:1px solid #b9ccdd;border-radius:8px"/>
+  <button id="branch-after" class="secondary">2. Comparar DESPUÉS de cambiar la respuesta</button>
+  <div id="branch-results" hidden>
+    <p id="branch-summary"></p>
+    <button id="branch-copy" class="secondary" disabled>Copiar diferencias para mapearlas</button>
+    <details>
+      <summary>Ver diferencias detectadas</summary>
+      <pre id="branch-report"></pre>
+    </details>
+  </div>
+  <button id="branch-clear" class="secondary">Eliminar estructura inicial guardada</button>
+  <small>Solo conserva metadatos temporalmente durante esta sesión de Chrome; no guarda respuestas ni cambia controles de CEAC. Si la página cambia de dirección, inicia una nueva comparación.</small>
+</section>
+<section class="box" style="margin-top:15px">
   <h2>Application ID · Vincular con Águila</h2>
   <p>Detecta el ID que muestra CEAC y vincúlalo únicamente tras comprobar el expediente. No se guarda automáticamente.</p>
   <button id="link-detect" class="secondary">Detectar Application ID en CEAC</button>
@@ -63,6 +89,7 @@
 <small>Sin almacenamiento, sin CAPTCHA, sin firma, sin botón Siguiente. La confirmación del cliente y la aprobación de Mariana en Águila siguen siendo obligatorias.</small>
 <script src="mapping.js"></script>
 <script src="popup.js"></script>
+<script src="inspector-diff.js"></script>
 <script src="inspector.js"></script>
 <script src="app-id.js"></script>
 <script src="app-id-popup.js"></script>
