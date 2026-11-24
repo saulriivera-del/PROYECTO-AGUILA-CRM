@@ -64,7 +64,28 @@
       safety:'METADATA_ONLY_NO_RESPONSES_NO_WRITES'
     };
   }
-  const api={PROFILES,compareInspections,fieldKey};
+  // Los campos de páginas diferentes no se comparan como un mismo formulario:
+  // se registran dos inventarios y la transición observada por el operador.
+  function recordPageTransition(before, after, profile, branchLabel='') {
+    if (!PROFILES.includes(profile)) throw Error('Tipo de visa no permitido.');
+    if (!before || !after || before.schema!=='vm-ceac-page-structure-v1' ||
+        after.schema!=='vm-ceac-page-structure-v1' || !before.path || !after.path)
+      throw Error('Se requieren dos estructuras válidas para registrar la transición.');
+    if (before.path===after.path) throw Error('La página no cambió; utiliza la comparación de controles.');
+    fieldsByKey(before); fieldsByKey(after);
+    return {
+      schema:'vm-ceac-page-transition-v1',profile,
+      operatorBranch:String(branchLabel || '').trim().slice(0,100),
+      before:{path:before.path,pageKey:before.pageKey,
+        visibleFieldCount:before.fields.length,fields:before.fields.map(describe)},
+      after:{path:after.path,pageKey:after.pageKey,
+        visibleFieldCount:after.fields.length,fields:after.fields.map(describe)},
+      transitionObserved:true,
+      notice:'Dos páginas distintas: no se infiere que los campos de destino hayan sido causados por una respuesta. Verificar la condición manualmente.',
+      safety:'METADATA_ONLY_NO_RESPONSES_NO_WRITES'
+    };
+  }
+  const api={PROFILES,compareInspections,recordPageTransition,fieldKey};
   if (typeof module !== 'undefined' && module.exports) module.exports=api;
   else root.VmCeacDiff=api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

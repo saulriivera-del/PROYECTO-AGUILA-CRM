@@ -48,7 +48,7 @@
 </section>
 <section class="box" style="margin-top:15px">
   <h2>Preguntas condicionales por tipo de visa</h2>
-  <p>Escoge la visa, captura la estructura inicial, cambia una respuesta <strong>manualmente en CEAC</strong> y vuelve a abrir la extensión para comparar.</p>
+  <p>Escoge la visa, captura la estructura inicial, cambia una respuesta <strong>manualmente en CEAC</strong> y vuelve a abrir la extensión para registrar la pantalla siguiente (aunque cambie de página).</p>
   <label for="visa-profile" style="display:block;margin-bottom:5px">Tipo de visa a mapear</label>
   <select id="visa-profile" style="width:100%;padding:9px;border:1px solid #b9ccdd;border-radius:8px;color:#173b5a;background:#fff">
     <option value="TN">TN · Trabajo</option>
@@ -60,7 +60,7 @@
   <label for="branch-trigger" style="display:block;margin-bottom:5px">Qué respuesta cambiaste (sin datos personales)</label>
   <input id="branch-trigger" type="text" maxlength="100" placeholder="Ej. Estancia &gt; 24 horas = Sí"
     style="box-sizing:border-box;width:100%;padding:9px;border:1px solid #b9ccdd;border-radius:8px"/>
-  <button id="branch-after" class="secondary">2. Comparar DESPUÉS de cambiar la respuesta</button>
+  <button id="branch-after" class="secondary">2. Registrar DESPUÉS (misma u otra página)</button>
   <div id="branch-results" hidden>
     <p id="branch-summary"></p>
     <button id="branch-copy" class="secondary" disabled>Copiar diferencias para mapearlas</button>
@@ -70,7 +70,7 @@
     </details>
   </div>
   <button id="branch-clear" class="secondary">Eliminar estructura inicial guardada</button>
-  <small>Solo conserva metadatos temporalmente durante esta sesión de Chrome; no guarda respuestas ni cambia controles de CEAC. Si la página cambia de dirección, inicia una nueva comparación.</small>
+  <small>Solo conserva metadatos temporalmente durante esta sesión de Chrome; no guarda respuestas ni cambia controles de CEAC. Si cambia de página, guarda por separado la estructura anterior y la nueva, sin asumir que todos los campos nuevos provienen de esa respuesta.</small>
 </section>
 <section class="box" style="margin-top:15px">
   <h2>Application ID · Vincular con Águila</h2>

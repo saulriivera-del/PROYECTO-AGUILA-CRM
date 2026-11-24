@@ -126,7 +126,7 @@
       const prior=await getBaseline();
       $('branch-status').textContent=prior
         ? 'Guardada: '+prior.profile+' · '+prior.report.pageKey+
-          '. Ahora modifica una respuesta en CEAC y pulsa Comparar DESPUÉS.'
+          '. Modifica la respuesta en CEAC (puedes avanzar de página) y pulsa Registrar DESPUÉS.'
         : 'Sin estructura inicial guardada.';
     } catch {
       $('branch-status').textContent='No se pudo consultar la estructura inicial en esta sesión.';
@@ -181,20 +181,29 @@
       const {tabId,report}=await inspectActive();
       if(tabId!==prior.tabId)
         throw Error('Cambió la pestaña CEAC. Vuelve a guardar estructura ANTES en esta pestaña.');
-      const diff=diffEngine.compareInspections(prior.report,report,profile,
-        $('branch-trigger').value);
+      const changedPage=prior.report.path!==report.path;
+      const diff=changedPage
+        ? diffEngine.recordPageTransition(prior.report,report,profile,$('branch-trigger').value)
+        : diffEngine.compareInspections(prior.report,report,profile,$('branch-trigger').value);
       lastDiff=JSON.stringify(diff,null,2);
       $('branch-report').textContent=lastDiff;
       $('branch-copy').disabled=false;
       $('branch-results').hidden=false;
-      const count=diff.added.length+diff.removed.length+diff.changed.length;
-      $('branch-summary').textContent=diff.noChanges
-        ? 'Sin cambios visibles. Algunas condiciones requieren cambiar de pantalla, recargar o completar campos previos.'
-        : 'Detectado: '+diff.added.length+' campo(s) nuevos, '+diff.removed.length+
-          ' ocultos y '+diff.changed.length+' modificados.';
-      $('branch-status').textContent=count
-        ? 'Rama registrada. Copia las diferencias para mapear el cuestionario de '+profile+'.'
-        : 'No se detectaron diferencias de estructura en esta pantalla.';
+      if (changedPage) {
+        $('branch-summary').textContent='Cambio de página: '+diff.before.pageKey+
+          ' → '+diff.after.pageKey+'. Se guardaron ambas estructuras por separado.';
+        $('branch-status').textContent='Transición registrada para '+profile+
+          '. Copia el reporte para relacionar la respuesta con la nueva pantalla.';
+      } else {
+        const count=diff.added.length+diff.removed.length+diff.changed.length;
+        $('branch-summary').textContent=diff.noChanges
+          ? 'Sin cambios visibles. Algunas condiciones requieren cambiar de pantalla, recargar o completar campos previos.'
+          : 'Detectado: '+diff.added.length+' campo(s) nuevos, '+diff.removed.length+
+            ' ocultos y '+diff.changed.length+' modificados.';
+        $('branch-status').textContent=count
+          ? 'Rama registrada. Copia las diferencias para mapear el cuestionario de '+profile+'.'
+          : 'No se detectaron diferencias de estructura en esta pantalla.';
+      }
     }catch(error) {
       $('branch-status').textContent=error?.message || 'No se pudo comparar.';
     }finally {

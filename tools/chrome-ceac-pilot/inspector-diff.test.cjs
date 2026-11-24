@@ -54,3 +54,22 @@ test('no asume cambios si la pantalla sigue igual y rechaza perfil inválido',()
 test('rechaza duplicados, que podrían confundir qué campo apareció',()=>{
   assert.throws(()=>compareInspections(report([field('x','A'),field('x','B')]),before,'TN'),/identidad única/);
 });
+
+
+test('registra dos páginas diferentes como transición y conserva inventarios separados',()=>{
+  const source=report([field('marital_status','Estado civil','select',[{code:'M',label:'MARRIED'}])],'/GenNIV/General/complete/complete_personal.aspx');
+  const destination=report([field('spouse_name','Nombre de cónyuge')],'/GenNIV/General/complete/complete_spouse.aspx');
+  const transition=require('./inspector-diff.js').recordPageTransition(source,destination,'TD','Estado civil = Casado');
+  assert.equal(transition.schema,'vm-ceac-page-transition-v1');
+  assert.equal(transition.profile,'TD');
+  assert.equal(transition.before.pageKey,'complete_personal.aspx');
+  assert.equal(transition.after.pageKey,'complete_spouse.aspx');
+  assert.equal(transition.before.fields[0].id,'marital_status');
+  assert.equal(transition.after.fields[0].id,'spouse_name');
+  assert.equal(transition.operatorBranch,'Estado civil = Casado');
+  assert.equal(transition.added,undefined);
+  assert.match(transition.notice,/no se infiere/);
+});
+test('no registra transición falsa entre rutas idénticas',()=>{
+  assert.throws(()=>require('./inspector-diff.js').recordPageTransition(before,after,'TN'),/página no cambió/);
+});
