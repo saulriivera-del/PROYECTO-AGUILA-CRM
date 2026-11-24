@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.3.0** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.3.1** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.3.0**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.3.1**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Detectar y vincular Application ID
@@ -41,7 +41,7 @@
 - Solo dos rutas CEAC exactas; únicamente 12 sufijos de campos preaprobados: 10 Personal 1, 2 Personal 2.
 - Si CEAC cambia los controles, catálogo o ruta, el campo se bloquea y aparece como pendiente. No se buscan opciones por índice.
 - No se marca **No**, **Does Not Apply** ni otro radio por inferencia.
-- Nombre completo se separa usando apellidos introducidos; si no hay coincidencia segura se exige revisión manual.
+- Águila admite nombres de pila separados de los apellidos (por ejemplo «Ángel Saúl» / «Rivera» / «Espinoza») o nombre completo con apellidos en la misma línea. La extensión rellena Surnames y Given Names; si hay un apellido parcialmente coincidente, datos ambiguos o faltantes, no inventa la separación y pide revisión manual. El nombre en alfabeto nativo sigue pendiente de captura manual.
 - El valor sugerido de CURP nunca se usa si no se ha marcado explícitamente confirmado por el cliente.
 - Los campos siguen requiriendo verificación humana después de llenarse; el sitio CEAC puede actualizarse por sus propios eventos.
 - **Este piloto no hace clic en Siguiente, Guardar, Firmar o Enviar**, ni intenta sortear los mecanismos de control del portal.

@@ -17,6 +17,28 @@ test('extrae nombres solo con coincidencia completa, sin duplicar la pregunta',(
     {given:'MARIA ELENA',surname:'LOPEZ GARCIA'});
   assert.equal(extractNames('MARIA ELENA RIVERA GARCIA','LOPEZ','GARCIA'),null);
 });
+test('identifica nombres de pila capturados solos en Águila sin requerir apellidos repetidos',() => {
+  assert.deepEqual(extractNames('Ángel Saúl','Rivera','Espinoza'),
+    {given:'ANGEL SAUL',surname:'RIVERA ESPINOZA'});
+  assert.deepEqual(extractNames('MARIA ELENA','LOPEZ','GARCIA'),
+    {given:'MARIA ELENA',surname:'LOPEZ GARCIA'});
+  assert.deepEqual(extractNames('LUIS','DEL RIO',''),
+    {given:'LUIS',surname:'DEL RIO'});
+  const plan = buildPlan({...data,full_name:'Ángel Saúl',curp_paterno:'Rivera',curp_materno:'Espinoza'}, P1);
+  assert.equal(plan.actions.length,10);
+  assert.ok(plan.actions.some(a => a.suffix === 'tbxAPP_SURNAME' && a.value === 'RIVERA ESPINOZA'));
+  assert.ok(plan.actions.some(a => a.suffix === 'tbxAPP_GIVEN_NAME' && a.value === 'ANGEL SAUL'));
+  assert.equal(plan.pending.some(message => message.includes('no se pueden separar')), false);
+});
+test('mantiene pendiente la separación de nombres si hay apellidos parciales o datos inconsistentes',() => {
+  assert.equal(extractNames('ANGEL RIVERA','RIVERA','ESPINOZA'),null);
+  assert.equal(extractNames('MARIA ELENA RIVERA GARCIA','LOPEZ','GARCIA'),null);
+  assert.equal(extractNames('MARIA ELENA LOPEZ GARCIA','', 'GARCIA'),null);
+  assert.equal(extractNames('UNO DOS TRES CUATRO', 'LOPEZ','GARCIA'),null);
+  const plan = buildPlan({...data,full_name:'MARIA RIVERA',curp_paterno:'RIVERA',curp_materno:'GARCIA'},P1);
+  assert.equal(plan.actions.some(a=>a.suffix==='tbxAPP_SURNAME'),false);
+  assert.ok(plan.pending.some(message=>message.includes('Comprobar manualmente nombres y apellidos')));
+});
 test('rechaza fechas imposibles y con formatos ambiguos',() => {
   assert.equal(dateParts('2026-02-30'),null);
   assert.equal(dateParts('02/08/1996'),null);
@@ -42,7 +64,7 @@ test('pantalla CEAC desconocida bloquea todo',() => {
   assert.equal(buildPlan(data,'/GenNIV/General/complete/other.aspx').actions.length,0);
 });
 test('unión libre y nombres ambiguos quedan para revisión manual',() => {
-  const plan=buildPlan({...data,marital_status:'Unión libre',full_name:'NOMBRE INCOMPLETO'},P1);
+  const plan=buildPlan({...data,marital_status:'Unión libre',full_name:'MARIA GARCIA'},P1);
   assert.equal(plan.actions.some(a=>a.suffix==='ddlAPP_MARITAL_STATUS'),false);
   assert.equal(plan.actions.some(a=>a.suffix==='tbxAPP_SURNAME'),false);
   assert.ok(plan.pending.length>0);
