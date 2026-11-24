@@ -23,6 +23,18 @@ export function nombresDesdeNombreCompleto(completo: string, paterno: string, ma
   if (full.endsWith(' ' + suffix)) return full.slice(0, -suffix.length).trim()
   // Si el pasaporte presenta primero los apellidos, conservar el orden sin inventar nombres.
   if (full.startsWith(suffix + ' ')) return full.slice(suffix.length).trim()
+  // Permitir nombres y apellidos en diferentes posiciones solo cuando el grupo de
+  // apellidos coincide completo y de forma única; no adivinar entre homónimos.
+  const tokens = full.split(' ')
+  const family = suffix.split(' ')
+  const positions: number[] = []
+  for (let i = 0; i <= tokens.length - family.length; i++) {
+    if (family.every((token, j) => tokens[i + j] === token)) positions.push(i)
+  }
+  if (positions.length === 1) {
+    const remaining = tokens.filter((_, i) => i < positions[0] || i >= positions[0] + family.length)
+    if (remaining.length) return remaining.join(' ')
+  }
   return ''
 }
 function nombreClave(s: string) {
