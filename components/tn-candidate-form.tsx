@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import config from '@/lib/trade-in-motion-config.json'
-import { sugerirCurp, formatoCurp, nombresDesdeNombreCompleto } from '@/lib/curp-sugerida'
+import { sugerirCurp, formatoCurp, nombresDesdeNombreCompleto, curpConfirmadaParaAvanzar } from '@/lib/curp-sugerida'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
   getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
@@ -151,10 +151,26 @@ export default function CandidateForm() {
   }
   function confirmarCurp(valor: string, estado: string) {
     const curp = valor.trim().toUpperCase()
-    if (!formatoCurp(curp)) { setError('Revisa la CURP: debe tener 18 caracteres correctos.'); return }
+    if (!formatoCurp(curp)) {
+      setError('Antes de confirmar, revisa que tu CURP tenga 18 caracteres y el formato correcto. Puedes corregirla en el campo de arriba.')
+      setMissing([])
+      return
+    }
     revision.current += 1
     setAnswers(prev => ({...prev, curp_valor: curp, curp_confirmada: estado}))
-    setDirty(true); setSaveStatus('Cambios pendientes…'); setError('')
+    setDirty(true); setSaveStatus('Cambios pendientes…'); setError(''); setMissing([])
+  }
+
+  function irASeccion(destino: number) {
+    const index = Math.max(0, Math.min(sections.length - 1, destino))
+    if (index > 0 && !curpConfirmadaParaAvanzar(answers)) {
+      setSectionIndex(0)
+      setError('Para continuar, revisa tu CURP y pulsa «Confirmo que esta CURP coincide con mi documento oficial».')
+      setMissing([])
+      return
+    }
+    setError(''); setMissing([])
+    setSectionIndex(index)
   }
   function updatePeople(kind: keyof GroupedPeople, index: number, key: keyof Person, value: string) {
     revision.current += 1
@@ -185,6 +201,11 @@ export default function CandidateForm() {
   }
   async function submit() {
     setError('')
+    if (!curpConfirmadaParaAvanzar(answers)) {
+      irASeccion(0)
+      setError('Confirma tu CURP con tu documento oficial antes de enviar el formulario.')
+      return
+    }
     const checked = cleanAnswers(answers)
     const errors = validateSubmission(checked, people)
     if (errors.length) {
@@ -343,7 +364,7 @@ export default function CandidateForm() {
                 <nav className="tn-nav" aria-label="Secciones">
                   {sections.map((section, index) => <button type="button" key={section.id}
                     aria-current={index === sectionIndex ? 'step' : undefined}
-                    onClick={() => setSectionIndex(index)}>{index + 1}. {section.title}</button>)}
+                    onClick={() => irASeccion(index)}>{index + 1}. {section.title}</button>)}
                 </nav>
                 <p className="tn-muted">Tu información se guarda en línea al completar o cambiar una respuesta.</p>
               </aside>
@@ -369,7 +390,6 @@ export default function CandidateForm() {
                       <input id="tn-curp-autocompletada" className="tn-input" maxLength={18} aria-label="CURP sugerida o corregida" value={curpValorVisible} onChange={e=>update('curp_valor',e.target.value.toUpperCase())}/>
                       {!curpSugerida && !answers.curp_valor ? <p role="status">Si no se genera, revisa tus nombres, apellidos, sexo, fecha y estado de nacimiento, o escribe la CURP de tu constancia.</p> : null}
                       <button className="tn-button secondary" style={{marginTop:8}} type="button"
-                        disabled={!formatoCurp(curpValorVisible) || Boolean(answers.curp_confirmada)}
                         onClick={()=>confirmarCurp(curpValorVisible,curpValorVisible===curpSugerida?'Sí, coincide con mi documento':'No, la corregí con mi documento')}>
                         Confirmo que esta CURP coincide con mi documento oficial
                       </button>
@@ -389,9 +409,9 @@ export default function CandidateForm() {
                 </div> : null}
                 <div className="tn-actions">
                   <div className="tn-actions-side">
-                    <button className="tn-button secondary" type="button" onClick={() => setSectionIndex(s => Math.max(0, s - 1))} disabled={sectionIndex === 0}>Anterior</button>
+                    <button className="tn-button secondary" type="button" onClick={() => irASeccion(sectionIndex - 1)} disabled={sectionIndex === 0}>Anterior</button>
                     {sectionIndex < sections.length - 1
-                      ? <button className="tn-button" type="button" onClick={() => setSectionIndex(s => Math.min(sections.length - 1, s + 1))}>Siguiente sección</button>
+                      ? <button className="tn-button" type="button" onClick={() => irASeccion(sectionIndex + 1)}>Siguiente sección</button>
                       : <button className="tn-button" type="button" disabled={loading} onClick={submit}>{loading ? 'Enviando…' : 'Enviar formulario a Visa Master'}</button>}
                   </div>
                   <button className="tn-button secondary" type="button" onClick={() => { setError(''); void store('save') }}>Guardar ahora</button>
