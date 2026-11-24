@@ -1,6 +1,6 @@
 import config from './trade-in-motion-config.json'
 import { curpConfirmadaParaAvanzar } from './curp-sugerida'
-import { canonicalBirthCountry, isValidBirthCountry } from './birth-countries'
+import { canonicalBirthCountry, isValidBirthCountry, birthCountryMatchesState } from './birth-countries'
 
 export type AnswerMap = Record<string, string>
 export type Person = { id: number; fullName: string; relationship: string; immigrationStatus?: string }
@@ -105,6 +105,9 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     if (field.type === 'multiselect' && !getSelectedSocialPlatforms(value).length)
       problems.push(field.label + ' (selecciona una opción válida)')
   }
+  if (isValidBirthCountry(answers.birth_country || '') && answers.birth_state &&
+      !birthCountryMatchesState(answers.birth_country, answers.birth_state))
+    problems.push('Revisa el estado de nacimiento: debe corresponder al país elegido')
   // El aviso de otros países también se comprueba en el servidor: no basta con
   // saltarse la pantalla para enviar un país no mexicano sin confirmar.
   if (answers.birth_country && answers.birth_country !== 'MX' &&
