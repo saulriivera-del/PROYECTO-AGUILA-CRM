@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Visa Master · Piloto DS-160 (datos personales)",
-  "version": "0.3.3",
-  "description": "Piloto de autollenado supervisado de datos personales y vinculación confirmada de Application ID en Águila; no firma ni envía solicitudes.",
+  "version": "0.4.0",
+  "description": "Piloto de autollenado supervisado de Datos personales 1 y 2, inspector de estructura de todas las páginas CEAC y vinculación confirmada de Application ID; no guarda, firma ni envía solicitudes.",
   "permissions": [
     "activeTab",
     "scripting"
