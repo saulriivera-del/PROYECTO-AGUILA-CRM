@@ -84,7 +84,7 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
         <ul>{personalMissing.slice(0, 12).map(problem => <li key={problem.key}>{problem.label}</li>)}</ul>
       </div> : null}
       {personallyApproved
-        ? <p style={{ color: '#176541', fontWeight: 700 }}>Datos personales aprobados para preparar transferencia. Abre este expediente desde Chrome para continuar las pruebas de extensión.</p>
+        ? <div><p style={{ color: '#176541', fontWeight: 700 }}>Datos personales aprobados para preparar transferencia. Mantén abierta esta ficha y CEAC en otra pestaña de Chrome.</p><p><a href="https://github.com/saulriivera-del/PROYECTO-AGUILA-CRM/tree/main/tools/chrome-ceac-pilot" target="_blank" rel="noopener noreferrer">Instalar extensión piloto DS-160 · Datos personales 1 y 2</a> · Solo con solicitudes ficticias hasta concluir la prueba supervisada.</p></div>
         : canApprovePersonal
           ? <form action={approveDs160Personal}>
               <input type="hidden" name="id" value={draft.id} />
