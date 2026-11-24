@@ -18,3 +18,17 @@ Extensión de Chrome Manifest V3 de inspección **local** de estructura, sin acc
 - No necesita ni debe contener datos privados de Mariana.
 
 **Atención:** CEAC no almacena un borrador indefinidamente: consulta las reglas oficiales de guardado y recuperación; la solicitud definitiva debe ser firmada y enviada por el solicitante o conforme a las reglas de representación aplicables.
+
+## Procedimiento operativo de inicio CEAC (validado por el operador)
+
+Antes de inspeccionar `Personal Information 1`:
+
+1. Elegir la **ubicación consular** correspondiente al expediente.
+2. Mariana resuelve **manualmente el CAPTCHA**. La extensión no lo interpreta ni lo sortea.
+3. Pulsar **Start an Application / Iniciar solicitud**.
+4. Leer y aceptar los avisos aplicables en CEAC.
+5. Seleccionar la pregunta y capturar la **respuesta de seguridad manualmente**. La extensión no almacena una respuesta fija ni la incluye en el código fuente o en los registros.
+6. Guardar de forma segura el **Application ID** para reanudar el borrador siguiendo las instrucciones del portal.
+7. Al llegar a **Personal Information 1 / Datos personales 1**, ejecutar la inspección de *metadatos de campos* con la extensión piloto.
+
+**Separación de responsabilidades:** el operador controla consulado, CAPTCHA, apertura, aceptación, seguridad y recuperación del expediente; la extensión piloto solamente inspecciona campos visibles sin leer sus valores, sin avance de página ni envío.
