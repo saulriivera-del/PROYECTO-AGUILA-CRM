@@ -4,6 +4,7 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { isAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cleanAnswers } from '@/lib/trade-in-motion'
+import { personalDigest, personalProblems } from '@/lib/ds160-personal-transfer'
 import Ds160PilotDemo from '@/components/ds160-pilot-demo'
 
 export const dynamic = 'force-dynamic'
@@ -18,20 +19,30 @@ export default async function Ds160AutomationPilotPage() {
   // No consulta columnas experimentales de aprobación ni intenta enviar datos a CEAC.
   const db = createAdminClient()
   const { data, count, error } = await db.from('vm_trade_in_motion_drafts')
-    .select('id,answers,applicant_email,reviewed_at,submitted_at', { count: 'exact' })
+    .select('id,answers,applicant_email,reviewed_at,submitted_at,updated_at,ds160_personal_approved_at,ds160_personal_approved_digest', { count: 'exact' })
     .eq('organization_id', context.organizationId)
     .eq('status', 'Enviado')
     .order('submitted_at', { ascending: false })
     .limit(100)
 
+  const { data: corrections, error: correctionsError } = data?.length
+    ? await db.from('vm_ds160_corrections').select('draft_id,answers,updated_at')
+      .eq('organization_id', context.organizationId).in('draft_id', data.map(d => d.id))
+    : { data: [], error: null }
+  const correctionByDraft = new Map((corrections ?? []).map(c => [c.draft_id, c]))
   const received = (data ?? []).map(draft => {
-    const answers = cleanAnswers(draft.answers)
+    const correction = correctionByDraft.get(draft.id)
+    const answers = cleanAnswers(correction?.answers ?? draft.answers)
+    const approvedAt = draft.ds160_personal_approved_at ? new Date(draft.ds160_personal_approved_at).getTime() : 0
+    const lastChange = Math.max(new Date(draft.updated_at).getTime(), correction?.updated_at ? new Date(correction.updated_at).getTime() : 0)
+    const ready = Boolean(approvedAt && approvedAt >= lastChange && draft.ds160_personal_approved_digest === personalDigest(answers) && personalProblems(answers).length === 0)
     return {
       id: draft.id as string,
       name: answers.full_name || draft.applicant_email || 'Solicitante sin nombre',
       email: draft.applicant_email as string | null,
-      state: draft.reviewed_at ? 'En revisión' : 'Recibido',
+      state: ready ? 'Datos personales aprobados' : correction ? 'Corregido · por aprobar' : draft.reviewed_at ? 'En revisión' : 'Recibido',
       submittedAt: draft.submitted_at as string | null,
+      ready,
     }
   })
   const date = (value: string | null) => value
@@ -48,7 +59,7 @@ export default async function Ds160AutomationPilotPage() {
           Desde esta lista puedes abrir cada expediente para revisar sus respuestas.
           El autollenado oficial de CEAC sigue desactivado hasta validar las equivalencias.
         </p>
-        {error ? (
+        {error || correctionsError ? (
           <p role="alert" style={{ color: '#a62439', background: '#fff0f2', padding: 14, borderRadius: 10 }}>
             No se pudieron consultar los formularios en este momento. Los expedientes siguen guardados en Águila.
           </p>
@@ -69,7 +80,7 @@ export default async function Ds160AutomationPilotPage() {
                       {item.email && item.name !== item.email ? <div style={{ fontSize: 12, color: '#60758b', marginTop: 3 }}>{item.email}</div> : null}
                       <div style={{ fontSize: 12, color: '#60758b', marginTop: 4 }}>{item.state} · Enviado: {date(item.submittedAt)}</div>
                     </div>
-                    <Link href={'/admin/formularios/trade-in-motion/' + item.id} style={{ color: '#1f65a0', fontWeight: 700 }}>Abrir expediente para revisar</Link>
+                    <Link href={'/admin/formularios/trade-in-motion/' + item.id} style={{ color: '#1f65a0', fontWeight: 700 }}>{item.ready ? 'Abrir datos aprobados para Chrome' : 'Revisar y aprobar expediente'}</Link>
                   </div>
                 ))}
               </div>
@@ -80,7 +91,7 @@ export default async function Ds160AutomationPilotPage() {
           </section>
         )}
         <p style={{ fontSize: 13, color: '#60758b', marginTop: 14 }}>
-          La revisión y aprobación real para la extensión continúan en desarrollo. Abajo puedes explorar el flujo simulado, sin modificar respuestas.
+          Los estados de revisión usan las correcciones guardadas. La transferencia a Chrome y el llenado CEAC todavía requieren pruebas de integración. Abajo puedes explorar el flujo simulado.
         </p>
       </section>
       <Ds160PilotDemo />
