@@ -16,7 +16,7 @@
 </style></head>
 <body>
 <h1>Visa Master · Piloto DS-160</h1>
-<p class="muted">Datos personales 1 y 2. El operador revisa cada pantalla; no se guarda ni envía la solicitud.</p>
+<p class="muted">Mapeo de todas las pantallas; autollenado supervisado solo en Datos personales 1 y 2. No se guarda ni envía la solicitud.</p>
 <div class="box">
   <strong>1. Recuperar datos aprobados</strong>
   <p>Abre la ficha del candidato aprobada en otra pestaña de <strong>crm.visamaster.com.mx</strong> y mantén CEAC como pestaña activa.</p>
@@ -35,6 +35,18 @@
   <button id="fill" disabled>Rellenar esta pantalla (sin enviar)</button>
 </section>
 <section class="box" style="margin-top:15px">
+  <h2>Mapear cualquier pantalla del DS-160</h2>
+  <p>Abre una pantalla de CEAC y pulsa el botón. Registra IDs de controles, etiquetas y opciones visibles; <strong>no captura lo escrito por el cliente</strong>.</p>
+  <button id="inspect-all" class="secondary">Mapear esta pantalla (sin datos personales)</button>
+  <p id="inspect-all-status" role="status">Aún no has inspeccionado esta pantalla.</p>
+  <button id="inspect-copy" class="secondary" disabled>Copiar estructura para mapearla</button>
+  <details>
+    <summary>Ver estructura de esta página</summary>
+    <pre id="inspect-report"></pre>
+  </details>
+  <small>Una inspección por pantalla y por cada rama condicional. No rellena, guarda ni envía formularios.</small>
+</section>
+<section class="box" style="margin-top:15px">
   <h2>Application ID · Vincular con Águila</h2>
   <p>Detecta el ID que muestra CEAC y vincúlalo únicamente tras comprobar el expediente. No se guarda automáticamente.</p>
   <button id="link-detect" class="secondary">Detectar Application ID en CEAC</button>
@@ -51,6 +63,7 @@
 <small>Sin almacenamiento, sin CAPTCHA, sin firma, sin botón Siguiente. La confirmación del cliente y la aprobación de Mariana en Águila siguen siendo obligatorias.</small>
 <script src="mapping.js"></script>
 <script src="popup.js"></script>
+<script src="inspector.js"></script>
 <script src="app-id.js"></script>
 <script src="app-id-popup.js"></script>
 </body></html>
