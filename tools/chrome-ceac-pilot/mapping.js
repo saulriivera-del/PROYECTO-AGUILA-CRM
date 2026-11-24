@@ -34,7 +34,7 @@
   // Comparar un país declarado con las opciones REALES de CEAC.
   // No se inventan valores del catálogo ni se selecciona por índice.
   function resolveCountryOption(options, country) {
-    const normalized = v => normalize(v).replace(/[^A-Z0-9]+/g,' ').replace(/\\s+/g,' ').trim();
+    const normalized = v => normalize(v).replace(/[^A-Z0-9]+/g,' ').replace(/\s+/g,' ').trim();
     const wanted = normalized(country);
     if (!wanted || !Array.isArray(options)) return null;
     const mexico = ['MEXICO','MEX','MX'].includes(wanted);
