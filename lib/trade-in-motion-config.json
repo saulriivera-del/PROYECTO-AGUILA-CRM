@@ -138,6 +138,50 @@
           "help": "Si tienes otra nacionalidad, puedes cambiar este dato."
         },
         {
+          "key": "other_names_used",
+          "label": "¿Has utilizado otros nombres, apellidos, seudónimos o alias?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "help": "Incluye apellido de soltera, nombre religioso, profesional o cualquier otro nombre con el que te hayan conocido. Contesta de acuerdo con tus antecedentes reales."
+        },
+        {
+          "key": "other_names_details",
+          "label": "Escribe los nombres o apellidos adicionales que has utilizado",
+          "type": "textarea",
+          "required": true,
+          "when": {
+            "key": "other_names_used",
+            "equals": "Sí"
+          },
+          "help": "Anota cada nombre completo utilizado. Visa Master lo verificará antes de pasarlo a la solicitud oficial."
+        },
+        {
+          "key": "name_telecode",
+          "label": "¿Tienes un telecódigo que represente tu nombre?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "help": "El telecódigo se utiliza para representar ciertos nombres escritos en alfabetos no latinos. No es tu CURP."
+        },
+        {
+          "key": "name_telecode_value",
+          "label": "Escribe tu telecódigo de nombre",
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "name_telecode",
+            "equals": "Sí"
+          },
+          "help": "Confirma el código exacto con tu documentación."
+        },
+        {
           "key": "spouse_name",
           "label": "Nombre completo de tu cónyuge / pareja",
           "type": "text",
