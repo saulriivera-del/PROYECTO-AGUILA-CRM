@@ -43,6 +43,8 @@ Pregunta principal `Where Do You Intend to Work?`:
 
 **Correspondencia posible Águila, pendiente de aprobación:** `tn_employer`, `tn_employer_street`, `tn_employer_city`, `tn_employer_state`, `tn_employer_postal`, `tn_employer_phone`, `tn_salary` y `tn_salary_period`. El DS-160 solicita específicamente ingreso *mensual* en USD en esta pantalla; si la carta TN usa salario anual u otra periodicidad, cualquier cálculo debe validarse por Mariana antes de proponerlo. No inferir el domicilio del centro de trabajo como domicilio del empleador si son distintos.
 
+**Confirmación posterior de ruta:** una captura posterior identifica la página `Temporary Work Visa Information` como `/GenNIV/General/complete/complete_temporarywork.aspx`. Se documenta también en `docs/ds160-tn-part5-security1to5-20261125.md`; este dato resuelve la ruta que quedaba pendiente aquí. **Todavía faltan los selectores DOM y códigos internos.**
+
 ## C. Otras pantallas que reaparecen en la grabación
 
 La grabación navega manualmente a páginas previamente observadas: `Personal Information 1`, `Travel Information` (se ve un catálogo de propósitos, incluida categoría TN/TD y selección B visitante), `Travel Companions Information` y `Family Information`. Se observa el cambio de selección manual en `Primary Occupation`. **No se crean nuevas reglas** a partir de los valores elegidos durante la prueba, ni se entiende como prueba exhaustiva de los catálogos.
