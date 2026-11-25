@@ -208,10 +208,10 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
     setDirty(true)
     setSaveStatus('Cambios pendientes…')
   }
-  function addPerson(kind: keyof GroupedPeople) {
+  function addPerson(kind: keyof GroupedPeople, initialRelationship = '') {
     revision.current += 1
     setPeople(prev => ({ ...prev,
-      [kind]: [...prev[kind], { id: Date.now(), fullName: '', relationship: '', immigrationStatus: '' }],
+      [kind]: [...prev[kind], { id: Date.now(), fullName: '', relationship: initialRelationship, immigrationStatus: '' }],
     }))
     setDirty(true)
   }
@@ -261,15 +261,27 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
   const current = activeSections[sectionIndex] ?? activeSections[0]
 
   const profileLabel: Record<string,string> = { TN:'TN · Trabajo profesional', TD_CONYUGE:'TD · Cónyuge de titular TN', TD_HIJO:'TD · Hijo(a) de titular TN', 'B1/B2':'B1/B2 · Turismo o negocios' }
-  function peopleEditor(kind: keyof GroupedPeople) {
+  function peopleEditor(kind: keyof GroupedPeople, familyGroup?: 'immediate' | 'other') {
     const isCompanion = kind === 'companions'
-    const title = isCompanion ? 'Acompañantes de viaje' : 'Familiares en Estados Unidos'
-    const relations = isCompanion ? config.companionRelationships : config.relativeRelationships
-    return <div className="tn-label wide" key={kind}>
+    const isOther = !isCompanion && familyGroup === 'other'
+    const immediateRelations = config.relativeRelationships.filter(r => r !== 'Otro familiar')
+    const otherRelations = ['Primo(a)', 'Tío(a)', 'Abuelo(a)', 'Otro familiar']
+    const title = isCompanion ? 'Acompañantes de viaje'
+      : isOther ? 'Otros familiares en Estados Unidos' : 'Familiares directos en Estados Unidos'
+    const relations = isCompanion ? config.companionRelationships : isOther ? otherRelations : immediateRelations
+    const listed = people[kind].map((person, index) => ({person, index})).filter(({person}) => {
+      if (isCompanion) return true
+      const belongsToImmediate = !person.relationship || immediateRelations.includes(person.relationship)
+      return isOther ? !belongsToImmediate : belongsToImmediate
+    })
+    return <div className="tn-label wide" key={familyGroup || kind}>
       <strong>{title}</strong>
-      {people[kind].map((person, index) => <div className="tn-person" key={person.id}>
+      {!isCompanion ? <small>{isOther
+        ? 'Primos, tíos, abuelos y otros parientes. Agrega cada persona por separado.'
+        : 'Cónyuge, prometido(a), hijos, hermanos, padre o madre. Agrega cada persona por separado.'}</small> : null}
+      {listed.map(({person, index}) => <div className="tn-person" key={person.id}>
         <div className="tn-person-head">
-          <strong>Persona {index + 1}</strong>
+          <strong>Familiar {index + 1}</strong>
           <button className="tn-button ghost" type="button" onClick={() => removePerson(kind, person.id)}>Quitar</button>
         </div>
         <div className="tn-person-fields">
@@ -290,7 +302,8 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
           </label> : null}
         </div>
       </div>)}
-      <button className="tn-button secondary" type="button" onClick={() => addPerson(kind)}>+ Agregar {isCompanion ? 'acompañante' : 'familiar'}</button>
+      <button className="tn-button secondary" type="button"
+        onClick={() => addPerson(kind, isOther ? 'Otro familiar' : '')}>+ Agregar {isCompanion ? 'acompañante' : isOther ? 'otro familiar' : 'familiar directo'}</button>
     </div>
   }
   function fieldEditor(field: Question) {
@@ -473,7 +486,10 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
                     </div> : null}
                   </div>)}
                   {current.id === 'travel' && answers.travel_with_someone === 'Sí' && answers.travel_companions_group === 'No' ? peopleEditor('companions') : null}
-                  {current.id === 'family' && answers.family_us === 'Sí' ? peopleEditor('relatives') : null}
+                  {current.id === 'family' && answers.family_us === 'Sí' ? <>
+                    {peopleEditor('relatives', 'immediate')}
+                    {peopleEditor('relatives', 'other')}
+                  </> : null}
                 </div>
                 {sectionIndex === activeSections.length - 1 ? <p className="tn-note">Aceptaste el aviso de privacidad al comenzar. Verifica tus respuestas antes de enviarlas.</p> : null}
                 {error ? <div className="tn-error" role="alert"><strong>{error}</strong>

@@ -393,8 +393,7 @@
             "Meses",
             "Menos de 24 horas"
           ],
-          "required": true,
-          "help": "En B1/B2 puedes elegir «Menos de 24 horas» si corresponde a tu visita. No uses esa opción para TN o TD."
+          "required": true
         },
         {
           "key": "travel_stay_city",
