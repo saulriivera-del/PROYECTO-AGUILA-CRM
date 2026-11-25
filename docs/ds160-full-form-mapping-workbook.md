@@ -10,6 +10,9 @@ Por solicitud del responsable de Visa Master, los videos se usan **solo como fue
 
 La retención de **archivos adjuntos originales en ChatGPT** no está controlada por GitHub ni por este procedimiento; su eliminación requiere controles del usuario en el producto correspondiente. No se debe prometer que borrar copias locales elimina el adjunto original.
 
+
+**Continuación TN · tres grabaciones (25/11/2026):** se observaron *U.S. Point of Contact*, *Family Information: Relatives*, *Spouse*, *Former Spouse*, cambios de estado civil y el inicio de *Present Work/Education/Training*. El mapeo solo de preguntas, opciones, condiciones y discrepancias con Águila se encuentra en `docs/ds160-tn-part2-contact-family-work-start-20261125.md`. Se requieren inspección DOM y validación de cada rama antes de habilitar autollenado; no se conservó material audiovisual en el repositorio.
+
 ## Procedimiento para leer cada página
 
 1. Abre CEAC con **una solicitud de prueba**, resuelve CAPTCHA y navegación manualmente.
