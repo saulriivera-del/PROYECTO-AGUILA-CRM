@@ -121,6 +121,8 @@ Hallazgos prioritarios de mapeo:
 
 **Continuación TN · tres grabaciones (25/11/2026):** se observaron *U.S. Point of Contact*, *Family Information: Relatives*, *Spouse*, *Former Spouse*, cambios de estado civil y el inicio de *Present Work/Education/Training*. El mapeo solo de preguntas, opciones, condiciones y discrepancias con Águila se encuentra en `docs/ds160-tn-part2-contact-family-work-start-20261125.md`. Se requieren inspección DOM y validación de cada rama antes de habilitar autollenado; no se conservó material audiovisual en el repositorio.
 
+**TN · Trabajo actual y visa temporal (25/11/2026):** se observaron `Present Work/Education/Training` con ocupación, empleador actual, sueldo en moneda local, funciones y credenciales profesionales, y una pantalla `Temporary Work Visa Information` con empleador en Estados Unidos, domicilio, teléfono e **ingreso mensual en USD**. Son conceptos distintos y no deben compartirse por defecto. Hallazgos solo de estructura, sin archivos multimedia ni datos personales: `docs/ds160-tn-part3-work-temporary-visa-20261125.md`. Aún sin IDs HTML comprobados.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
