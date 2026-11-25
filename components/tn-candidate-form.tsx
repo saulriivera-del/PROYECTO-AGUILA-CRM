@@ -5,7 +5,8 @@ import config from '@/lib/trade-in-motion-config.json'
 import { sugerirCurp, formatoCurp, nombresDesdeNombreCompleto, curpConfirmadaParaAvanzar } from '@/lib/curp-sugerida'
 import { DEFAULT_BIRTH_COUNTRY, birthCountryOptions, isValidBirthCountry, birthCountryMatchesState } from '@/lib/birth-countries'
 import { sections, cleanAnswers, cleanPeople, countProgress, isRequired, isVisible, validateSubmission,
-  getSelectedSocialPlatforms, type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
+  getSelectedSocialPlatforms, visibleSections, sectionVisible, fieldOptions, visaProfile,
+  type AnswerMap, type GroupedPeople, type Question, type Person } from '@/lib/trade-in-motion'
 
 type SaveResult = { saved?: boolean; submitted?: boolean; error?: string; fields?: string[] }
 const addressTitles: Record<string, string> = {
@@ -23,7 +24,7 @@ export default function CandidateForm() {
   const [authentication, setAuthentication] = useState<'checking' | 'guest' | 'verified'>('checking')
   const [loading, setLoading] = useState(false)
   const [hydrated, setHydrated] = useState(false)
-  const [answers, setAnswers] = useState<AnswerMap>({})
+  const [answers, setAnswers] = useState<AnswerMap>({ visa_profile: 'TN', birth_country: DEFAULT_BIRTH_COUNTRY })
   const [people, setPeople] = useState<GroupedPeople>({ companions: [], relatives: [] })
   const [sectionIndex, setSectionIndex] = useState(0)
   const [dirty, setDirty] = useState(false)
@@ -53,7 +54,7 @@ export default function CandidateForm() {
         if (!active) return
         const stored = cleanAnswers(data.draft?.answers)
         setIdentity(data.name || 'Candidato')
-        setAnswers({ ...stored, nationality: stored.nationality || 'Mexicana', birth_country: stored.birth_country || DEFAULT_BIRTH_COUNTRY })
+        setAnswers({ ...stored, visa_profile: stored.visa_profile || 'TN', nationality: stored.nationality || 'Mexicana', birth_country: stored.birth_country || DEFAULT_BIRTH_COUNTRY })
         setPeople(cleanPeople(data.draft?.people))
         setSubmitted(data.draft?.status === 'Enviado')
         setConsent(Boolean(data.draft?.consent_at))
@@ -87,7 +88,7 @@ export default function CandidateForm() {
     setAuthentication('guest')
     setHydrated(false)
     setIdentity('')
-    setAnswers({})
+    setAnswers({ visa_profile: 'TN', birth_country: DEFAULT_BIRTH_COUNTRY })
     setPeople({ companions: [], relatives: [] })
     setSubmitted(false)
     setDirty(false)
@@ -140,10 +141,11 @@ export default function CandidateForm() {
       if (['full_name','curp_paterno','curp_materno','curp_sexo','birth_date','birth_state','birth_country'].includes(key)) { delete next.curp_valor; delete next.curp_confirmada }
       if (key === 'curp_valor') delete next.curp_confirmada
       if (key === 'birth_country') delete next.birth_country_nonmexico_confirmed
+      if (key === 'travel_duration_unit' && value === 'Menos de 24 horas') delete next.travel_duration_amount
       for (let pass = 0; pass < 4; pass++)
         for (const section of sections)
           for (const field of section.fields)
-            if (!isVisible(field, next)) delete next[field.key]
+            if (!sectionVisible(section, next) || !isVisible(field, next)) delete next[field.key]
       return next
     })
     setDirty(true)
@@ -164,7 +166,7 @@ export default function CandidateForm() {
   }
 
   function irASeccion(destino: number) {
-    const index = Math.max(0, Math.min(sections.length - 1, destino))
+    const index = Math.max(0, Math.min(activeSections.length - 1, destino))
     if (index > 0 && !isValidBirthCountry(answers.birth_country || '')) {
       setSectionIndex(0)
       setError('Selecciona el país de nacimiento de la lista antes de continuar.')
@@ -218,7 +220,7 @@ export default function CandidateForm() {
       return answers.travel_payer === 'Un familiar'
         ? config.familyPayerRelationships : config.otherPayerRelationships
     }
-    return field.options ?? []
+    return fieldOptions(field,answers)
   }
   async function submit() {
     setError('')
@@ -244,13 +246,15 @@ export default function CandidateForm() {
     setLoading(false)
     if (result.error) setDirty(true)
   }
+  const activeSections = visibleSections(answers)
   const progress = countProgress(answers, people)
   const curpSugerida = sugerirCurp({nombres:nombresDesdeNombreCompleto(answers.full_name || '', answers.curp_paterno || '', answers.curp_materno || ''),paterno:answers.curp_paterno,materno:answers.curp_materno,fecha:answers.birth_date,sexo:answers.curp_sexo,entidad:answers.birth_state})
   // Mostrar la sugerencia dentro del campo sin guardarla hasta la confirmación.
   // Respetar incluso una edición manual vacía: nunca sobreescribir lo escrito por el usuario.
   const curpValorVisible = answers.curp_valor ?? (curpSugerida || '')
-  const current = sections[sectionIndex]
+  const current = activeSections[sectionIndex] ?? activeSections[0]
 
+  const profileLabel: Record<string,string> = { TN:'TN · Trabajo profesional', TD_CONYUGE:'TD · Cónyuge de titular TN', TD_HIJO:'TD · Hijo(a) de titular TN', 'B1/B2':'B1/B2 · Turismo o negocios' }
   function peopleEditor(kind: keyof GroupedPeople) {
     const isCompanion = kind === 'companions'
     const title = isCompanion ? 'Acompañantes de viaje' : 'Familiares en Estados Unidos'
@@ -288,6 +292,15 @@ export default function CandidateForm() {
     const required = isRequired(field, answers)
     const label = field.label + (required ? ' *' : '')
     const value = answers[field.key] ?? ''
+    if (field.key === 'visa_profile') {
+      return <div className="tn-label wide" key={field.key}>
+        <label htmlFor="tn-visa-profile">{label}</label>
+        <select id="tn-visa-profile" className="tn-input" value={value || 'TN'} onChange={e=>update('visa_profile',e.target.value)}>
+          {(field.options ?? []).map(option=><option value={option} key={option}>{profileLabel[option] || option}</option>)}
+        </select>
+        <small>{field.help}</small>
+      </div>
+    }
     if (field.key === 'birth_country') {
       const isForeign = isValidBirthCountry(value) && value !== 'MX'
       const acknowledgement = 'Sí, confirmo que nací fuera de México'
@@ -370,7 +383,7 @@ export default function CandidateForm() {
     </header>
     <div className="tn-container">
       <div className="tn-intro">
-        <span className="tn-eyebrow">Cuestionario de información para visa TN</span>
+        <span className="tn-eyebrow">Cuestionario de información · {profileLabel[visaProfile(answers)]}</span>
         <h1>Prepara tu información para el formulario DS-160</h1>
         <p>Responde con tus datos reales, como aparecen en tus documentos. Tus respuestas se guardan y podrás regresar con tu folio y clave. Visa Master revisará tus respuestas antes de preparar la solicitud oficial.</p>
       </div>
@@ -414,7 +427,7 @@ export default function CandidateForm() {
                 <div className="tn-progress-label"><span>Campos obligatorios</span><span>{progress}%</span></div>
                 <div className="tn-track"><div style={{ width: progress + '%' }} /></div>
                 <nav className="tn-nav" aria-label="Secciones">
-                  {sections.map((section, index) => <button type="button" key={section.id}
+                  {activeSections.map((section, index) => <button type="button" key={section.id}
                     aria-current={index === sectionIndex ? 'step' : undefined}
                     onClick={() => irASeccion(index)}>{index + 1}. {section.title}</button>)}
                 </nav>
@@ -422,13 +435,13 @@ export default function CandidateForm() {
               </aside>
               <section className="tn-card">
                 <div className="tn-section-header">
-                  <span className="tn-eyebrow">Sección {sectionIndex + 1} de {sections.length}</span>
+                  <span className="tn-eyebrow">Sección {sectionIndex + 1} de {activeSections.length}</span>
                   <h2>{current.title}</h2>
                   <p>{current.description}</p>
                 </div>
                 <div className="tn-fields">
                   {current.fields.filter(f => isVisible(f, answers)).map(field => <div key={field.key} style={{ display: 'contents' }}>
-                    {field.key === 'social_media_used' ? <div className="tn-label wide" role="note" style={{ gridColumn: '1 / -1', borderLeft: '3px solid #bd8a39', paddingLeft: 12, margin: '14px 0' }}>
+                    {field.key === 'social_media_used' && visaProfile(answers) !== 'B1/B2' ? <div className="tn-label wide" role="note" style={{ gridColumn: '1 / -1', borderLeft: '3px solid #bd8a39', paddingLeft: 12, margin: '14px 0' }}>
                       <strong style={{ display: 'block', marginBottom: 5 }}>AVISO IMPORTANTE · REDES SOCIALES (VISAS TN Y TD)</strong>
                       <p style={{ margin: '0 0 7px', lineHeight: 1.5 }}>Desde el 1 de octubre de 2026, el Departamento de Estado de EE. UU. indica que quienes solicitan visas TN o TD deben configurar <strong>todos sus perfiles de redes sociales como públicos o abiertos</strong> para facilitar la revisión consular. Declara las cuentas utilizadas en los últimos cinco años, incluidas las inactivas, e informa todos tus usuarios; <strong>nunca compartas contraseñas</strong>.</p>
                       <a href="https://travel.state.gov/en/newsroom/visas/2026/announcement-of-expanded-screening-and-vetting-for-visa-applicants.html" target="_blank" rel="noopener noreferrer">Consultar aviso oficial del Departamento de Estado</a>
@@ -452,17 +465,17 @@ export default function CandidateForm() {
                       <p style={{ margin: '7px 0 0' }}>Para tu trámite de visa TN/TD, configura <strong>todas tus redes sociales como públicas o abiertas antes de tu cita en el CAS</strong> y mantenlas así durante la revisión consular. Visa Master recomienda hacerlo antes del CAS para llegar preparado; el Departamento de Estado pide perfiles públicos o abiertos, sin establecer específicamente el CAS como fecha límite.</p>
                     </div> : null}
                   </div>)}
-                  {current.id === 'travel' && answers.travel_with_someone === 'Sí' ? peopleEditor('companions') : null}
+                  {current.id === 'travel' && answers.travel_with_someone === 'Sí' && answers.travel_companions_group === 'No' ? peopleEditor('companions') : null}
                   {current.id === 'family' && answers.family_us === 'Sí' ? peopleEditor('relatives') : null}
                 </div>
-                {sectionIndex === sections.length - 1 ? <p className="tn-note">Aceptaste el aviso de privacidad al comenzar. Verifica tus respuestas antes de enviarlas.</p> : null}
+                {sectionIndex === activeSections.length - 1 ? <p className="tn-note">Aceptaste el aviso de privacidad al comenzar. Verifica tus respuestas antes de enviarlas.</p> : null}
                 {error ? <div className="tn-error" role="alert"><strong>{error}</strong>
                   {missing.length ? <ul>{missing.map(m => <li key={m}>{m}</li>)}</ul> : null}
                 </div> : null}
                 <div className="tn-actions">
                   <div className="tn-actions-side">
                     <button className="tn-button secondary" type="button" onClick={() => irASeccion(sectionIndex - 1)} disabled={sectionIndex === 0}>Anterior</button>
-                    {sectionIndex < sections.length - 1
+                    {sectionIndex < activeSections.length - 1
                       ? <button className="tn-button" type="button" onClick={() => irASeccion(sectionIndex + 1)}>Siguiente sección</button>
                       : <button className="tn-button" type="button" disabled={loading} onClick={submit}>{loading ? 'Enviando…' : 'Enviar formulario a Visa Master'}</button>}
                   </div>
