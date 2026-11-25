@@ -3,11 +3,24 @@
     {
       "id": "personal",
       "title": "Datos personales",
-      "description": "Escribe los datos como aparecen en tus documentos. Las direcciones se capturan por partes.",
+      "description": "Solo tus datos de identidad, nacimiento y estado civil. Lo demás va en pasos separados.",
       "fields": [
         {
+          "key": "visa_profile",
+          "label": "¿Qué tipo de visa vas a tramitar?",
+          "type": "select",
+          "options": [
+            "TN",
+            "TD_CONYUGE",
+            "TD_HIJO",
+            "B1/B2"
+          ],
+          "required": true,
+          "help": "Selecciona la categoría indicada por Visa Master. Para TD se solicitan los nombres del titular principal TN; para B1/B2 se muestran las opciones de visitante."
+        },
+        {
           "key": "full_name",
-          "label": "Nombre completo como aparece en tu pasaporte",
+          "label": "Nombre(s), sin apellidos, como aparecen en tu pasaporte",
           "type": "text",
           "required": true
         },
@@ -313,383 +326,97 @@
               "Viudo(a)"
             ]
           }
-        },
-        {
-          "key": "home_street",
-          "label": "Calle y número · domicilio actual",
-          "placeholder": "Calle y número",
-          "inlinePrompt": true,
-          "type": "text",
-          "required": true
-        },
-        {
-          "key": "home_neighborhood",
-          "label": "Colonia · domicilio actual",
-          "placeholder": "Colonia",
-          "inlinePrompt": true,
-          "type": "text"
-        },
-        {
-          "key": "home_city",
-          "label": "Ciudad · domicilio actual",
-          "placeholder": "Ciudad",
-          "inlinePrompt": true,
-          "type": "text",
-          "required": true
-        },
-        {
-          "key": "home_state",
-          "label": "Estado · domicilio actual",
-          "placeholder": "Selecciona un estado",
-          "inlinePrompt": true,
-          "type": "select",
-          "options": [
-            "Aguascalientes",
-            "Baja California",
-            "Baja California Sur",
-            "Campeche",
-            "Chiapas",
-            "Chihuahua",
-            "Ciudad de México",
-            "Coahuila",
-            "Colima",
-            "Durango",
-            "Estado de México",
-            "Guanajuato",
-            "Guerrero",
-            "Hidalgo",
-            "Jalisco",
-            "Michoacán",
-            "Morelos",
-            "Nayarit",
-            "Nuevo León",
-            "Oaxaca",
-            "Puebla",
-            "Querétaro",
-            "Quintana Roo",
-            "San Luis Potosí",
-            "Sinaloa",
-            "Sonora",
-            "Tabasco",
-            "Tamaulipas",
-            "Tlaxcala",
-            "Veracruz",
-            "Yucatán",
-            "Zacatecas",
-            "Fuera de México / otro estado o provincia"
-          ],
-          "required": true
-        },
-        {
-          "key": "home_state_other",
-          "label": "Estado o provincia fuera de México · domicilio actual",
-          "placeholder": "Escribe el estado o provincia",
-          "inlinePrompt": true,
-          "type": "text",
-          "required": true,
-          "when": {
-            "key": "home_state",
-            "equals": "Fuera de México / otro estado o provincia"
-          }
-        },
-        {
-          "key": "home_postal",
-          "label": "Código postal · domicilio actual",
-          "placeholder": "Código postal",
-          "inlinePrompt": true,
-          "type": "text",
-          "required": true
-        },
-        {
-          "key": "home_country",
-          "label": "País de tu domicilio fuera de México",
-          "placeholder": "Escribe el país",
-          "inlinePrompt": true,
-          "type": "text",
-          "when": {
-            "key": "home_state",
-            "equals": "Fuera de México / otro estado o provincia"
-          },
-          "required": true
-        },
-        {
-          "key": "email",
-          "label": "Correo electrónico",
-          "type": "email",
-          "required": true
-        },
-        {
-          "key": "phone",
-          "label": "Teléfono celular",
-          "type": "tel",
-          "required": true
-        },
-        {
-          "key": "employer_phone",
-          "label": "Teléfono del trabajo (opcional)",
-          "type": "tel"
-        },
-        {
-          "key": "social_media_used",
-          "label": "¿En cuáles de estas redes sociales has tenido presencia en los últimos 5 años?",
-          "type": "multiselect",
-          "required": true,
-          "options": [
-            "Facebook",
-            "Instagram",
-            "X (antes Twitter)",
-            "TikTok",
-            "LinkedIn",
-            "YouTube",
-            "Snapchat",
-            "Reddit",
-            "Otra(s)",
-            "Ninguna"
-          ],
-          "help": "Puedes seleccionar varias redes. Incluye cuentas que utilizas o utilizaste en ese periodo, aunque hoy estén inactivas. Si no has usado ninguna, selecciona «Ninguna». No compartas contraseñas."
-        },
-        {
-          "key": "social_facebook",
-          "label": "Usuario(s) o identificador(es) en Facebook",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "Facebook"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_instagram",
-          "label": "Usuario(s) o identificador(es) en Instagram",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "Instagram"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_x",
-          "label": "Usuario(s) o identificador(es) en X (antes Twitter)",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "X (antes Twitter)"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_tiktok",
-          "label": "Usuario(s) o identificador(es) en TikTok",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "TikTok"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_linkedin",
-          "label": "Usuario(s) o identificador(es) en LinkedIn",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "LinkedIn"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_youtube",
-          "label": "Usuario(s) o identificador(es) en YouTube",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "YouTube"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_snapchat",
-          "label": "Usuario(s) o identificador(es) en Snapchat",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "Snapchat"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_reddit",
-          "label": "Usuario(s) o identificador(es) en Reddit",
-          "type": "text",
-          "placeholder": "@usuario1, @usuario2 (si aplica)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "Reddit"
-          },
-          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
-          "required": true
-        },
-        {
-          "key": "social_other",
-          "label": "Otras redes sociales y sus usuarios o identificadores",
-          "type": "textarea",
-          "placeholder": "Plataforma — usuario o identificador (uno por línea)",
-          "when": {
-            "key": "social_media_used",
-            "includes": "Otra(s)"
-          },
-          "help": "Escribe el nombre de la plataforma y cada usuario utilizado durante los últimos 5 años, uno por línea.",
-          "required": true
-        },
-        {
-          "key": "social_media_public",
-          "label": "¿Tus perfiles de redes sociales están configurados como públicos o abiertos?",
-          "type": "select",
-          "options": [
-            "Sí, todos están públicos o abiertos",
-            "Aún no, tengo perfiles privados"
-          ],
-          "required": true,
-          "when": {
-            "key": "social_media_used",
-            "nonempty": true,
-            "notEquals": "Ninguna"
-          },
-          "help": "Para visa TN/TD, el Departamento de Estado indica que todos los perfiles deben estar públicos o abiertos para facilitar la revisión consular."
-        }
-      ]
-    },
-    {
-      "id": "passport",
-      "title": "Pasaporte",
-      "description": "Ten a la mano el pasaporte para verificar números y fechas exactas.",
-      "fields": [
-        {
-          "key": "passport_number",
-          "label": "Número de pasaporte",
-          "type": "text",
-          "required": true
-        },
-        {
-          "key": "passport_issue_city",
-          "label": "Ciudad donde tramitaste tu pasaporte",
-          "type": "text"
-        },
-        {
-          "key": "passport_issued",
-          "label": "Fecha de expedición del pasaporte",
-          "type": "date",
-          "required": true
-        },
-        {
-          "key": "passport_expires",
-          "label": "Fecha de vencimiento del pasaporte",
-          "type": "date",
-          "required": true
-        },
-        {
-          "key": "passport_lost",
-          "label": "¿Alguna vez perdiste o te robaron un pasaporte?",
-          "type": "select",
-          "options": [
-            "Sí",
-            "No"
-          ],
-          "required": true,
-          "reviewFlag": true
-        },
-        {
-          "key": "passport_lost_date",
-          "label": "Fecha aproximada de pérdida o robo del pasaporte",
-          "type": "date",
-          "when": {
-            "key": "passport_lost",
-            "equals": "Sí"
-          }
-        },
-        {
-          "key": "passport_lost_details",
-          "label": "Explica lo ocurrido con el pasaporte",
-          "type": "textarea",
-          "when": {
-            "key": "passport_lost",
-            "equals": "Sí"
-          }
         }
       ]
     },
     {
       "id": "travel",
       "title": "Tu próximo viaje",
-      "description": "Contesta lo que sabes; Visa Master revisará los datos requeridos para el DS-160.",
+      "description": "Solo preguntaremos los datos que correspondan a tu categoría y a tus planes de viaje.",
       "fields": [
         {
-          "key": "travel_date",
-          "label": "Fecha aproximada de tu viaje",
-          "type": "date"
-        },
-        {
-          "key": "travel_more_than_24h",
-          "label": "¿Planeas quedarte más de 24 horas?",
+          "key": "travel_plans_specific",
+          "label": "¿Ya tienes planes específicos de viaje (fechas y lugares confirmados)?",
           "type": "select",
           "options": [
             "Sí",
             "No"
           ],
-          "required": true
+          "required": true,
+          "help": "Marca Sí si ya sabes cuándo y a dónde viajarás; si aún no tienes itinerario definitivo, marca No."
+        },
+        {
+          "key": "td_principal_surnames",
+          "label": "Apellidos del titular de visa TN",
+          "type": "text",
+          "visaProfiles": [
+            "TD_CONYUGE",
+            "TD_HIJO"
+          ],
+          "required": true,
+          "help": "Apellidos del trabajador principal TN, tal como aparecen en su pasaporte. No son los apellidos del empleador."
+        },
+        {
+          "key": "td_principal_given_names",
+          "label": "Nombre(s) del titular de visa TN",
+          "type": "text",
+          "visaProfiles": [
+            "TD_CONYUGE",
+            "TD_HIJO"
+          ],
+          "required": true,
+          "help": "Nombre(s) del trabajador principal TN, sin apellidos."
+        },
+        {
+          "key": "travel_date",
+          "label": "Fecha prevista de llegada a Estados Unidos",
+          "type": "date"
         },
         {
           "key": "travel_duration_amount",
-          "label": "¿Cuánto tiempo planeas permanecer en EE. UU.? (cantidad)",
+          "label": "Cantidad de días, semanas o meses",
           "type": "number",
-          "help": "Escribe solo el número, por ejemplo 7."
+          "help": "Escribe solo el número, por ejemplo 7.",
+          "required": true,
+          "when": {
+            "key": "travel_duration_unit",
+            "notEquals": "Menos de 24 horas"
+          }
         },
         {
           "key": "travel_duration_unit",
-          "label": "Unidad de tiempo",
+          "label": "Duración prevista de tu estancia",
           "type": "select",
           "options": [
             "Días",
             "Semanas",
-            "Meses"
-          ]
+            "Meses",
+            "Menos de 24 horas"
+          ],
+          "required": true,
+          "help": "En B1/B2 puedes elegir «Menos de 24 horas» si corresponde a tu visita. No uses esa opción para TN o TD."
         },
         {
           "key": "travel_stay_city",
           "label": "Ciudad donde te hospedarás",
           "type": "text",
           "when": {
-            "key": "travel_more_than_24h",
-            "equals": "Sí"
+            "key": "travel_duration_unit",
+            "notEquals": "Menos de 24 horas"
           },
           "required": true,
-          "help": "No inventes una dirección si todavía no sabes dónde te hospedarás."
+          "help": "Ciudad del destino en Estados Unidos."
         },
         {
           "key": "travel_stay_address",
           "label": "Dirección donde te hospedarás",
           "type": "text",
           "when": {
-            "key": "travel_more_than_24h",
-            "equals": "Sí"
+            "key": "travel_duration_unit",
+            "notEquals": "Menos de 24 horas"
           },
           "required": true,
-          "help": "Obligatorio en Visa Master cuando planeas quedarte más de 24 horas."
+          "help": "Indica dónde planeas alojarte o llegar. No inventes una dirección si aún no la conoces; solicítanos ayuda para revisar el caso."
         },
         {
           "key": "travel_payer",
@@ -765,6 +492,31 @@
             "Sí",
             "No"
           ],
+          "required": true
+        },
+        {
+          "key": "travel_companions_group",
+          "label": "¿Viajas como parte de un grupo u organización?",
+          "type": "select",
+          "when": {
+            "key": "travel_with_someone",
+            "equals": "Sí"
+          },
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "help": "No es lo mismo viajar con familiares que pertenecer a un grupo organizado."
+        },
+        {
+          "key": "travel_companions_group_name",
+          "label": "Nombre del grupo u organización",
+          "type": "text",
+          "when": {
+            "key": "travel_companions_group",
+            "equals": "Sí"
+          },
           "required": true
         }
       ]
@@ -997,6 +749,342 @@
           },
           "required": true,
           "reviewFlag": true
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "Domicilio y contacto",
+      "description": "Tu domicilio, teléfono y correo para el DS-160.",
+      "fields": [
+        {
+          "key": "home_street",
+          "label": "Calle y número · domicilio actual",
+          "placeholder": "Calle y número",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "home_neighborhood",
+          "label": "Colonia · domicilio actual",
+          "placeholder": "Colonia",
+          "inlinePrompt": true,
+          "type": "text"
+        },
+        {
+          "key": "home_city",
+          "label": "Ciudad · domicilio actual",
+          "placeholder": "Ciudad",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "home_state",
+          "label": "Estado · domicilio actual",
+          "placeholder": "Selecciona un estado",
+          "inlinePrompt": true,
+          "type": "select",
+          "options": [
+            "Aguascalientes",
+            "Baja California",
+            "Baja California Sur",
+            "Campeche",
+            "Chiapas",
+            "Chihuahua",
+            "Ciudad de México",
+            "Coahuila",
+            "Colima",
+            "Durango",
+            "Estado de México",
+            "Guanajuato",
+            "Guerrero",
+            "Hidalgo",
+            "Jalisco",
+            "Michoacán",
+            "Morelos",
+            "Nayarit",
+            "Nuevo León",
+            "Oaxaca",
+            "Puebla",
+            "Querétaro",
+            "Quintana Roo",
+            "San Luis Potosí",
+            "Sinaloa",
+            "Sonora",
+            "Tabasco",
+            "Tamaulipas",
+            "Tlaxcala",
+            "Veracruz",
+            "Yucatán",
+            "Zacatecas",
+            "Fuera de México / otro estado o provincia"
+          ],
+          "required": true
+        },
+        {
+          "key": "home_state_other",
+          "label": "Estado o provincia fuera de México · domicilio actual",
+          "placeholder": "Escribe el estado o provincia",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "home_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          }
+        },
+        {
+          "key": "home_postal",
+          "label": "Código postal · domicilio actual",
+          "placeholder": "Código postal",
+          "inlinePrompt": true,
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "home_country",
+          "label": "País de tu domicilio fuera de México",
+          "placeholder": "Escribe el país",
+          "inlinePrompt": true,
+          "type": "text",
+          "when": {
+            "key": "home_state",
+            "equals": "Fuera de México / otro estado o provincia"
+          },
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Correo electrónico",
+          "type": "email",
+          "required": true
+        },
+        {
+          "key": "phone",
+          "label": "Teléfono celular",
+          "type": "tel",
+          "required": true
+        },
+        {
+          "key": "employer_phone",
+          "label": "Teléfono del trabajo (opcional)",
+          "type": "tel"
+        }
+      ]
+    },
+    {
+      "id": "social",
+      "title": "Redes sociales",
+      "description": "Tus redes sociales de los últimos cinco años.",
+      "fields": [
+        {
+          "key": "social_media_used",
+          "label": "¿En cuáles de estas redes sociales has tenido presencia en los últimos 5 años?",
+          "type": "multiselect",
+          "required": true,
+          "options": [
+            "Facebook",
+            "Instagram",
+            "X (antes Twitter)",
+            "TikTok",
+            "LinkedIn",
+            "YouTube",
+            "Snapchat",
+            "Reddit",
+            "Otra(s)",
+            "Ninguna"
+          ],
+          "help": "Puedes seleccionar varias redes. Incluye cuentas que utilizas o utilizaste en ese periodo, aunque hoy estén inactivas. Si no has usado ninguna, selecciona «Ninguna». No compartas contraseñas."
+        },
+        {
+          "key": "social_facebook",
+          "label": "Usuario(s) o identificador(es) en Facebook",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "Facebook"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_instagram",
+          "label": "Usuario(s) o identificador(es) en Instagram",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "Instagram"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_x",
+          "label": "Usuario(s) o identificador(es) en X (antes Twitter)",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "X (antes Twitter)"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_tiktok",
+          "label": "Usuario(s) o identificador(es) en TikTok",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "TikTok"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_linkedin",
+          "label": "Usuario(s) o identificador(es) en LinkedIn",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "LinkedIn"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_youtube",
+          "label": "Usuario(s) o identificador(es) en YouTube",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "YouTube"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_snapchat",
+          "label": "Usuario(s) o identificador(es) en Snapchat",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "Snapchat"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_reddit",
+          "label": "Usuario(s) o identificador(es) en Reddit",
+          "type": "text",
+          "placeholder": "@usuario1, @usuario2 (si aplica)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "Reddit"
+          },
+          "help": "Si tuviste más de una cuenta, anota todos los usuarios que hayas usado en los últimos 5 años.",
+          "required": true
+        },
+        {
+          "key": "social_other",
+          "label": "Otras redes sociales y sus usuarios o identificadores",
+          "type": "textarea",
+          "placeholder": "Plataforma — usuario o identificador (uno por línea)",
+          "when": {
+            "key": "social_media_used",
+            "includes": "Otra(s)"
+          },
+          "help": "Escribe el nombre de la plataforma y cada usuario utilizado durante los últimos 5 años, uno por línea.",
+          "required": true
+        },
+        {
+          "key": "social_media_public",
+          "label": "¿Tus perfiles de redes sociales están configurados como públicos o abiertos?",
+          "type": "select",
+          "options": [
+            "Sí, todos están públicos o abiertos",
+            "Aún no, tengo perfiles privados"
+          ],
+          "required": true,
+          "when": {
+            "key": "social_media_used",
+            "nonempty": true,
+            "notEquals": "Ninguna"
+          },
+          "help": "Para visa TN/TD, el Departamento de Estado indica que todos los perfiles deben estar públicos o abiertos para facilitar la revisión consular.",
+          "visaProfiles": [
+            "TN",
+            "TD_CONYUGE",
+            "TD_HIJO"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "passport",
+      "title": "Pasaporte",
+      "description": "Ten a la mano el pasaporte para verificar números y fechas exactas.",
+      "fields": [
+        {
+          "key": "passport_number",
+          "label": "Número de pasaporte",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "passport_issue_city",
+          "label": "Ciudad donde tramitaste tu pasaporte",
+          "type": "text"
+        },
+        {
+          "key": "passport_issued",
+          "label": "Fecha de expedición del pasaporte",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "passport_expires",
+          "label": "Fecha de vencimiento del pasaporte",
+          "type": "date",
+          "required": true
+        },
+        {
+          "key": "passport_lost",
+          "label": "¿Alguna vez perdiste o te robaron un pasaporte?",
+          "type": "select",
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "required": true,
+          "reviewFlag": true
+        },
+        {
+          "key": "passport_lost_date",
+          "label": "Fecha aproximada de pérdida o robo del pasaporte",
+          "type": "date",
+          "when": {
+            "key": "passport_lost",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "passport_lost_details",
+          "label": "Explica lo ocurrido con el pasaporte",
+          "type": "textarea",
+          "when": {
+            "key": "passport_lost",
+            "equals": "Sí"
+          }
         }
       ]
     },
@@ -1461,7 +1549,7 @@
     },
     {
       "id": "tn",
-      "title": "Información para visa TN",
+      "title": "Empleo TN en Estados Unidos",
       "description": "Preguntas adicionales para revisar oferta, puesto y perfil profesional.",
       "mode": "TN",
       "fields": [
@@ -1574,6 +1662,9 @@
           "label": "Estudios o experiencia relacionados con el puesto",
           "type": "textarea"
         }
+      ],
+      "visaProfiles": [
+        "TN"
       ]
     }
   ],
