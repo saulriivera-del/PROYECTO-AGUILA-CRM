@@ -63,6 +63,13 @@ export default async function CandidateResponsesPage({ params }: { params: Promi
     <p><Link href="/admin/formularios/trade-in-motion">← Volver a todos los candidatos</Link></p>
     <small style={{ fontWeight: 800, letterSpacing: 1.7, color: '#59768e' }}>TRADE IN MOTION · RESPUESTAS PRIVADAS</small>
     <h1 style={{ margin: '12px 0 5px' }}>{answers.full_name || access?.applicant_name || 'Candidato sin nombre'}</h1>
+    {draft.answers?.vm_test_only === true &&
+      <p style={{margin:'10px 0',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        <Link href="/admin/demo-mariana-ds160" style={{display:'inline-block',padding:'10px 14px',background:'#eaf4ff',border:'1px solid #a7c8ea',borderRadius:9,fontWeight:700,color:'#1b5d93'}}>
+          Ver pantalla del cliente · Simulación TN/TD/B1-B2
+        </Link>
+        <span style={{fontSize:12,color:'#8a5e19'}}>EXPEDIENTE DE PRUEBA · Datos sintéticos, no enviar a CEAC</span>
+      </p>}
     <p style={{ color: '#60778a' }}>{access ? 'Folio: ' + access.folio : draft.applicant_email}</p>
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', margin: '18px 0 28px' }}>
       <span style={{ color: '#245987', background: '#e8f2fa', padding: '7px 13px', borderRadius: 30, fontWeight: 700 }}>{state}</span>

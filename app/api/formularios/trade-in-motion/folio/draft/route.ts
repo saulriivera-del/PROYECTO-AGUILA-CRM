@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   if (payload.consent !== true) return respond({error:'Acepta el aviso de privacidad antes de guardar.'},422)
   const answers = cleanAnswers(payload.answers)
   const people = cleanPeople(payload.people)
-  if (answers.travel_with_someone !== 'Sí') people.companions = []
+  if (answers.travel_with_someone !== 'Sí' || answers.travel_companions_group !== 'No') people.companions = []
   if (answers.family_us !== 'Sí') people.relatives = []
   if (payload.action === 'submit') {
     const missing = validateSubmission(answers,people)

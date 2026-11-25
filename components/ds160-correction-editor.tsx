@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  sections, isVisible, isRequired, getSelectedSocialPlatforms, validateSubmission,
+  sections, visibleSections, fieldOptions, isVisible, isRequired, getSelectedSocialPlatforms, validateSubmission,
   type AnswerMap, type GroupedPeople, type Person, type Question,
 } from '@/lib/trade-in-motion'
 import { saveDs160Correction } from '@/app/admin/formularios/trade-in-motion/[id]/corrections'
@@ -30,12 +30,13 @@ export default function Ds160CorrectionEditor({
   const [message, setMessage] = useState('')
   const [problem, setProblem] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
-  const section = sections.find(s => s.id === sectionId) ?? sections[0]
-  const sectionIndex = sections.findIndex(s => s.id === section.id)
+  const activeSections = visibleSections(answers)
+  const section = activeSections.find(s => s.id === sectionId) ?? activeSections[0]
+  const sectionIndex = activeSections.findIndex(s => s.id === section.id)
   const missingInSection = section.fields.filter(f => isVisible(f, answers) && isRequired(f, answers) && !String(answers[f.key] ?? '').trim())
   const navigateSection = (nextIndex: number) => {
-    if (nextIndex < 0 || nextIndex >= sections.length) return
-    setSectionId(sections[nextIndex].id)
+    if (nextIndex < 0 || nextIndex >= activeSections.length) return
+    setSectionId(activeSections[nextIndex].id)
     setProblem('')
     document.getElementById('ds160-correction-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -47,6 +48,7 @@ export default function Ds160CorrectionEditor({
     setAnswers(prev => {
       const next = { ...prev, [key]: value }
       if (key === 'birth_country') delete next.birth_country_nonmexico_confirmed
+      if (key === 'travel_duration_unit' && value === 'Menos de 24 horas') delete next.travel_duration_amount
       return next
     })
   const setSocial = (value: string, checked: boolean) => {
@@ -62,6 +64,7 @@ export default function Ds160CorrectionEditor({
     setPeople(prev => ({ ...prev, [group]: prev[group].filter((_,i) => i!==index).map((p,i)=> ({...p,id:i+1})) }))
   const renderQuestion = (f: Question) => {
     const value = answers[f.key] ?? ''
+    const profileNames: Record<string,string> = {TN:'TN · Trabajo profesional',TD_CONYUGE:'TD · Cónyuge de TN',TD_HIJO:'TD · Hijo(a) de TN','B1/B2':'B1/B2 · Turismo/negocios'}
     if (f.type === 'multiselect' && f.key === 'social_media_used') {
       return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
         {(f.options ?? []).map(option => <label key={option} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -98,7 +101,7 @@ export default function Ds160CorrectionEditor({
     }
     if (f.type === 'select') return <select style={inputStyle} value={value} onChange={e => setValue(f.key,e.target.value)}>
       <option value="">Seleccionar...</option>
-      {(f.options ?? []).map(option => <option key={option} value={option}>{option}</option>)}
+      {fieldOptions(f,answers).map(option => <option key={option} value={option}>{f.key==='visa_profile'?(profileNames[option]||option):option}</option>)}
     </select>
     if (f.type === 'textarea') return <textarea style={{ ...inputStyle, minHeight: 90 }} value={value} maxLength={4000} onChange={e => setValue(f.key,e.target.value)} />
     return <input style={inputStyle} type={['date','email','number'].includes(f.type) ? f.type : 'text'}
@@ -163,12 +166,12 @@ export default function Ds160CorrectionEditor({
         {issues.length ? ' Hay ' + issues.length + ' observaciones por revisar.' : ' La validación básica de campos no detecta faltantes.'}
       </p>
       <nav aria-label="Secciones del formulario para corregir" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '16px 0' }}>
-        {sections.map(s=><button type="button" key={s.id} onClick={()=>setSectionId(s.id)}
+        {activeSections.map(s=><button type="button" key={s.id} onClick={()=>setSectionId(s.id)}
           aria-pressed={sectionId===s.id} style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid #bcd0e2', background: sectionId===s.id ? '#205f95' : '#f7faff', color:sectionId===s.id?'white':'#285b86', cursor:'pointer' }}>{s.title}</button>)}
       </nav>
       <h3 id="ds160-correction-section" style={{ marginTop: 10, scrollMarginTop: 90 }}>{section.title}</h3>
       <p role="status" style={{ fontSize: 13, color: missingInSection.length ? '#926016' : '#21643f' }}>
-        Sección {sectionIndex + 1} de {sections.length} · {missingInSection.length
+        Sección {sectionIndex + 1} de {activeSections.length} · {missingInSection.length
           ? missingInSection.length + ' campo(s) obligatorio(s) pendiente(s) de revisar.'
           : 'Campos obligatorios de esta sección completos.'}
       </p>
@@ -179,12 +182,12 @@ export default function Ds160CorrectionEditor({
           {renderQuestion(f)}
         </label>)}
       </div>
-      {section.id === 'travel' && answers.travel_with_someone === 'Sí' && peopleEditor('companions','Acompañantes de viaje')}
+      {section.id === 'travel' && answers.travel_with_someone === 'Sí' && answers.travel_companions_group === 'No' && peopleEditor('companions','Acompañantes de viaje')}
       {section.id === 'family' && answers.family_us === 'Sí' && peopleEditor('relatives','Familiares en Estados Unidos')}
       <nav aria-label="Avanzar entre secciones" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 24, padding: '16px 0', borderTop: '1px solid #d9e4ee' }}>
         <button type="button" className="secondary-button" disabled={sectionIndex === 0 || pending} onClick={() => navigateSection(sectionIndex - 1)}>← Anterior</button>
-        <span style={{ fontSize: 13, color: '#60778a' }}>Sección {sectionIndex + 1} de {sections.length}</span>
-        <button type="button" className="primary-button" disabled={sectionIndex === sections.length - 1 || pending} onClick={() => navigateSection(sectionIndex + 1)}>Siguiente →</button>
+        <span style={{ fontSize: 13, color: '#60778a' }}>Sección {sectionIndex + 1} de {activeSections.length}</span>
+        <button type="button" className="primary-button" disabled={sectionIndex === activeSections.length - 1 || pending} onClick={() => navigateSection(sectionIndex + 1)}>Siguiente →</button>
       </nav>
       {missingInSection.length > 0 && <p role="status" style={{ color: '#926016', fontSize: 13 }}>Pendiente en esta sección: {missingInSection.map(f => f.label).join(', ')}. Puedes continuar y regresar a corregir; no se aprobará el expediente hasta validar sus respuestas.</p>}
       <div style={{ marginTop: 20, borderTop: '1px solid #d9e4ee', paddingTop: 16 }}>
