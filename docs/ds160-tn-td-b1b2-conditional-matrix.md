@@ -105,6 +105,19 @@ Para verificarlo en CEAC:
 
 **Estado:** preguntas y opciones observadas visualmente; **sin comprobación de IDs, códigos HTML ni prueba del autollenado**. No se han cambiado los campos de producción del CRM.
 
+## Registro TN — Parte 1 del recorrido (Personal 1 a Pasaporte)
+
+La primera parte del video TN, revisada el 25/11/2026, cubre siete pantallas del DS-160: Personal Information 1/2, Travel Information, Travel Companions, Previous U.S. Travel, Address and Phone y Passport Information. Se documentaron los enunciados, opciones visibles y ramas condicionales sin conservar multimedia ni datos personales.
+
+**Documento de observaciones detalladas:** `docs/ds160-tn-part1-to-passport-20261125.md`.
+
+Hallazgos prioritarios de mapeo:
+- La rama de viaje TN confirma `NAFTA PROFESSIONAL (TD/TN)` → `NAFTA PROFESSIONAL (TN)` y distingue planes específicos de duración de estancia.
+- `Previous U.S. Travel` ofrece visitas anteriores repetibles, licencias estadounidenses, historia detallada de visa y preguntas separadas de rechazo/petición migratoria.
+- `Address and Phone` tiene domicilio postal condicional, teléfonos/correos de los últimos cinco años y redes con plataformas/identificadores repetibles.
+- `Passport Information` diferencia tipo, número de libro, expedición, vigencia y múltiples pasaportes perdidos/robados.
+- La mayoría de estos datos todavía **no tienen campos equivalentes completos en Águila**. Estado: observado visualmente; sin IDs/códigos CEAC verificados y sin autollenado.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
