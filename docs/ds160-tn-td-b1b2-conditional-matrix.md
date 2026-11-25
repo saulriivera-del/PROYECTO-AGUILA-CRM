@@ -131,6 +131,8 @@ La revisión de un nuevo video corto identificó por primera vez una rama TD esp
 
 **Estado por perfil, distinción entre observado, pendiente y autollenado:** `docs/ds160-visa-profiles-coverage-20261125.md`. Antes de automatizar se deben confirmar los códigos y las rutas de CEAC y no confundir titular principal con dependiente.
 
+**TN · Seguridad completa visualmente, 25/11/2026:** seis clips adicionales cubren las **cinco** páginas `Security and Background Part 1–5` y muestran ejemplos condicionales `Yes → Explain`. También se confirma la ruta `complete_temporarywork.aspx` y sus campos de empleador TN. **Reporte estructural sin multimedia:** `docs/ds160-tn-part5-security1to5-20261125.md`. Este recorrido visual **no** significa que las cinco páginas estén codificadas y verificadas en Chrome ni que los perfiles TD/B1-B2 estén terminados.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).

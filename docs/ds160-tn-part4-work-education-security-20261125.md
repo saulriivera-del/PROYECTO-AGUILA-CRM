@@ -71,6 +71,8 @@ Se alcanza a ver el comienzo de un conjunto de preguntas `Yes/No` sobre:
 
 **Importante:** no consta el final de esta pantalla ni las partes 3, 4 y 5. **No marcar esta sección como completa**. Algunas preguntas podrían desplegar `Explain` ante una respuesta afirmativa; en este video no quedaron verificadas todas esas ramas. Evitar campos `No` predeterminados.
 
+**Actualización posterior:** esta **parte 4** terminaba dentro de Seguridad Parte 2. El recorrido visual posterior de las **cinco partes completas** quedó registrado separadamente en `docs/ds160-tn-part5-security1to5-20261125.md`. Las frases «no se ha observado Seguridad 3–5» en este informe describen únicamente el alcance del video de la parte 4, no el estado actual del proyecto.
+
 ## 6. Páginas revisitadas durante pruebas
 
 Se observa que el operador regresa a `Personal Information 1`, `Travel Information` y `Travel Companions` para variar selecciones antes de continuar. Estos movimientos **no constituyen una prueba adicional de los códigos CEAC ni de nuevas reglas**, ni demuestran que una clase de visa distinta de TN tenga exactamente los mismos campos.
