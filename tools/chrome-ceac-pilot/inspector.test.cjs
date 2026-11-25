@@ -9,7 +9,7 @@ function mockControl(overrides={}) {
     tagName: 'INPUT', disabled: false, labels:[{textContent:'Surnames'}],
     getAttribute: name => attributes[name] || null,
     getClientRects: () => [1],
-    ...overrides
+    ...Object.fromEntries(Object.entries(overrides).filter(([key])=>key!=='attrs'))
   };
 }
 function environment(path, controls) {
