@@ -72,6 +72,8 @@ La retención de **archivos adjuntos originales en ChatGPT** no está controlada
 
 **TN · Parte 4 (25/11/2026):** se observó `Present Work/Education/Training`, `Previous Work/Education/Training`, `Additional Work/Education/Training` y `Security and Background` partes **1 y comienzo de 2**. El video termina antes de concluir Seguridad 2; partes 3–5 pendientes. Se observaron catálogos condicionales de ocupación, empleo y estudios repetibles, lista de idiomas, países visitados, organizaciones y seguridad. Informe de estructura únicamente, sin multimedia ni datos personales: `docs/ds160-tn-part4-work-education-security-20261125.md`. Requiere validación del inspector antes de autollenado.
 
+**Actualización TN Seguridad 1–5, 25/11/2026:** se observó la sucesión completa de las cinco páginas, incluidos ejemplos de cuadros `Explain` activados por `Yes`, más la ruta `complete_temporarywork.aspx`. Ver `docs/ds160-tn-part5-security1to5-20261125.md`. El mapeo sigue siendo visual; faltan IDs/códigos de CEAC y validación de autollenado, así como la inspección independiente de TD/B1-B2.
+
 ## Registro de avance
 
 | Pantalla | Estructura inspeccionada | Correspondencia Águila | Prueba con datos ficticios |
