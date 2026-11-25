@@ -191,7 +191,7 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
       setMissing([])
       return
     }
-    if (index > 0 && !curpConfirmadaParaAvanzar(answers)) {
+    if (!preview && index > 0 && !curpConfirmadaParaAvanzar(answers)) {
       setSectionIndex(0)
       setError('Para continuar, revisa tu CURP y pulsa «Confirmo que esta CURP coincide con mi documento oficial».')
       setMissing([])
@@ -411,7 +411,7 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
         </form>
       </section> : null}
       {authentication === 'verified' ? <div>
-        <div className="tn-status">Candidato: <strong>{identity}</strong> · <button className="tn-button ghost" type="button" onClick={logout}>Cambiar cuenta</button></div>
+        <div className="tn-status">Candidato: <strong>{identity}</strong> {!preview ? <>· <button className="tn-button ghost" type="button" onClick={logout}>Cambiar cuenta</button></> : null}</div>
         {!hydrated ? <section className="tn-card"><p>{error || 'Cargando tus respuestas guardadas…'}</p></section>
           : submitted ? <section className="tn-card tn-done">
               <span className="tn-eyebrow">Respuestas recibidas</span>
