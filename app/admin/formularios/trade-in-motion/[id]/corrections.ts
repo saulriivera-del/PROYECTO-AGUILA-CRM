@@ -23,7 +23,7 @@ export async function saveDs160Correction(
 
   const answers = cleanAnswers(rawAnswers)
   const people = cleanPeople(rawPeople)
-  if (answers.travel_with_someone !== 'Sí') people.companions = []
+  if (answers.travel_with_someone !== 'Sí' || answers.travel_companions_group !== 'No') people.companions = []
   if (answers.family_us !== 'Sí') people.relatives = []
   const db = createAdminClient()
   // RPC privado: compara versión y escribe corrección e historial en una sola transacción.
