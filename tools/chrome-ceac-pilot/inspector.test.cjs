@@ -4,13 +4,18 @@ const {inspectCeacPageMetadata} = require('./inspector.js');
 
 function mockControl(overrides={}) {
   const attributes = Object.assign({type:'text', maxlength:'50'},overrides.attrs || {});
-  return {
+  const el={
     id: 'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_SURNAME',
     tagName: 'INPUT', disabled: false, labels:[{textContent:'Surnames'}],
     getAttribute: name => attributes[name] || null,
     getClientRects: () => [1],
-    ...Object.fromEntries(Object.entries(overrides).filter(([key])=>key!=='attrs'))
   };
+  // Object.entries y el spread leen getters: la prueba fallaría antes
+  // de llamar al inspector. Copiar descriptores sin leer respuestas.
+  const descriptors=Object.getOwnPropertyDescriptors(overrides);
+  delete descriptors.attrs;
+  Object.defineProperties(el,descriptors);
+  return el;
 }
 function environment(path, controls) {
   global.location={protocol:'https:',hostname:'ceac.state.gov',pathname:path};
