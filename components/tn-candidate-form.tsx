@@ -17,26 +17,30 @@ const addressTitles: Record<string, string> = {
   tn_employer_street: 'Empresa en Estados Unidos',
 }
 
-export default function CandidateForm() {
-  const [identity, setIdentity] = useState('')
+type PreviewProps = { preview?: boolean; previewIdentity?: string; previewAnswers?: AnswerMap; previewPeople?: GroupedPeople }
+export default function CandidateForm({preview=false,previewIdentity='Mariana · cuenta de prueba',previewAnswers={},previewPeople}: PreviewProps) {
+  const [identity, setIdentity] = useState(preview ? previewIdentity : '')
   const [folioInput, setFolioInput] = useState('')
   const [keyInput, setKeyInput] = useState('')
-  const [authentication, setAuthentication] = useState<'checking' | 'guest' | 'verified'>('checking')
+  const [authentication, setAuthentication] = useState<'checking' | 'guest' | 'verified'>(preview ? 'verified' : 'checking')
   const [loading, setLoading] = useState(false)
-  const [hydrated, setHydrated] = useState(false)
-  const [answers, setAnswers] = useState<AnswerMap>({ visa_profile: 'TN', birth_country: DEFAULT_BIRTH_COUNTRY })
-  const [people, setPeople] = useState<GroupedPeople>({ companions: [], relatives: [] })
+  const [hydrated, setHydrated] = useState(preview)
+  const [answers, setAnswers] = useState<AnswerMap>(() => preview ?
+    {visa_profile:'TN',birth_country:DEFAULT_BIRTH_COUNTRY,...cleanAnswers(previewAnswers)} :
+    {visa_profile:'TN',birth_country:DEFAULT_BIRTH_COUNTRY})
+  const [people, setPeople] = useState<GroupedPeople>(() => preview ? cleanPeople(previewPeople) : { companions: [], relatives: [] })
   const [sectionIndex, setSectionIndex] = useState(0)
   const [dirty, setDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState('Sin cambios pendientes')
   const [submitted, setSubmitted] = useState(false)
-  const [consent, setConsent] = useState(false)
+  const [consent, setConsent] = useState(preview)
   const [error, setError] = useState('')
   const [missing, setMissing] = useState<string[]>([])
   const revision = useRef(0)
   const saveQueue = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
+    if (preview) return
     let active = true
     fetch('/api/formularios/trade-in-motion/folio',{cache:'no-store'})
       .then(r => { if (active) setAuthentication(r.ok ? 'verified' : 'guest') })
@@ -45,7 +49,7 @@ export default function CandidateForm() {
   }, [])
 
   useEffect(() => {
-    if (authentication !== 'verified') return
+    if (preview || authentication !== 'verified') return
     let active = true
     fetch('/api/formularios/trade-in-motion/folio', { cache: 'no-store' })
       .then(async r => {
@@ -96,6 +100,7 @@ export default function CandidateForm() {
   }
 
   async function store(action: 'save' | 'submit'): Promise<SaveResult> {
+    if (preview) { setSaveStatus('Vista previa: ningún cambio se guardó'); return {saved:true} }
     // Guardados secuenciales: una respuesta vieja nunca puede llegar después de una nueva.
     const snapshot = JSON.stringify({ action, answers, people, consent })
     const atRevision = revision.current
@@ -129,7 +134,7 @@ export default function CandidateForm() {
   }
 
   useEffect(() => {
-    if (!hydrated || !dirty || submitted) return
+    if (preview || !hydrated || !dirty || submitted) return
     const t = setTimeout(() => { void store('save') }, 2400)
     return () => clearTimeout(t)
   }, [answers, people, dirty, hydrated, submitted])
@@ -223,6 +228,7 @@ export default function CandidateForm() {
     return fieldOptions(field,answers)
   }
   async function submit() {
+    if (preview) {setError('');setSaveStatus('Esta es una vista previa: no se enviaron respuestas.');return}
     setError('')
     if (!curpConfirmadaParaAvanzar(answers)) {
       irASeccion(0)
@@ -382,6 +388,7 @@ export default function CandidateForm() {
       <span className="tn-partner">TRADE IN MOTION · CANDIDATOS</span>
     </header>
     <div className="tn-container">
+      {preview ? <div role="status" style={{padding:13,border:'1px solid #e7c27e',background:'#fff8e9',borderRadius:10,margin:'18px 0 4px',color:'#775111',fontWeight:650}}>VISTA PREVIA DEL CLIENTE · Expediente de prueba · No guarda, modifica ni envía información</div> : null}
       <div className="tn-intro">
         <span className="tn-eyebrow">Cuestionario de información · {profileLabel[visaProfile(answers)]}</span>
         <h1>Prepara tu información para el formulario DS-160</h1>
@@ -477,11 +484,11 @@ export default function CandidateForm() {
                     <button className="tn-button secondary" type="button" onClick={() => irASeccion(sectionIndex - 1)} disabled={sectionIndex === 0}>Anterior</button>
                     {sectionIndex < activeSections.length - 1
                       ? <button className="tn-button" type="button" onClick={() => irASeccion(sectionIndex + 1)}>Siguiente sección</button>
-                      : <button className="tn-button" type="button" disabled={loading} onClick={submit}>{loading ? 'Enviando…' : 'Enviar formulario a Visa Master'}</button>}
+                      : <button className="tn-button" type="button" disabled={loading || preview} onClick={submit}>{preview ? 'Vista previa · envío desactivado' : loading ? 'Enviando…' : 'Enviar formulario a Visa Master'}</button>}
                   </div>
-                  <button className="tn-button secondary" type="button" onClick={() => { setError(''); void store('save') }}>Guardar ahora</button>
+                  <button className="tn-button secondary" type="button" onClick={() => { setError(''); void store('save') }} disabled={preview}>{preview ? 'Guardado desactivado en vista previa' : 'Guardar ahora'}</button>
                 </div>
-                <p className="tn-note" aria-live="polite">{saveStatus} · Los campos marcados con * son esenciales.</p>
+                <p className="tn-note" aria-live="polite">{preview ? 'Vista previa de datos ficticios. Nada se guarda ni se envía.' : saveStatus} · Los campos marcados con * son esenciales.</p>
               </section>
             </div>}
       </div> : null}
