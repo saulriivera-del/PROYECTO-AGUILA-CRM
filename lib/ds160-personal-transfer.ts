@@ -10,8 +10,13 @@ import {
   sections, type AnswerMap,
 } from '@/lib/trade-in-motion'
 
-const personal = sections.find(section => section.id === 'personal')
-if (!personal) throw new Error('No está configurada la sección personal de Águila')
+// Separamos la presentación al cliente en Datos, Contacto y Redes para evitar
+// una pantalla interminable, pero mantenemos intacta la transferencia aprobada.
+const personalFields = sections
+  .filter(section => ['personal','contact','social'].includes(section.id))
+  .flatMap(section => section.fields)
+  .filter(field => field.key !== 'visa_profile')
+if (!personalFields.length) throw new Error('No está configurado el bloque personal de Águila')
 
 export const PERSONAL_TRANSFER_SCHEMA = 'vm-ds160-personal-v1'
 export type PersonalProblem = { key: string; label: string }
@@ -19,7 +24,7 @@ export type PersonalProblem = { key: string; label: string }
 export function personalAnswers(raw: unknown): AnswerMap {
   const answers = cleanAnswers(raw)
   const result: AnswerMap = {}
-  for (const field of personal!.fields) {
+  for (const field of personalFields) {
     if (!isVisible(field, answers)) continue
     const value = answers[field.key]
     if (value) result[field.key] = value
@@ -37,7 +42,7 @@ function validDate(value: string): boolean {
 export function personalProblems(raw: unknown): PersonalProblem[] {
   const answers = personalAnswers(raw)
   const problems: PersonalProblem[] = []
-  for (const field of personal!.fields) {
+  for (const field of personalFields) {
     if (!isVisible(field, answers)) continue
     const value = answers[field.key] || ''
     if (isRequired(field, answers) && !value) {
