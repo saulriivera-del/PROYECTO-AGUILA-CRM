@@ -65,6 +65,8 @@ La retención de **archivos adjuntos originales en ChatGPT** no está controlada
 - **Nombres:** separar nombres y apellidos de forma determinista. No inferir nombres a partir de texto ambiguo.
 - **Seguridad:** no asignar respuestas automáticas a antecedentes criminales, salud, inmigración, familiares o declaraciones juradas.
 
+**Nuevo recorrido TN parte 1:** observaciones de siete pantallas hasta Pasaporte en `docs/ds160-tn-part1-to-passport-20261125.md`. La ruta de Pasaporte observada es `Passport_Visa_Info.aspx`. La segunda parte del recorrido queda pendiente. No incorporar estas observaciones a autollenado antes de verificar IDs y catálogos con el inspector.
+
 ## Registro de avance
 
 | Pantalla | Estructura inspeccionada | Correspondencia Águila | Prueba con datos ficticios |
