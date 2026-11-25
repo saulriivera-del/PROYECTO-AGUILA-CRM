@@ -125,6 +125,12 @@ Hallazgos prioritarios de mapeo:
 
 **TN · Parte 4 (25/11/2026):** se observó `Present Work/Education/Training`, `Previous Work/Education/Training`, `Additional Work/Education/Training` y `Security and Background` partes **1 y comienzo de 2**. El video termina antes de concluir Seguridad 2; partes 3–5 pendientes. Se observaron catálogos condicionales de ocupación, empleo y estudios repetibles, lista de idiomas, países visitados, organizaciones y seguridad. Informe de estructura únicamente, sin multimedia ni datos personales: `docs/ds160-tn-part4-work-education-security-20261125.md`. Requiere validación del inspector antes de autollenado.
 
+## Aclaración de cobertura TN / TD / B1-B2 — 25/11/2026
+
+La revisión de un nuevo video corto identificó por primera vez una rama TD específica: `NAFTA PROFESSIONAL (TD/TN)` → `SPOUSE OF TN (TD)` muestra `Principal Applicant Information` con `Surnames` y `Given Names` del **titular TN**, no del solicitante TD. `CHILD OF TN (TD)` es opción visible, pero su rama todavía no se ha inspeccionado. El mismo catálogo ofrece `NAFTA PROFESSIONAL (TN)`. El clip **no completa** la inspección TD ni B1/B2.
+
+**Estado por perfil, distinción entre observado, pendiente y autollenado:** `docs/ds160-visa-profiles-coverage-20261125.md`. Antes de automatizar se deben confirmar los códigos y las rutas de CEAC y no confundir titular principal con dependiente.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
