@@ -110,7 +110,7 @@
 ## Siguientes acciones (antes de escribir en CEAC)
 
 1. **Completar la segunda parte del video TN**, conservando solo estructura de las pantallas restantes.
-2. Abrir con el inspector de Chrome cada pantalla y recoger IDs/códigos de catálogo. **Atención:** nuestra versión de inspector usa el patrón `/GenNIV/General/complete/[a-z0-9_-]+.aspx`; `Passport_Visa_Info.aspx` se encuentra bajo `/GenNIV/General/complete/` según la grabación, pero no es una página `complete_*.aspx`. Confirmar desde la herramienta, no asumir la ruta.
+2. Abrir con el inspector de Chrome cada pantalla y recoger IDs/códigos de catálogo. La ruta observada `Passport_Visa_Info.aspx` sí encaja en el patrón general del inspector de rutas bajo `/GenNIV/General/complete/`. Confirmar siempre la URL real y las opciones antes de programar el mapeo.
 3. Diseñar nuevas preguntas en Águila agrupadas por ramas: núcleo común TN/TD/B1-B2, más diferencias específicas comprobadas. No desplegar todavía ni rellenar estas nuevas pantallas automáticamente.
 4. Todas las ayudas al cliente deben estar en español y decir cuándo la información proviene del DS-160 o de una revisión interna Visa Master.
 5. **No conservar** archivo de video, fotogramas, capturas ni respuestas de prueba en GitHub/Águila. Este documento es la única salida persistente del análisis.
