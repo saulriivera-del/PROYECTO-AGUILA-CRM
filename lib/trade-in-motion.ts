@@ -8,12 +8,28 @@ export type GroupedPeople = { companions: Person[]; relatives: Person[] }
 type Condition = { key: string; equals?: string | string[]; includes?: string; nonempty?: boolean; notEquals?: string }
 export type Question = {
   key: string; label: string; type: string; required?: boolean; requiredWhen?: Condition;
-  when?: Condition; options?: string[]; help?: string; placeholder?: string; inlinePrompt?: boolean
+  when?: Condition; visaProfiles?: string[]; options?: string[]; help?: string; placeholder?: string; inlinePrompt?: boolean
 }
-export type Section = { id: string; title: string; description: string; fields: Question[] }
+export type Section = { id: string; title: string; description: string; fields: Question[]; visaProfiles?: string[] }
 export const sections = config.sections as Section[]
 export const questionMap = new Map(sections.flatMap(s => s.fields.map(f => [f.key, f] as const)))
 export const emptyPeople: GroupedPeople = { companions: [], relatives: [] }
+export const VISA_PROFILES = ['TN','TD_CONYUGE','TD_HIJO','B1/B2'] as const
+export function visaProfile(answers: AnswerMap): string {
+  return VISA_PROFILES.includes(answers.visa_profile as typeof VISA_PROFILES[number]) ? answers.visa_profile : 'TN'
+}
+export function sectionVisible(section: Section, answers: AnswerMap): boolean {
+  return !section.visaProfiles || section.visaProfiles.includes(visaProfile(answers))
+}
+export function visibleSections(answers: AnswerMap): Section[] {
+  return sections.filter(s => sectionVisible(s,answers))
+}
+export function fieldOptions(field: Question, answers: AnswerMap): string[] {
+  const options = field.options ?? []
+  if (field.key === 'travel_duration_unit' && visaProfile(answers) !== 'B1/B2')
+    return options.filter(x => x !== 'Menos de 24 horas')
+  return options
+}
 
 const socialPlatforms = [
   { key: 'social_facebook', option: 'Facebook' },
@@ -46,6 +62,7 @@ export function conditionMatches(condition: Condition | undefined, answers: Answ
   return true
 }
 export function isVisible(field: Question, answers: AnswerMap) {
+  if (field.visaProfiles && !field.visaProfiles.includes(visaProfile(answers))) return false
   return conditionMatches(field.when, answers)
 }
 export function isRequired(field: Question, answers: AnswerMap) {
@@ -73,9 +90,12 @@ export function cleanAnswers(raw: unknown): AnswerMap {
     const clean = value.trim().slice(0, field.type === 'textarea' ? 4000 : 500)
     if (clean) answers[field.key] = clean
   }
+  // El cuestionario anterior era exclusivamente TN: compatibilidad con borradores existentes.
+  if (!answers.visa_profile) answers.visa_profile = 'TN'
   // No conservar datos de ramas condicionales que el solicitante descartó.
   for (let pass = 0; pass < 4; pass++)
-    for (const field of questionMap.values()) if (!isVisible(field, answers)) delete answers[field.key]
+    for (const section of sections) for (const field of section.fields)
+      if (!sectionVisible(section, answers) || !isVisible(field, answers)) delete answers[field.key]
   return answers
 }
 export function cleanPeople(raw: unknown): GroupedPeople {
@@ -91,7 +111,7 @@ export function cleanPeople(raw: unknown): GroupedPeople {
 }
 export function validateSubmission(answers: AnswerMap, people: GroupedPeople): string[] {
   const problems: string[] = []
-  for (const section of sections) for (const field of section.fields) {
+  for (const section of visibleSections(answers)) for (const field of section.fields) {
     if (!isVisible(field, answers)) continue
     const value = answers[field.key] ?? ''
     if (isRequired(field, answers) && !value) problems.push(field.label)
@@ -101,7 +121,7 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     if (field.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) problems.push(field.label + ' (correo inválido)')
     if (field.type === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(value)) problems.push(field.label + ' (fecha inválida)')
     if (field.type === 'number' && !Number.isFinite(Number(value))) problems.push(field.label + ' (número inválido)')
-    if (field.type === 'select' && field.options?.length && field.key !== 'travel_payer_relationship' && !field.options.includes(value)) problems.push(field.label + ' (opción inválida)')
+    if (field.type === 'select' && field.options?.length && field.key !== 'travel_payer_relationship' && !fieldOptions(field,answers).includes(value)) problems.push(field.label + ' (opción inválida)')
     if (field.type === 'multiselect' && !getSelectedSocialPlatforms(value).length)
       problems.push(field.label + ' (selecciona una opción válida)')
   }
@@ -127,7 +147,7 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     problems.push('Debes confirmar la CURP con tu documento oficial antes de enviar el formulario')
   if (!answers.full_name || !answers.phone || !answers.email) problems.push('Nombre, teléfono y correo son necesarios')
   if (!/^\d{10,15}$/.test((answers.phone || '').replace(/\D/g, ''))) problems.push('Teléfono: de 10 a 15 dígitos')
-  if (answers.travel_with_someone === 'Sí') {
+  if (answers.travel_with_someone === 'Sí' && answers.travel_companions_group === 'No') {
     if (!people.companions.length || people.companions.some(p => !p.fullName || !p.relationship))
       problems.push('Completa los acompañantes de viaje')
   }
@@ -138,9 +158,9 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
   return [...new Set(problems)]
 }
 export function countProgress(answers: AnswerMap, people: GroupedPeople) {
-  const required = sections.flatMap(s => s.fields).filter(f => isVisible(f, answers) && isRequired(f, answers))
+  const required = visibleSections(answers).flatMap(s => s.fields).filter(f => isVisible(f, answers) && isRequired(f, answers))
   let total = required.length, complete = required.filter(f => Boolean(answers[f.key])).length
-  if (answers.travel_with_someone === 'Sí') {
+  if (answers.travel_with_someone === 'Sí' && answers.travel_companions_group === 'No') {
     total += 2 * Math.max(1, people.companions.length)
     complete += people.companions.reduce((n, p) => n + Number(!!p.fullName) + Number(!!p.relationship), 0)
   }
