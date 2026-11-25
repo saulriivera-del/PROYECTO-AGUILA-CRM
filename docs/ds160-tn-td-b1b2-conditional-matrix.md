@@ -123,6 +123,8 @@ Hallazgos prioritarios de mapeo:
 
 **TN · Trabajo actual y visa temporal (25/11/2026):** se observaron `Present Work/Education/Training` con ocupación, empleador actual, sueldo en moneda local, funciones y credenciales profesionales, y una pantalla `Temporary Work Visa Information` con empleador en Estados Unidos, domicilio, teléfono e **ingreso mensual en USD**. Son conceptos distintos y no deben compartirse por defecto. Hallazgos solo de estructura, sin archivos multimedia ni datos personales: `docs/ds160-tn-part3-work-temporary-visa-20261125.md`. Aún sin IDs HTML comprobados.
 
+**TN · Parte 4 (25/11/2026):** se observó `Present Work/Education/Training`, `Previous Work/Education/Training`, `Additional Work/Education/Training` y `Security and Background` partes **1 y comienzo de 2**. El video termina antes de concluir Seguridad 2; partes 3–5 pendientes. Se observaron catálogos condicionales de ocupación, empleo y estudios repetibles, lista de idiomas, países visitados, organizaciones y seguridad. Informe de estructura únicamente, sin multimedia ni datos personales: `docs/ds160-tn-part4-work-education-security-20261125.md`. Requiere validación del inspector antes de autollenado.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
