@@ -118,6 +118,9 @@ Hallazgos prioritarios de mapeo:
 - `Passport Information` diferencia tipo, número de libro, expedición, vigencia y múltiples pasaportes perdidos/robados.
 - La mayoría de estos datos todavía **no tienen campos equivalentes completos en Águila**. Estado: observado visualmente; sin IDs/códigos CEAC verificados y sin autollenado.
 
+
+**Continuación TN · tres grabaciones (25/11/2026):** se observaron *U.S. Point of Contact*, *Family Information: Relatives*, *Spouse*, *Former Spouse*, cambios de estado civil y el inicio de *Present Work/Education/Training*. El mapeo solo de preguntas, opciones, condiciones y discrepancias con Águila se encuentra en `docs/ds160-tn-part2-contact-family-work-start-20261125.md`. Se requieren inspección DOM y validación de cada rama antes de habilitar autollenado; no se conservó material audiovisual en el repositorio.
+
 ## Reglas para diseñar el cuestionario por visa
 
 - Mantener un **núcleo común** (datos personales, pasaporte, familia, historial migratorio, etc.).
