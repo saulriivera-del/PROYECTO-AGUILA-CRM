@@ -6,7 +6,10 @@ const active=new Set();
 const P1=VmCeacAutoLogic.P1,P2=VmCeacAutoLogic.P2;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const jobGet=async ()=>(await chrome.storage.session.get(KEY))[KEY]||null;
-const jobSet=async job=>chrome.storage.session.set({[KEY]:job});
+const jobSet=async job=>chrome.storage.session.set({[KEY]:{...job,updatedAt:Date.now()}});
+// Cada consulta tiene límite; ningún trabajo puede quedar indefinidamente en "Comprobando".
+const INJECT_TIMEOUT_MS=12000;
+const STALE_TIMEOUT_MS=18000;
 async function pause(job,reason,status='paused'){
   const current=await jobGet();
   if(!current||current.tabId!==job.tabId||current.status==='stopped')return;
@@ -16,14 +19,19 @@ function readCRMApproved(){
   if(location.protocol!=='https:'||!['crm.visamaster.com.mx','proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app'].includes(location.hostname))return {error:'CRM no autorizado'};
   const m=location.pathname.match(/^\/admin\/formularios\/trade-in-motion\/([a-f0-9-]{36})\/?$/i);
   if(!m)return {error:'Abre una única ficha de candidato en Águila'};
+  const controller=new AbortController();
+  const limit=setTimeout(()=>controller.abort(),9000);
   return fetch('/api/admin/ds160/personal?draft_id='+encodeURIComponent(m[1]),{
-    credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}
+    credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},
+    signal:controller.signal
   }).then(async response=>{
     const payload=await response.json();
     if(!response.ok||payload.schema!=='vm-ds160-personal-v1'||payload.draftId!==m[1]||
        payload.scope!=='personal'||!payload.answers)return {error:'El expediente no tiene aprobación vigente'};
     return {draftId:payload.draftId,answers:payload.answers};
-  }).catch(()=>({error:'Falló la lectura del expediente aprobado'}));
+  }).catch(error=>({error:error?.name==='AbortError'
+    ? 'La consulta a Águila superó 9 segundos; verifica sesión y conexión.'
+    : 'Falló la lectura del expediente aprobado'})).finally(()=>clearTimeout(limit));
 }
 function inspectCEAC(){
   if(location.protocol!=='https:'||location.hostname!=='ceac.state.gov')return {error:'Dominio CEAC incorrecto'};
@@ -131,10 +139,18 @@ function clickNext(request){
   buttons[0].click(); // Next oficial valida y guarda; jamás firma ni envía.
   return {clicked:true};
 }
-async function injected(tabId,fn,args=[]){
-  const out=await chrome.scripting.executeScript({target:{tabId},func:fn,args});
-  if(!out||!out[0])throw Error('No fue posible ejecutar sobre la pestaña');
-  return out[0].result;
+async function injected(tabId,fn,args=[],label='ejecutar la operación'){
+  let timeoutHandle;
+  try {
+    const out=await Promise.race([
+      chrome.scripting.executeScript({target:{tabId},func:fn,args}),
+      new Promise((_,reject)=>{
+        timeoutHandle=setTimeout(()=>reject(Error('Tiempo límite al '+label+' (12 segundos).')),INJECT_TIMEOUT_MS);
+      })
+    ]);
+    if(!out||!out[0])throw Error('No fue posible ejecutar sobre la pestaña al '+label);
+    return out[0].result;
+  } finally {clearTimeout(timeoutHandle);}
 }
 async function processTab(tabId){
   if(active.has(tabId))return;
@@ -155,22 +171,26 @@ async function processTab(tabId){
       await pause(job,'CEAC no avanzó. Revisa los avisos y campos obligatorios de esta página.');return;
     }
     if(job.step>=2){await pause(job,'Límite del piloto: solo Datos personales 1 y 2.');return;}
-    await jobSet({...job,phase:'checking',message:'Comprobando '+path.split('/').pop()});
-    const crm=await injected(job.crmTabId,readCRMApproved);
-    if(!crm||crm.error||crm.draftId!==job.draftId){await pause(job,'No se pudieron confirmar datos aprobados del mismo candidato.');return;}
-    const metadata=await injected(tabId,inspectCEAC);
+    await jobSet({...job,phase:'checking_crm',message:'Consultando autorización de Águila para '+path.split('/').pop()});
+    const crm=await injected(job.crmTabId,readCRMApproved,[],'consultar el expediente de Águila');
+    if(!crm||crm.error||crm.draftId!==job.draftId){
+      await pause(job,crm?.error||'No se pudieron confirmar datos aprobados del mismo candidato.');return;
+    }
+    job=await jobGet(); if(job?.status!=='running')return;
+    await jobSet({...job,phase:'checking_ceac',message:'Inspeccionando los controles de '+path.split('/').pop()});
+    const metadata=await injected(tabId,inspectCEAC,[],'inspeccionar controles de CEAC');
     if(!metadata||metadata.error||metadata.path!==path){await pause(job,'Estructura CEAC inesperada.');return;}
     const plan=VmCeacAutoLogic.plan(crm.answers,path,metadata.fields);
     if(!plan.actions.length){await pause(job,'No hay campos compatibles en esta pantalla: '+plan.pending.join(' | '));return;}
     job=await jobGet();if(job?.status!=='running')return;
     await jobSet({...job,phase:'writing',message:'Precargando '+plan.page});
-    const written=await injected(tabId,applyCEAC,[{path,actions:plan.actions}]);
+    const written=await injected(tabId,applyCEAC,[{path,actions:plan.actions}],'precargar campos');
     if(!written||written.error||written.applied!==written.total){
       await pause(job,'El autollenado se interrumpió: '+(written?.error||'Cantidad de campos distinta'));return;
     }
     await sleep(300);
     job=await jobGet();if(job?.status!=='running')return;
-    const result=await injected(tabId,verifyCEAC,[{path,actions:plan.actions}]);
+    const result=await injected(tabId,verifyCEAC,[{path,actions:plan.actions}],'verificar campos precargados');
     if(!result?.ok){
       await pause(job,'Revisión requerida: CEAC no confirmó todos los campos o indicó errores.');return;
     }
@@ -182,7 +202,7 @@ async function processTab(tabId){
     job=await jobGet();if(job?.status!=='running')return;
     await jobSet({...job,phase:'await-nav',page:path,step:job.step+1,
       message:'Comprobado '+plan.page+'; avanzando mediante Next de CEAC'});
-    const move=await injected(tabId,clickNext,[{path}]);
+    const move=await injected(tabId,clickNext,[{path}],'pulsar Next de CEAC');
     if(!move?.clicked){await pause(job,'Next no disponible: '+(move?.reason||'verificar CEAC'));return;}
   }catch(error){
     const job=await jobGet();
@@ -202,7 +222,13 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
   if(!msg||!['VM_AUTOFLOW_START','VM_AUTOFLOW_STATUS','VM_AUTOFLOW_STOP'].includes(msg.type))return;
   (async()=>{
     if(msg.type==='VM_AUTOFLOW_STATUS'){
-      const j=await jobGet();return {ok:true,status:j?.status||'idle',message:j?.message||'No hay recorrido activo',phase:j?.phase||'idle'};
+      let j=await jobGet();
+      if(j?.status==='running' && (!Number.isFinite(j.updatedAt) ||
+          Date.now()-j.updatedAt>STALE_TIMEOUT_MS)){
+        await pause(j,'Recorrido pausado: una comprobación dejó de responder. Revisa el expediente y vuelve a iniciar.');
+        j=await jobGet();
+      }
+      return {ok:true,status:j?.status||'idle',message:j?.message||'No hay recorrido activo',phase:j?.phase||'idle'};
     }
     if(msg.type==='VM_AUTOFLOW_STOP'){
       const j=await jobGet();if(j)await jobSet({...j,status:'stopped',phase:'idle',message:'Detenido por el operador'});
@@ -218,7 +244,9 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
     // No se almacenan datos del formulario ni tokens, solo metadatos del recorrido.
     await jobSet({tabId:msg.tabId,crmTabId:msg.crmTabId,draftId:msg.draftId,status:'running',
       phase:'ready',step:0,page:'',message:'Iniciando recorrido supervisado'});
-    void processTab(msg.tabId);
+    // Mantener vivo el canal del mensaje durante el primer llenado;
+    // antes se contestaba inmediatamente y el service worker podía suspenderse.
+    await processTab(msg.tabId);
     return {ok:true};
   })().then(reply).catch(e=>reply({ok:false,error:String(e?.message||'Error')}));return true;
 });

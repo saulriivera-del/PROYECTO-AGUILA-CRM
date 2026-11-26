@@ -63,7 +63,7 @@ t('No avanza si hay dos botones Next ni en pantalla de firma',()=>{
 t('La extensión registra un service worker para mantener el recorrido',()=>{
   const m=require('./manifest.json');
   assert.equal(m.background.service_worker,'workflow-background.js');
-  assert.equal(m.version,'0.5.2');
+  assert.equal(m.version,'0.5.3');
   assert.ok(m.host_permissions.includes('https://proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app/*'));
   assert.ok(m.permissions.includes('activeTab'));
 });
@@ -77,4 +77,14 @@ t('El piloto permite precarga parcial sin dejar avanzar con datos faltantes',()=
   assert.ok(html.includes('id="copy-diag"'));
   assert.ok(html.includes('Precargar campos compatibles (sin avanzar)'));
   assert.ok(plan(example,P1,fields(P1).filter(f=>f.id!=='ctl00_ddlAPP_POB_CNTRY')).canAdvance===false);
+});
+
+t('Águila y CEAC agotados no dejan indefinidamente el estado Comprobando',()=>{
+  const sw=fs.readFileSync(path.join(__dirname,'workflow-background.js'),'utf8');
+  const popup=fs.readFileSync(path.join(__dirname,'popup.js'),'utf8');
+  assert.ok(sw.includes('const INJECT_TIMEOUT_MS=12000'));
+  assert.ok(sw.includes('const STALE_TIMEOUT_MS=18000'));
+  assert.ok(sw.includes('const controller=new AbortController()'));
+  assert.ok(sw.includes('Tiempo límite al '));
+  assert.ok(popup.includes('setInterval(()=>{void refreshAutoStatus()},2000)'));
 });

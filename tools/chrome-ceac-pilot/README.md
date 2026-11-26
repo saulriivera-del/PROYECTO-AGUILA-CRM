@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.5.2** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.5.3** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.5.2**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.5.3**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Mapear todo el DS-160, pantalla por pantalla
@@ -48,7 +48,7 @@ El registro independiente por perfil está documentado en `docs/ds160-tn-td-b1b2
 
 **Infraestructura:** requiere la migración `supabase/ds160_application_links.sql` y la ruta de API `/api/admin/ds160/application-id`. La vinculación no sustituye el chequeo de identidad ni la revisión del DS-160.
 
-## Recorrido automático supervisado (v0.5.2)
+## Recorrido automático supervisado (v0.5.3)
 
 - Abre una **solicitud ficticia** de CEAC en Personal Information 1 y deja **una sola pestaña** de expediente aprobado abierta en CRM. Para probar las nuevas preguntas TD y los valores por defecto **sin publicar en producción**, usa la vista previa autorizada: `https://proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app/admin/demo-automatizacion-ds160` y abre allí el expediente de prueba aprobado. Esta versión no se ha probado en una sesión oficial viva.
 - Pulsa **Preparar y comparar campos** y revisa el solicitante, los campos y las respuestas predeterminadas. Marca las dos confirmaciones: comprobación del expediente y permiso de recorrido.
@@ -100,3 +100,8 @@ Las pruebas usan **datos sintéticos** y no acceden a CEAC ni a Águila.
 - Documentar el resultado, tiempos y campos faltantes para ampliar luego a pasaporte.
 
 **Nota importante:** las 13 acciones del primer paso y las 2 del segundo son **máximos técnicos**; el número real puede ser menor según los campos y opciones visibles. Esta versión es una herramienta de operador y no certifica que CEAC acepte una solicitud.
+
+## Manejo de espera prolongada (v0.5.3)
+- El navegador limita a 9 segundos la consulta de datos personales aprobados del CRM y a 12 segundos cada comando que inspecciona o actúa sobre una pestaña. El controlador de salud pausa el recorrido si no detecta progreso durante 18 segundos.
+- La ventana de la extensión actualiza el estado cada 2 segundos mientras permanezca abierta, y permite detenerlo manualmente. Si una consulta falla, verás un error específico en vez de quedar indefinidamente en «Comprobando».
+- No abre una nueva solicitud CEAC ni borra los campos ya introducidos; el operador puede reiniciar el recorrido después de comprobar los datos.

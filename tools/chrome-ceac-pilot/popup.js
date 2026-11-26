@@ -308,6 +308,8 @@ $('auto-stop').addEventListener('click',async ()=>{
   await refreshAutoStatus();
 });
 void refreshAutoStatus();
+const statusPolling=setInterval(()=>{void refreshAutoStatus()},2000);
+window.addEventListener('pagehide',()=>clearInterval(statusPolling));
 
 /** Solo copia metadatos de los controles; nunca valores actuales ni datos del CRM. */
 function diagnosticMetadata(scan) {
