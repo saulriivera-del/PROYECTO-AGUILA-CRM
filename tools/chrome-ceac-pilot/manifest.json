@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Visa Master · Piloto DS-160 (datos personales)",
-  "version": "0.4.2",
-  "description": "Inspector CEAC de pantallas y transiciones entre páginas TN/TD/B1-B2; autollenado supervisado de Datos personales 1 y 2 sin presentar solicitudes.",
+  "version": "0.5.0",
+  "description": "Piloto DS-160: mapeo CEAC, precarga y avance supervisado de Datos personales 1/2; pausa ante dudas; nunca firma ni envía.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -14,5 +14,8 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Visa Master · DS-160 y Application ID"
+  },
+  "background": {
+    "service_worker": "workflow-background.js"
   }
 }

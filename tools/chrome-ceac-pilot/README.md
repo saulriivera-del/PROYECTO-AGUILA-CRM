@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.4.2** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.5.0** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.4.2**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.5.0**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Mapear todo el DS-160, pantalla por pantalla
@@ -48,6 +48,17 @@ El registro independiente por perfil está documentado en `docs/ds160-tn-td-b1b2
 
 **Infraestructura:** requiere la migración `supabase/ds160_application_links.sql` y la ruta de API `/api/admin/ds160/application-id`. La vinculación no sustituye el chequeo de identidad ni la revisión del DS-160.
 
+## Recorrido automático supervisado (v0.5.0)
+
+- Abre una **solicitud ficticia** de CEAC en Personal Information 1 y deja **una sola pestaña** de expediente aprobado abierta en `crm.visamaster.com.mx`. Esta versión no se ha probado en una sesión oficial viva.
+- Pulsa **Preparar y comparar campos** y revisa el solicitante, los campos y las respuestas predeterminadas. Marca las dos confirmaciones: comprobación del expediente y permiso de recorrido.
+- Pulsa **Iniciar llenado y avance automático**. El controlador vuelve a leer el expediente autorizado, revisa los campos visibles y rellena los compatibles sin guardar información personal en la extensión. Cuando todos los campos de la sección coinciden, pulsa **Next** para guardar temporalmente y continuar.
+- Si CEAC conserva la misma página por un error, cambia los controles, surge una excepción, faltan campos o se llega a una página no mapeada, el recorrido **se detiene**. Reabre la extensión para ver el estado. El botón **Detener recorrido** permite detenerlo por decisión del operador.
+- El alcance actual es exclusivamente Personal Information 1 y Personal Information 2. **No debe intentar saltar Travel Information u otras secciones:** se detiene allí para que continuemos su mapeo. La implementación para llegar a las páginas **Review** queda pendiente hasta que cada sección restante esté verificada.
+- No resolver CAPTCHA, no automatizar firma ni envío. El solicitante debe revisar y firmar personalmente según las instrucciones del Departamento de Estado.
+- El estado de ejecución conserva únicamente IDs de pestañas, identificador del expediente y mensajes de control en `chrome.storage.session`; se consultan las respuestas aprobadas de nuevo en cada pantalla, sin guardar datos personales en almacenamiento de la extensión.
+- **No activar para clientes reales** sin ejecutar pruebas completas en Chrome/CEAC y confirmar los identificadores reales de campos, etiquetas de No aplica y botón Next. La vista previa de Vercel no sustituye esta verificación.
+
 ## Primer ensayo con datos ficticios
 1. El operador recupera un DS-160 ficticio. Mariana selecciona consulado, resuelve CAPTCHA, acepta los avisos y responde la pregunta de seguridad **manualmente**. Nada de esto se automatiza.
 2. Abre en una pestaña **únicamente** el expediente ficticio en Águila. Si el expediente no tiene aprobación vigente, revísalo en el CRM y aprueba los datos personales (una corrección posterior anula la aprobación).
@@ -63,13 +74,13 @@ El registro independiente por perfil está documentado en `docs/ds160-tn-td-b1b2
 - Los datos autorizados se consultan de nuevo inmediatamente antes del llenado. No se copian cookies, tokens, claves de acceso ni datos a almacenamiento local.
 - No hay acceso a contraseña de CEAC, CAPTCHA o página de firma. El Application ID visible puede detectarse con un clic y se registra únicamente después de confirmación del operador.
 - El país de nacimiento se selecciona en Águila desde una lista ISO de 249 países y territorios. **México viene preseleccionado** si el expediente todavía no contiene respuesta; no se reemplazan respuestas guardadas de otros países. Si se elige un país distinto de México, la persona debe confirmar explícitamente la elección y mantener consistente el estado/provincia de nacimiento.
-- Solo dos rutas CEAC exactas; 13 controles previstos de Personal 1 (incluidos nombre nativo y dos radios **No** basados en respuesta expresa) y 2 de Personal 2. Cada selector y cada opción deben verificarse en CEAC.
+- Solo se permite escribir en las dos rutas exactas de Personal 1 y Personal 2. Las casillas de alfabeto nativo, SSN e identificación fiscal y las respuestas de otra nacionalidad/residencia requieren validar sufijos HTML y etiquetas reales antes del avance.
 - Si CEAC cambia los controles, catálogo o ruta, el campo se bloquea y aparece como pendiente. El país de nacimiento se compara contra el catálogo completo de la sesión y se usa el código disponible, no uno inventado ni una posición por índice.
-- **Otros nombres** y **telecódigo** solo se marcan «No» si el cliente eligió explícitamente «No» en el cuestionario y la etiqueta de la opción se comprueba en CEAC. Una respuesta «Sí» o ausente se deja pendiente para revisión manual. **Does Not Apply** nunca se marca por inferencia.
-- Águila admite nombres de pila separados de los apellidos (por ejemplo «Ángel Saúl» / «Rivera» / «Espinoza») o nombre completo con apellidos en la misma línea. La extensión rellena Surnames y Given Names; si hay un apellido parcialmente coincidente, datos ambiguos o faltantes, no inventa la separación y pide revisión manual. Para nacidos en México, también prepara el nombre completo en alfabeto nativo si los nombres y apellidos son inequívocos; los demás casos requieren verificación manual.
+- **Otros nombres** se marca «No» solo con respuesta explícita. **Telecódigo** usa el valor predeterminado «No», excepto si el solicitante informó «Sí». Las casillas «Does Not Apply» de alfabeto nativo e identificación fiscal son reglas operativas sujetas a revisión y a identificación inequívoca en CEAC; las respuestas específicas del cliente prevalecen.
+- Águila admite nombres de pila separados de los apellidos (por ejemplo «Ángel Saúl» / «Rivera» / «Espinoza») o nombre completo con apellidos en la misma línea. La extensión rellena Surnames y Given Names; si hay un apellido parcialmente coincidente, datos ambiguos o faltantes, no inventa la separación y pide revisión manual. Para el caso habitual de nacionalidad mexicana el nuevo recorrido prepara la casilla «Does Not Apply» de alfabeto nativo, pero solo la marca si CEAC muestra el control inequívoco y el operador autorizó esa regla; otros casos se revisan.
 - El valor sugerido de CURP nunca se usa si no se ha marcado explícitamente confirmado por el cliente.
 - Los campos siguen requiriendo verificación humana después de llenarse; el sitio CEAC puede actualizarse por sus propios eventos.
-- **Este piloto no hace clic en Siguiente, Guardar, Firmar o Enviar**, ni intenta sortear los mecanismos de control del portal.
+- **Modo manual:** nunca pulsa Next. **Modo de recorrido supervisado:** pulsa el botón oficial **Next** únicamente después de comprobar los controles completos de Personal 1 y 2; jamás pulsa Firmar ni Enviar. Si un campo no coincide, se detiene.
 
 ## Comprobaciones locales
 Si tienes Node.js instalado en tu ordenador, ejecuta:

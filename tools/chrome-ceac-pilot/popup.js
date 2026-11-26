@@ -6,6 +6,7 @@ let prepared = null;
 function status(message) { $('status').textContent = message; }
 function reset() {
   prepared = null; $('fill').disabled = true; $('confirm').checked = false;
+  $('auto-start').disabled = true; $('auto-confirm').checked = false;
   $('preview').style.display = 'none'; $('actions').replaceChildren();
   $('pending').replaceChildren();
 }
@@ -245,9 +246,13 @@ $('prepare').addEventListener('click',async () => {
   }catch(e){status(e.message || 'No se pudo preparar la transferencia.');}
   finally{$('prepare').disabled=false;}
 });
-$('confirm').addEventListener('change',() => {
+function updateStartButtons(){
   $('fill').disabled = !prepared || !prepared.actions.length || prepared.countryMissing || !$('confirm').checked;
-});
+  $('auto-start').disabled = !prepared || !prepared.actions.length || prepared.countryMissing ||
+    !$('confirm').checked || !$('auto-confirm').checked;
+}
+$('confirm').addEventListener('change',updateStartButtons);
+$('auto-confirm').addEventListener('change',updateStartButtons);
 $('fill').addEventListener('click',async () => {
   if(!prepared || prepared.countryMissing || !$('confirm').checked) return;
   $('fill').disabled=true;status('Validando autorización antes de escribir...');
@@ -267,3 +272,33 @@ $('fill').addEventListener('click',async () => {
   } catch(e) {status(e.message || 'No se pudo aplicar el llenado.');}
   finally {reset();}
 });
+
+async function refreshAutoStatus(){
+  try{
+    const state=await chrome.runtime.sendMessage({type:'VM_AUTOFLOW_STATUS'});
+    $('auto-status').textContent=state?.message||'No hay recorrido activo';
+    $('auto-stop').disabled=state?.status!=='running';
+  }catch{$('auto-status').textContent='No está disponible el controlador del recorrido.';}
+}
+$('auto-start').addEventListener('click',async ()=>{
+  if(!prepared||!$('confirm').checked||!$('auto-confirm').checked||prepared.countryMissing)return;
+  $('auto-start').disabled=true;
+  $('auto-status').textContent='Iniciando y verificando los campos…';
+  try{
+    const response=await chrome.runtime.sendMessage({
+      type:'VM_AUTOFLOW_START',tabId:prepared.ceacTab,crmTabId:prepared.crmTab,draftId:prepared.draftId
+    });
+    if(!response?.ok)throw Error(response?.error||'No pudo iniciar el recorrido');
+    $('auto-status').textContent='Recorrido iniciado. La extensión solo avanza por páginas comprobadas.';
+    reset();
+    await refreshAutoStatus();
+  }catch(err){
+    $('auto-status').textContent=err?.message||'Error al iniciar';
+    updateStartButtons();
+  }
+});
+$('auto-stop').addEventListener('click',async ()=>{
+  await chrome.runtime.sendMessage({type:'VM_AUTOFLOW_STOP'});
+  await refreshAutoStatus();
+});
+void refreshAutoStatus();
