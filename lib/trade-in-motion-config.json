@@ -167,6 +167,79 @@
           "help": "Si tienes otra nacionalidad, puedes cambiar este dato."
         },
         {
+          "key": "other_nationality",
+          "label": "¿Tienes o has tenido otra nacionalidad, además de la que indicaste?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "help": "Incluye nacionalidades anteriores, aunque ya hayas renunciado a ellas."
+        },
+        {
+          "key": "other_nationality_details",
+          "label": "¿Qué otra(s) nacionalidad(es) tienes o has tenido?",
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "other_nationality",
+            "equals": "Sí"
+          },
+          "help": "Anota el país o países y si la nacionalidad es actual o anterior."
+        },
+        {
+          "key": "permanent_resident_other_country",
+          "label": "¿Tienes residencia permanente en un país distinto al de tu nacionalidad?",
+          "type": "select",
+          "required": true,
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "help": "Residencia permanente es el derecho legal a vivir y trabajar en otro país sin fecha límite. No es una visa temporal."
+        },
+        {
+          "key": "permanent_resident_country",
+          "label": "¿En qué país tienes residencia permanente?",
+          "type": "text",
+          "required": true,
+          "when": {
+            "key": "permanent_resident_other_country",
+            "equals": "Sí"
+          }
+        },
+        {
+          "key": "us_social_security_number_td",
+          "label": "¿Te han asignado un número de Seguro Social en Estados Unidos (Social Security Number / SSN)?",
+          "type": "select",
+          "required": true,
+          "visaProfiles": [
+            "TD_CONYUGE",
+            "TD_HIJO"
+          ],
+          "options": [
+            "Sí",
+            "No"
+          ],
+          "help": "Se refiere al número de Seguro Social estadounidense de 9 dígitos, NO al IMSS ni a la CURP mexicana. Aunque lo hayas recibido anteriormente, selecciona Sí si todavía lo tienes asignado."
+        },
+        {
+          "key": "us_social_security_number_td_value",
+          "label": "Escribe el número de Seguro Social de Estados Unidos (SSN)",
+          "type": "text",
+          "required": true,
+          "visaProfiles": [
+            "TD_CONYUGE",
+            "TD_HIJO"
+          ],
+          "when": {
+            "key": "us_social_security_number_td",
+            "equals": "Sí"
+          },
+          "help": "Captura los 9 dígitos. La información se utilizará solo para tu expediente migratorio."
+        },
+        {
           "key": "other_names_used",
           "label": "¿Has utilizado otros nombres, apellidos, seudónimos o alias?",
           "type": "select",
@@ -196,8 +269,8 @@
             "Sí",
             "No"
           ],
-          "required": true,
-          "help": "El telecódigo se utiliza para representar ciertos nombres escritos en alfabetos no latinos. No es tu CURP."
+          "required": false,
+          "help": "Visa Master usa «No» como respuesta predeterminada para nombres con alfabeto latino. Si tu nombre sí tiene telecódigo, selecciona «Sí» y captúralo; tu respuesta prevalece."
         },
         {
           "key": "name_telecode_value",
