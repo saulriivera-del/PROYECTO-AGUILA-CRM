@@ -7,6 +7,13 @@
     .replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
   const normalizedTokens = s => normalize(s).split(' ').filter(Boolean);
   const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  // Preferencias operativas de Visa Master. Son sugerencias revisables, no hechos
+  // sobre el solicitante. Un Sí declarado tiene prioridad y queda pendiente.
+  const POLICY_DEFAULTS = Object.freeze({
+    nativeAlphabet: 'Does Not Apply',
+    telecode: 'No',
+    usTaxpayerId: 'Does Not Apply',
+  });
 
   // Águila captura nombres y apellidos en campos separados. También se admiten
   // formularios anteriores donde el nombre completo ya incluye ambos apellidos.
@@ -79,11 +86,15 @@
       if (names) {
         add('tbxAPP_SURNAME', 'Apellidos', 'text', names.surname);
         add('tbxAPP_GIVEN_NAME', 'Nombre(s)', 'text', names.given);
-        // Español: nombre completo en caracteres latinos, con los apellidos.
-        // Para otros alfabetos se requiere una versión documental específica.
-        if (['MX','MEX','MEXICO','MÉXICO'].includes(normalize(answers.birth_country)))
-          add('tbxAPP_FULL_NAME_NATIVE','Nombre completo en alfabeto nativo','text',names.given + ' ' + names.surname);
-        else pending.push('Nombre en alfabeto nativo: confirmar escritura original en documentos.');
+        // No confundir país de nacimiento con idioma/alfabeto. La preferencia
+        // operativa es D.N.A. para nombre en alfabeto latino; antes de escribir,
+        // comprobar que CEAC expone la casilla y su etiqueta exacta.
+        if (answers.native_alphabet_applies === 'Sí')
+          pending.push('Nombre en alfabeto nativo: excepción declarada; revisar documento y llenar manualmente.');
+        else if (['MEXICANA','MEXICANO','MEXICO'].includes(normalize(answers.nationality)))
+          add('cbxAPP_FULL_NAME_NATIVE_NA','Alfabeto nativo: No aplica (predeterminado)','checkboxNA','Does Not Apply');
+        else pending.push('Alfabeto nativo: verificar si corresponde No aplica para este solicitante.');
+
       } else pending.push('Comprobar manualmente nombres y apellidos del pasaporte: no se pueden separar con certeza.');
       const gender = { 'Hombre':'M', 'Mujer':'F' }[answers.curp_sexo];
       if (gender) add('ddlAPP_GENDER','Sexo','selectValue',gender);
@@ -107,10 +118,10 @@
       if (answers.other_names_used === 'No')
         add('rblOtherNames_1','Otros nombres utilizados: No','radioNo','No');
       else pending.push('Otros nombres utilizados: revisar respuesta en Águila y completar manualmente en CEAC.');
-      if (answers.name_telecode === 'No')
-        add('rblTelecodeQuestion_1','Telecódigo de nombre: No','radioNo','No');
-      else pending.push('Telecódigo de nombre: revisar respuesta en Águila y completar manualmente en CEAC.');
-      pending.push('Casillas «Does Not Apply»: comprobar manualmente; no marcarlas por suposición.');
+      if (!answers.name_telecode || answers.name_telecode === 'No')
+        add('rblTelecodeQuestion_1','Telecódigo: No (predeterminado)','radioNo','No');
+      else pending.push('Telecódigo: el cliente indicó Sí; capturar su telecódigo en CEAC.');
+      pending.push('Revisa los valores predeterminados antes de avanzar: cualquier excepción del cliente tiene prioridad.');
     } else if (path === P2) {
       const nationality = normalize(answers.nationality);
       if (['MEXICANA','MEXICANO','MEXICO','MÉXICO'].includes(nationality))
@@ -119,7 +130,27 @@
       if (answers.curp_confirmada && /^[A-Z]{4}\d{6}[HM][A-Z]{5}[0-9A-J]\d$/.test(normalize(answers.curp_valor)))
         add('tbxAPP_NATIONAL_ID','Identificación nacional (CURP confirmada)','text',normalize(answers.curp_valor));
       else pending.push('CURP no confirmada/documentada: completar identificación nacional manualmente.');
-      pending.push('Otra nacionalidad, residencia permanente, SSN y número fiscal de EE. UU.: verificar y responder en CEAC; no se marca «No» ni «No aplica» por suposición.');
+      if (answers.other_nationality === 'No')
+        add('rblAPP_OTHER_NATL_1','Otra nacionalidad: No (declarado)','radioNo','No');
+      else pending.push('Otra nacionalidad: revisar la respuesta y, si es Sí, completar los detalles.');
+      if (answers.permanent_resident_other_country === 'No')
+        add('rblAPP_PERM_RESIDENT_1','Residencia permanente en otro país: No (declarado)','radioNo','No');
+      else pending.push('Residencia permanente: revisar la respuesta y, si es Sí, completar el país.');
+      const td = ['TD_CONYUGE','TD_HIJO'].includes(answers.visa_profile);
+      if (td && answers.us_social_security_number_td === 'No')
+        add('cbxAPP_SSN_NA','SSN estadounidense TD: No aplica (declarado)','checkboxNA','Does Not Apply');
+      else if (td && answers.us_social_security_number_td === 'Sí') {
+        const ssn = String(answers.us_social_security_number_td_value || '').replace(/[ -]/g,'');
+        if (/^\\d{9}$/.test(ssn))
+          add('tbxAPP_SSN','SSN estadounidense TD (declarado)','text',ssn);
+        else pending.push('SSN de TD: falta verificar los nueve dígitos informados por el cliente.');
+      } else pending.push('SSN estadounidense: sin declaración TD verificada; revisar si existe número antes de elegir No aplica.');
+      // Un ITIN/TIN existente prevalece frente a la preferencia. En esta fase
+      // solo hay predeterminado; se valida en revisión humana de cada caso.
+      if (answers.us_taxpayer_id_override)
+        pending.push('Número fiscal estadounidense: excepción registrada; revisar manualmente en CEAC.');
+      else add('cbxAPP_TAX_ID_NA','Número fiscal de EE. UU.: No aplica (predeterminado)','checkboxNA','Does Not Apply');
+      pending.push('Las opciones Yes/No y Does Not Apply solo se aplican si CEAC muestra controles inequívocos; los demás quedan pendientes.');
     } else return { page: null, actions: [], pending: ['La página CEAC no corresponde a Datos personales 1 o 2.'] };
     return { page: path === P1 ? 'Datos personales 1' : 'Datos personales 2', path, actions, pending };
   }
