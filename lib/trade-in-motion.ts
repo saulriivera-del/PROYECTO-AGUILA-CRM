@@ -147,6 +147,9 @@ export function validateSubmission(answers: AnswerMap, people: GroupedPeople): s
     problems.push('Debes confirmar la CURP con tu documento oficial antes de enviar el formulario')
   if (!answers.full_name || !answers.phone || !answers.email) problems.push('Nombre, teléfono y correo son necesarios')
   if (!/^\d{10,15}$/.test((answers.phone || '').replace(/\D/g, ''))) problems.push('Teléfono: de 10 a 15 dígitos')
+  if (answers.us_social_security_number_td === 'Sí' &&
+      !/^\d{9}$/.test((answers.us_social_security_number_td_value || '').replace(/[ -]/g,'')))
+    problems.push('Seguro Social de EE. UU. (TD): debe tener exactamente 9 dígitos');
   if (answers.travel_with_someone === 'Sí' && answers.travel_companions_group === 'No') {
     if (!people.companions.length || people.companions.some(p => !p.fullName || !p.relationship))
       problems.push('Completa los acompañantes de viaje')
