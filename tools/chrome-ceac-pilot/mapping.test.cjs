@@ -129,7 +129,7 @@ test('Alfabeto nativo queda en No aplica como regla verificable del piloto mexic
   const plan=buildPlan({...data, full_name:'Mariana',curp_paterno:'Bustamante',curp_materno:'Baca',birth_country:'mexico'},P1);
   assert.ok(plan.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'&&a.mode==='checkboxNA'));
   assert.ok(plan.actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY'&&a.mode==='selectCountry'&&a.value==='MEXICO'));
-  const otherAlphabet=buildPlan({...data,birth_country:'Japan'},P1);
+  const otherAlphabet=buildPlan({...data,birth_country:'Japan',nationality:'Japonesa'},P1);
   assert.equal(otherAlphabet.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'),false);
 });
 
