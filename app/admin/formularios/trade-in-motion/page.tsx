@@ -4,7 +4,7 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { isAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { countProgress, cleanAnswers, cleanPeople } from '@/lib/trade-in-motion'
-import { inviteCandidate, revokeInvite, revokeFolioAccess } from './actions'
+import { inviteCandidate, revokeInvite, revokeFolioAccess, resetFolioIdentity } from './actions'
 import TnFolioGenerator from '@/components/tn-folio-generator'
 
 export const dynamic = 'force-dynamic'
@@ -85,6 +85,7 @@ export default async function TradeInMotionIntakePage({ searchParams }: { search
     <p style={{ color: '#5b738c', lineHeight: 1.6 }}>Bandeja privada de candidatos. Revisa borradores y formularios terminados antes de preparar la solicitud consular oficial.</p>
     <p><Link className="secondary-button" href="/formularios/trade-in-motion" target="_blank">Abrir formulario para compartir con candidatos ↗</Link></p>
     <TnFolioGenerator />
+    <p style={{color:'#617b94',fontSize:13}}>Para accesos anteriores, abre «Configurar apellido y año de acceso» en la ficha del candidato. Las respuestas guardadas se conservan.</p>
     <details style={{marginBottom:22}}><summary style={{cursor:'pointer',color:'#627d95'}}>Acceso anterior por correo (solo transición)</summary>
     <section style={{ background: '#fff', padding: 20, border: '1px solid #dbe5ef', borderRadius: 13, margin: '18px 0 22px' }}>
       <h3 style={{ margin: '0 0 5px' }}>Autorizar a un nuevo candidato</h3>
@@ -129,6 +130,7 @@ export default async function TradeInMotionIntakePage({ searchParams }: { search
         </div>
         <p style={{ color: '#657d94', fontSize: 12 }}> {d.progress}% de campos esenciales · Último movimiento: {date(d.updatedAt)}</p>
         <div style={{ display: 'flex', gap: 19, flexWrap: 'wrap' }}>
+          {d.isFolio ? <details style={{marginTop:8}}><summary>Configurar apellido y año de acceso</summary><form action={resetFolioIdentity} style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}><input type="hidden" name="id" value={d.accessId}/><input name="surname" aria-label="Primer apellido" placeholder="Primer apellido" required maxLength={60}/><input name="year" aria-label="Año de nacimiento" placeholder="Año de nacimiento" required inputMode="numeric" pattern="[0-9]{4}" maxLength={4}/><button className="secondary-button" type="submit">Actualizar acceso</button></form></details> : null}
           {d.status === 'Pendiente' ? <form action={d.isFolio ? revokeFolioAccess : revokeInvite}><input type="hidden" name="id" value={d.id} /><button className="secondary-button" type="submit">Revocar autorización</button></form>
             : <Link href={'/admin/formularios/trade-in-motion/' + d.id}>Ver respuestas por sección →</Link>}
           {d.processId ? <Link href={'/admin/tramites/' + d.processId}>Abrir expediente TN →</Link> : null}

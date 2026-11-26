@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isValidFolio } from '@/lib/candidate-folio'
+import { identityKey } from '@/lib/candidate-identity'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   CANDIDATE_COOKIE, SESSION_SECONDS, newSessionToken, tokenHash, verifyCandidateKey,
@@ -30,29 +31,28 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return respond({ error: 'Origen no autorizado.' }, 403)
   if (!request.headers.get('content-type')?.startsWith('application/json')) return respond({ error: 'Solicitud inválida.' }, 415)
-  let folio = '', key = ''
+  let folio = '', key = '', surname = '', year = ''
   try {
     const raw = await request.text()
     if (Buffer.byteLength(raw) > 4096) return respond({ error: 'Solicitud demasiado extensa.' }, 413)
     const body = JSON.parse(raw)
     folio = typeof body.folio === 'string' ? body.folio.trim().toUpperCase() : ''
     key = typeof body.key === 'string' ? body.key.trim() : ''
+    surname = typeof body.surname === 'string' ? body.surname.trim() : ''
+    year = typeof body.year === 'string' ? body.year.trim() : ''
   } catch { return invalid() }
-  if (!isValidFolio(folio) || !/^[a-fA-F0-9\s-]{24,40}$/.test(key)) return invalid()
+  if (!isValidFolio(folio)) return invalid()
+  const personalKey = identityKey(surname, year)
+  const legacyKey = /^[a-fA-F0-9\s-]{24,40}$/.test(key) ? key : null
+  if (!personalKey && !legacyKey) return invalid()
   try {
     const admin = createAdminClient()
-    const { data: access, error } = await admin.from('vm_trade_in_motion_access')
-      .select('id,applicant_name,key_hash,is_active,failed_attempts,locked_until')
-      .eq('folio',folio).maybeSingle()
-    if (error || !access?.is_active || (access.locked_until && new Date(access.locked_until).getTime() > Date.now())) return invalid()
-    if (!verifyCandidateKey(key, access.key_hash)) {
-      const attempts = (access.failed_attempts || 0) + 1
-      await admin.from('vm_trade_in_motion_access').update({
-        failed_attempts: attempts >= 5 ? 0 : attempts,
-        locked_until: attempts >= 5 ? new Date(Date.now() + 20 * 60 * 1000).toISOString() : null,
-      }).eq('id',access.id)
-      return invalid()
-    }
+    // The database claims each attempt atomically, including concurrent requests.
+    const {data: claimed, error} = await admin.rpc('vm_claim_candidate_attempt',{p_folio:folio})
+    const access = Array.isArray(claimed) ? claimed[0] : claimed
+    if (error || !access) return invalid()
+    const credential = access.auth_mode === 'surname_year' ? personalKey : legacyKey
+    if (!credential || !verifyCandidateKey(credential,access.key_hash)) return invalid()
     const token = newSessionToken()
     const { error: sessionError } = await admin.from('vm_trade_in_motion_sessions').insert({
       access_id: access.id, token_hash: tokenHash(token),

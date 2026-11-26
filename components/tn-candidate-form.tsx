@@ -22,6 +22,9 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
   const [identity, setIdentity] = useState(preview ? previewIdentity : '')
   const [folioInput, setFolioInput] = useState('')
   const [keyInput, setKeyInput] = useState('')
+  const [surnameInput,setSurnameInput] = useState('')
+  const [yearInput,setYearInput] = useState('')
+  const [legacyAccess,setLegacyAccess] = useState(false)
   const [authentication, setAuthentication] = useState<'checking' | 'guest' | 'verified'>(preview ? 'verified' : 'checking')
   const [loading, setLoading] = useState(false)
   const [hydrated, setHydrated] = useState(preview)
@@ -75,12 +78,14 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
     try {
       const r = await fetch('/api/formularios/trade-in-motion/folio',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({folio:folioInput,key:keyInput}),
+        body:JSON.stringify(legacyAccess ? {folio:folioInput,key:keyInput} : {folio:folioInput,surname:surnameInput,year:yearInput}),
       })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'No se pudo iniciar sesión.')
       setIdentity(data.name || 'Candidato')
       setKeyInput('')
+      setSurnameInput('')
+      setYearInput('')
       setHydrated(false)
       setAuthentication('verified')
     } catch (e) { setError(e instanceof Error ? e.message : 'Error de acceso.') }
@@ -410,16 +415,24 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
       {authentication === 'checking' ? <section className="tn-card tn-login"><p>Verificando acceso seguro…</p></section> : null}
       {authentication === 'guest' ? <section className="tn-card tn-login">
         <span className="tn-eyebrow">Acceso personal</span>
-        <h2>Ingresa tu folio y clave</h2>
+        <h2>Ingresa tu folio, apellido y año de nacimiento</h2>
         <p className="tn-muted">Visa Master te proporciona estos datos. No necesitas recibir un correo para entrar y podrás continuar desde otro dispositivo.</p>
         {error ? <div className="tn-error" role="alert">{error}</div> : null}
         <form onSubmit={login}>
           <label className="tn-label">Folio del candidato *
-            <input className="tn-input" required autoCapitalize="characters" value={folioInput} onChange={e => setFolioInput(e.target.value)} placeholder="Ej. 482731"/>
+            <input className="tn-input" required autoCapitalize="characters" value={folioInput} onChange={e => setFolioInput(e.target.value)} placeholder="Ej. VM-482731"/>
           </label>
-          <label className="tn-label">Clave de acceso *
+          {legacyAccess ? <label className="tn-label">Clave de acceso anterior *
             <input className="tn-input" type="password" required autoComplete="off" value={keyInput} onChange={e=>setKeyInput(e.target.value)} placeholder="Clave entregada por Visa Master"/>
-          </label>
+          </label> : <>
+            <label className="tn-label">Primeras cinco letras de tu primer apellido *
+              <input className="tn-input" required autoCapitalize="characters" autoComplete="off" value={surnameInput} onChange={e=>setSurnameInput(e.target.value)} maxLength={60} placeholder="Ej. GARCI"/>
+            </label>
+            <label className="tn-label">Año de nacimiento *
+              <input className="tn-input" required inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={yearInput} onChange={e=>setYearInput(e.target.value)} placeholder="Ej. 1990"/>
+            </label>
+          </>}
+          <button type="button" className="tn-button ghost" onClick={()=>{setLegacyAccess(!legacyAccess);setError('')}}>{legacyAccess?'Usar apellido y año':'Tengo una clave anterior'}</button>
           <button className="tn-button" type="submit" disabled={loading}>{loading ? 'Verificando…' : 'Entrar al formulario'}</button>
         </form>
       </section> : null}

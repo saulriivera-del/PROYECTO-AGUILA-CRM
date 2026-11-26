@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation'
 import { requireAuthContext } from '@/lib/auth-context'
 import { isAdministrator } from '@/lib/admin-access'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { hashCandidateKey, newCandidateKey, newFolio } from '@/lib/trade-in-motion-folio'
+import { hashCandidateKey, newFolio } from '@/lib/trade-in-motion-folio'
+
+import { identityKey } from '@/lib/candidate-identity'
 
 function canManage(role: string) {
   return isAdministrator(role) || role === 'reception'
@@ -45,7 +47,7 @@ export async function revokeInvite(formData: FormData) {
 }
 
 /** La clave se entrega UNA vez al operador, sin guardarla en claro ni enviarla por correo. */
-export async function createFolioAccess(nameInput: string) {
+export async function createFolioAccess(nameInput: string, surname: string, year: string) {
   const context = await requireAuthContext()
   if (!canManage(context.role)) return { error: 'No tienes permiso para generar accesos.' }
   const name = String(nameInput || '').trim().replace(/\\s+/g,' ').slice(0,180)
@@ -54,17 +56,18 @@ export async function createFolioAccess(nameInput: string) {
   const { data: company, error: companyError } = await admin.from('companies')
     .select('id').eq('slug','trade-in-motion').eq('is_active',true).maybeSingle()
   if (companyError || !company) return { error: 'No se encontró la empresa Trade in Motion.' }
-  const key = newCandidateKey()
+  const key = identityKey(String(surname || ''), String(year || ''))
+  if (!key) return { error: 'Escribe el primer apellido y un año de nacimiento válido.' }
   const keyHash = hashCandidateKey(key)
   for (let attempt = 0; attempt < 12; attempt++) {
     const folio = newFolio()
     const { error } = await admin.from('vm_trade_in_motion_access').insert({
       organization_id: context.organizationId, company_id:company.id,
-      folio, key_hash:keyHash, applicant_name:name, created_by:context.userId,
+      folio, key_hash:keyHash, auth_mode:'surname_year', applicant_name:name, created_by:context.userId,
     })
     if (!error) {
       revalidatePath('/admin/formularios/trade-in-motion')
-      return { folio, key }
+      return { folio }
     }
     if (error.code !== '23505') break
   }
@@ -82,4 +85,19 @@ export async function revokeFolioAccess(formData: FormData) {
     .eq('id',id).eq('organization_id',context.organizationId)
   if (error) throw new Error('No se pudo revocar el acceso')
   revalidatePath('/admin/formularios/trade-in-motion')
+}
+
+export async function resetFolioIdentity(formData: FormData) {
+ const context = await requireAuthContext()
+ if (!canManage(context.role)) redirect('/admin')
+ const id = String(formData.get('id') || '')
+ const key = identityKey(String(formData.get('surname') || ''), String(formData.get('year') || ''))
+ if (!/^[0-9a-f-]{36}$/i.test(id) || !key) redirect('/admin/formularios/trade-in-motion?identity_error=1')
+ const admin = createAdminClient()
+ const { data, error } = await admin.from('vm_trade_in_motion_access').update({key_hash:hashCandidateKey(key),auth_mode:'surname_year',failed_attempts:0,locked_until:null,updated_at:new Date().toISOString()}).eq('id',id).eq('organization_id',context.organizationId).select('id').maybeSingle()
+ if (error || !data) redirect('/admin/formularios/trade-in-motion?identity_error=1')
+ const {error:sessionError} = await admin.from('vm_trade_in_motion_sessions').update({revoked_at:new Date().toISOString()}).eq('access_id',id).is('revoked_at',null)
+ if(sessionError) redirect('/admin/formularios/trade-in-motion?identity_error=1')
+ revalidatePath('/admin/formularios/trade-in-motion')
+ redirect('/admin/formularios/trade-in-motion?identity_updated=1')
 }
