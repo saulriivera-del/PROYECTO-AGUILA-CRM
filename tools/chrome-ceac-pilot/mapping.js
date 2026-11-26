@@ -141,7 +141,7 @@
         add('cbxAPP_SSN_NA','SSN estadounidense TD: No aplica (declarado)','checkboxNA','Does Not Apply');
       else if (td && answers.us_social_security_number_td === 'Sí') {
         const ssn = String(answers.us_social_security_number_td_value || '').replace(/[ -]/g,'');
-        if (/^\\d{9}$/.test(ssn))
+        if (/^\d{9}$/.test(ssn))
           add('tbxAPP_SSN','SSN estadounidense TD (declarado)','text',ssn);
         else pending.push('SSN de TD: falta verificar los nueve dígitos informados por el cliente.');
       } else pending.push('SSN estadounidense: sin declaración TD verificada; revisar si existe número antes de elegir No aplica.');
