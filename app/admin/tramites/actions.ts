@@ -227,21 +227,24 @@ async function upsertAutomatedAgendaEvent(
     automation_key: input.automationKey,
   }
 
-  const { data: existing } = await context.supabase
+  const { data: existing, error: lookupError } = await context.supabase
     .from('agenda_events')
     .select('id')
     .eq('organization_id', context.organizationId)
     .eq('automation_key', input.automationKey)
     .maybeSingle()
 
+  if (lookupError) throw new Error(lookupError.message)
   if (existing?.id) {
-    await context.supabase
+    const { error } = await context.supabase
       .from('agenda_events')
       .update(payload)
       .eq('id', existing.id)
       .eq('organization_id', context.organizationId)
+    if (error) throw new Error(error.message)
   } else {
-    await context.supabase.from('agenda_events').insert(payload)
+    const { error } = await context.supabase.from('agenda_events').insert(payload)
+    if (error) throw new Error(error.message)
   }
 }
 
@@ -629,7 +632,7 @@ export async function resolveConsularStatus(formData: FormData) {
 
   const { data: process, error: processError } = await context.supabase
     .from('processes')
-    .select('id, client_id, service_name, clients(full_name)')
+    .select('id, client_id, service_name, status, closed_at, current_stage, clients(full_name)')
     .eq('id', processId)
     .eq('organization_id', context.organizationId)
     .single()
@@ -643,6 +646,7 @@ export async function resolveConsularStatus(formData: FormData) {
   const client = Array.isArray(clientRelation) ? clientRelation[0] : clientRelation
   const clientName = client?.full_name ?? 'Cliente'
   const fail = (message: string) => redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}error=${encodeURIComponent(message)}`)
+  if (['Concluido','Cancelado'].includes(process.status)) fail('El trámite está cerrado. Reactívalo antes de modificar el resultado.')
   if (eventId) {
     const { data: event, error } = await context.supabase.from('agenda_events').select('id,process_id,automation_key,status').eq('id',eventId).eq('organization_id',context.organizationId).single()
     if (error || !event || event.process_id !== processId || event.automation_key !== `${processId}:consulate-status` || event.status !== 'Pendiente') fail('La alerta de resultado ya no está pendiente o no corresponde al trámite')
@@ -675,7 +679,7 @@ export async function resolveConsularStatus(formData: FormData) {
     }).eq('id', processId).eq('organization_id', context.organizationId)
     if(error) fail(error.message)
 
-    await upsertAutomatedAgendaEvent(context, {
+    try { await upsertAutomatedAgendaEvent(context, {
       processId,
       clientId: process.client_id,
       title: `Pendiente recoger visa · ${clientName}`,
@@ -684,12 +688,14 @@ export async function resolveConsularStatus(formData: FormData) {
       automationKey: `${processId}:visa-pickup-pending`,
       eventType: 'Seguimiento',
       priority: 'Normal',
-    })
+    }) } catch (error) { fail(error instanceof Error ? error.message : 'No se pudo crear el seguimiento de entrega') }
   }
 
   if (result === 'Rechazada') {
-    await context.supabase.from('agenda_events').update({ status: 'Realizado' })
+    const {error}=await context.supabase.from('agenda_events').update({ status: 'Realizado' })
       .eq('process_id', processId).eq('organization_id', context.organizationId).eq('status', 'Pendiente')
+      .in('automation_key',['visa-pickup-pending','consulate-status','consulate-reminder','cas-reminder','interview-preparation','renewal-status-20','renewal-visa-arrival-20','h-status-2','h-status-10','assigned-priority'].map(key=>`${processId}:${key}`))
+    if(error) fail(error.message)
   } else {
     const {error}=await context.supabase.from('agenda_events').update({ status: 'Realizado' })
       .eq('process_id',processId).eq('organization_id',context.organizationId).eq('status','Pendiente')

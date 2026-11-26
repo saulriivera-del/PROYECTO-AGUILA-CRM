@@ -25,7 +25,7 @@ export async function completeAgendaEvent(f:FormData){
  if(lookupError||!event) redirect('/admin/agenda?error=No%20se%20encontró%20la%20actividad');
  const key=String(event.automation_key||'')
  if(key.endsWith(':consulate-status')) redirect('/admin/agenda?error=Registra%20el%20resultado%20consular')
- const pickup=event.process_id && key.endsWith(':visa-pickup-pending')
+ const pickup=event.process_id && (key.endsWith(':visa-pickup-pending') || key.endsWith(':renewal-visa-arrival-20'))
  if(event.status!=='Pendiente') redirect(returnTo+(returnTo.includes('?')?'&':'?')+'updated=1')
  if(!pickup){
    const {error}=await c.supabase.from('agenda_events').update({status:'Realizado'}).eq('id',id).eq('organization_id',c.organizationId);
@@ -34,6 +34,13 @@ export async function completeAgendaEvent(f:FormData){
 
  // Si se confirma la recolección de una visa, el trámite queda concluido y
  // cualquier otra alerta pendiente del mismo expediente se depura.
+ if(!pickup && event.process_id){
+   const now=new Date().toISOString()
+   const {error:processError}=await c.supabase.from('processes').update({last_movement_at:now}).eq('id',event.process_id).eq('organization_id',c.organizationId)
+   if(processError) redirect('/admin/agenda?error='+encodeURIComponent(processError.message))
+   const {error:logError}=await c.supabase.from('activity_log').insert({organization_id:c.organizationId,actor_id:c.userId,entity_type:'process',entity_id:event.process_id,action:'agenda_event_completed',description:'Actividad de agenda completada.',metadata:{event_id:id,automation_key:key}})
+   if(logError) redirect('/admin/agenda?error='+encodeURIComponent(logError.message))
+ }
  if(pickup){
    const now=new Date().toISOString()
    const {data:process,error:readError}=await c.supabase.from('processes').select('id,status,result_status').eq('id',event.process_id).eq('organization_id',c.organizationId).single()
