@@ -54,15 +54,21 @@ export async function createFolioAccess(nameInput: string) {
   const { data: company, error: companyError } = await admin.from('companies')
     .select('id').eq('slug','trade-in-motion').eq('is_active',true).maybeSingle()
   if (companyError || !company) return { error: 'No se encontró la empresa Trade in Motion.' }
-  const folio = newFolio()
   const key = newCandidateKey()
-  const { error } = await admin.from('vm_trade_in_motion_access').insert({
-    organization_id: context.organizationId, company_id:company.id,
-    folio, key_hash:hashCandidateKey(key), applicant_name:name, created_by:context.userId,
-  })
-  if (error) return { error: 'No se pudo generar el acceso. Intenta de nuevo.' }
-  revalidatePath('/admin/formularios/trade-in-motion')
-  return { folio, key }
+  const keyHash = hashCandidateKey(key)
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const folio = newFolio()
+    const { error } = await admin.from('vm_trade_in_motion_access').insert({
+      organization_id: context.organizationId, company_id:company.id,
+      folio, key_hash:keyHash, applicant_name:name, created_by:context.userId,
+    })
+    if (!error) {
+      revalidatePath('/admin/formularios/trade-in-motion')
+      return { folio, key }
+    }
+    if (error.code !== '23505') break
+  }
+  return { error: 'No se pudo generar el acceso. Intenta de nuevo.' }
 }
 
 export async function revokeFolioAccess(formData: FormData) {

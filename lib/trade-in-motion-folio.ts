@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export const CANDIDATE_COOKIE = 'vm_tn_candidate_session'
 export const SESSION_SECONDS = 7 * 24 * 60 * 60
 
-export function newFolio() { return 'VM-' + randomBytes(6).toString('hex').toUpperCase() }
+export { newFolio } from '@/lib/candidate-folio'
 export function newCandidateKey() {
   return randomBytes(12).toString('hex').toUpperCase().match(/.{1,6}/g)!.join('-')
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isValidFolio } from '@/lib/candidate-folio'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   CANDIDATE_COOKIE, SESSION_SECONDS, newSessionToken, tokenHash, verifyCandidateKey,
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     folio = typeof body.folio === 'string' ? body.folio.trim().toUpperCase() : ''
     key = typeof body.key === 'string' ? body.key.trim() : ''
   } catch { return invalid() }
-  if (!/^VM-[A-F0-9]{12}$/.test(folio) || !/^[a-fA-F0-9\s-]{24,40}$/.test(key)) return invalid()
+  if (!isValidFolio(folio) || !/^[a-fA-F0-9\s-]{24,40}$/.test(key)) return invalid()
   try {
     const admin = createAdminClient()
     const { data: access, error } = await admin.from('vm_trade_in_motion_access')

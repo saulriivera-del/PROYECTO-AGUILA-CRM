@@ -415,7 +415,7 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
         {error ? <div className="tn-error" role="alert">{error}</div> : null}
         <form onSubmit={login}>
           <label className="tn-label">Folio del candidato *
-            <input className="tn-input" required autoCapitalize="characters" value={folioInput} onChange={e => setFolioInput(e.target.value)} placeholder="VM-XXXXXXXXXXXX"/>
+            <input className="tn-input" required autoCapitalize="characters" value={folioInput} onChange={e => setFolioInput(e.target.value)} placeholder="Ej. 482731"/>
           </label>
           <label className="tn-label">Clave de acceso *
             <input className="tn-input" type="password" required autoComplete="off" value={keyInput} onChange={e=>setKeyInput(e.target.value)} placeholder="Clave entregada por Visa Master"/>
