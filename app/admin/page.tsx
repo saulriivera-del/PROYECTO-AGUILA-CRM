@@ -3,7 +3,7 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { dateOnly, dateTime, money } from '@/lib/format'
 import { addDaysKey, daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
 import { getFinancialSummary } from '@/lib/financial-summary'
-import { agendaCategory, inactivityLevel, processOperationalState } from '@/lib/operational'
+import { agendaCategory, inactivityLevel, processOperationalState, isFinalProcess, isPendingAgendaEvent } from '@/lib/operational'
 import SubmitButton from '@/components/submit-button'
 import ProcessQuickControl from '@/components/process-quick-control'
 import { completeAgendaEvent } from '@/app/admin/agenda/actions'
@@ -26,18 +26,18 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, { data: prospects }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
-      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone)'
+      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage, closed_at)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
-      'id, service_name, status, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, interview_preparation_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
+      'id, service_name, status, result_status, closed_at, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, interview_preparation_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
     ).eq('organization_id', context.organizationId).not('status', 'in', '(Concluido,Cancelado,Rechazada)').order('priority_attention_at', { ascending: true, nullsFirst: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
     context.supabase.from('prospects').select('id, full_name, phone, service_interest, status, assigned_to, next_followup_at, last_followup_at, updated_at, created_at').eq('organization_id', context.organizationId).eq('status','Activo'),
     getFinancialSummary(context.supabase, context.organizationId),
   ])
 
-  const allAgenda = agenda ?? []
-  const allProcesses = (processes ?? []).map((process: any) => ({
+  const allAgenda = (agenda ?? []).filter(isPendingAgendaEvent)
+  const allProcesses = (processes ?? []).filter((process: any) => !isFinalProcess(process)).map((process: any) => ({
     ...process,
     paid_amount: (process.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount), 0),
   }))
@@ -161,7 +161,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
             {isConsular ? <>
               <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="process_id" value={recommendedProcess.id}/><input type="hidden" name="result_status" value="Rechazada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="danger-button" pendingText="Guardando…">Rechazada</SubmitButton></form>
               <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="process_id" value={recommendedProcess.id}/><input type="hidden" name="result_status" value="Aprobada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton pendingText="Guardando…">Aprobada</SubmitButton></form>
-            </> : <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton pendingText="Actualizando…">Marcar realizada</SubmitButton></form>}
+            </> : <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={recommended.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton pendingText="Actualizando…">{String(recommended.automation_key || '').endsWith(':visa-pickup-pending') ? 'Confirmar visa recogida' : 'Marcar realizada'}</SubmitButton></form>}
           </div>
         })() : null}
       </section>
@@ -208,7 +208,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
                   {consularDecision ? <>
                     <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="result_status" value="Rechazada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button danger-button" pendingText="Guardando…">Rechazada</SubmitButton></form>
                     <form action={resolveConsularStatus}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="process_id" value={process.id}/><input type="hidden" name="result_status" value="Aprobada"/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Guardando…">Aprobada</SubmitButton></form>
-                  </> : <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Actualizando…">Realizada</SubmitButton></form>}
+                  </> : <form action={completeAgendaEvent}><input type="hidden" name="event_id" value={event.id}/><input type="hidden" name="return_to" value={`/admin?view=${encodeURIComponent(selectedView)}`}/><SubmitButton className="mini-button" pendingText="Actualizando…">{String(event.automation_key || '').endsWith(':visa-pickup-pending') ? 'Confirmar visa recogida' : 'Realizada'}</SubmitButton></form>}
                 </div>
               </article>
             })}

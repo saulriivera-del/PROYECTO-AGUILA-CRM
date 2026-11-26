@@ -453,6 +453,11 @@ export async function updateProcessStep(formData: FormData) {
     }
   }
 
+  if (nextStatus === 'Completado' && normalizedStep.includes('aprobada o rechazada')) {
+    formData.set('return_to', `/admin/tramites/${processId}`)
+    return resolveConsularStatus(formData)
+  }
+
   const now = new Date().toISOString()
 
   if (nextStatus === 'Completado') {
@@ -588,6 +593,9 @@ export async function updateProcessStep(formData: FormData) {
     })
     .eq('id', processId)
 
+  if(allCompleted){
+    await context.supabase.from('agenda_events').update({status:'Realizado'}).eq('organization_id',context.organizationId).eq('process_id',processId).eq('status','Pendiente').in('automation_key',['visa-pickup-pending','consulate-status','consulate-reminder','cas-reminder','interview-preparation','renewal-status-20','renewal-visa-arrival-20','assigned-priority','h-status-2','h-status-10','eta-followup','passport-reminder'].map(key=>`${processId}:${key}`))
+  }
   await context.supabase.from('activity_log').insert({
     organization_id: context.organizationId,
     actor_id: context.userId,
@@ -604,7 +612,6 @@ export async function updateProcessStep(formData: FormData) {
   revalidatePath('/admin')
   revalidatePath('/admin/agenda')
   revalidatePath('/admin/tramites')
-  revalidatePath('/admin/agenda')
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`/admin/tramites/${processId}?updated=1`)
 }
@@ -635,9 +642,20 @@ export async function resolveConsularStatus(formData: FormData) {
   const clientRelation = (process as any).clients
   const client = Array.isArray(clientRelation) ? clientRelation[0] : clientRelation
   const clientName = client?.full_name ?? 'Cliente'
-
+  const fail = (message: string) => redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}error=${encodeURIComponent(message)}`)
+  if (eventId) {
+    const { data: event, error } = await context.supabase.from('agenda_events').select('id,process_id,automation_key,status').eq('id',eventId).eq('organization_id',context.organizationId).single()
+    if (error || !event || event.process_id !== processId || event.automation_key !== `${processId}:consulate-status` || event.status !== 'Pendiente') fail('La alerta de resultado ya no está pendiente o no corresponde al trámite')
+  }
+  const {data:steps,error:stepError}=await context.supabase.from('process_steps').select('id,step_name,step_order,status').eq('process_id',processId).eq('organization_id',context.organizationId)
+  if(stepError) fail(stepError.message)
+  const resultSteps=(steps??[]).filter(s=>s.step_name.toLowerCase().includes('aprobada o rechazada'))
+  if(resultSteps.length){
+    const {error}=await context.supabase.from('process_steps').update({status:'Completado',completed_at:now,completed_by:context.userId}).eq('organization_id',context.organizationId).eq('process_id',processId).in('id',resultSteps.map(s=>s.id))
+    if(error) fail(error.message)
+  }
   if (result === 'Rechazada') {
-    await context.supabase.from('processes').update({
+    const {error}=await context.supabase.from('processes').update({
       result_status: 'Rechazada',
       status: 'Rechazada',
       current_stage: 'Rechazada',
@@ -645,14 +663,17 @@ export async function resolveConsularStatus(formData: FormData) {
       closed_at: now,
       last_movement_at: now,
     }).eq('id', processId).eq('organization_id', context.organizationId)
+    if(error) fail(error.message)
   } else {
-    await context.supabase.from('processes').update({
+    const {error}=await context.supabase.from('processes').update({
       result_status: 'Aprobada',
       status: 'Aprobada',
       current_stage: 'Aprobada · pendiente de recolección',
       operational_status: 'Seguimiento pendiente',
+      closed_at: null,
       last_movement_at: now,
     }).eq('id', processId).eq('organization_id', context.organizationId)
+    if(error) fail(error.message)
 
     await upsertAutomatedAgendaEvent(context, {
       processId,
@@ -669,9 +690,11 @@ export async function resolveConsularStatus(formData: FormData) {
   if (result === 'Rechazada') {
     await context.supabase.from('agenda_events').update({ status: 'Realizado' })
       .eq('process_id', processId).eq('organization_id', context.organizationId).eq('status', 'Pendiente')
-  } else if (eventId) {
-    await context.supabase.from('agenda_events').update({ status: 'Realizado' })
-      .eq('id', eventId).eq('organization_id', context.organizationId)
+  } else {
+    const {error}=await context.supabase.from('agenda_events').update({ status: 'Realizado' })
+      .eq('process_id',processId).eq('organization_id',context.organizationId).eq('status','Pendiente')
+      .in('automation_key',['consulate-status','consulate-reminder','cas-reminder','interview-preparation','renewal-status-20'].map(key=>`${processId}:${key}`))
+    if(error) fail(error.message)
   }
 
   await context.supabase.from('activity_log').insert({
@@ -930,6 +953,7 @@ export async function quickUpdateProcess(formData: FormData) {
 
   revalidatePath('/admin')
   revalidatePath('/admin/tramites')
+  revalidatePath('/admin/agenda')
   revalidatePath(`/admin/tramites/${processId}`)
   redirect(`${returnTo}${returnTo.includes('?') ? '&' : '?'}quick_updated=1`)
 }

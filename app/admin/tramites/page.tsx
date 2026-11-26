@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateOnly, dateTime, money } from '@/lib/format'
-import { inactivityAlert } from '@/lib/operational'
+import { inactivityAlert, isFinalProcess } from '@/lib/operational'
 import NewProcessModal from '@/components/new-process-modal'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -20,7 +20,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
   const [{ data: clients }, { data: rawFlows }, { data: processData }, { data: profiles }] = await Promise.all([
     context.supabase.from('clients').select('id, full_name, phone, email, city, state, processes(id)').eq('organization_id', context.organizationId).order('full_name'),
     context.supabase.from('service_flows').select('id, service_name').eq('is_active', true).order('service_name'),
-    context.supabase.from('processes').select('id, service_name, status, priority, operational_status, current_stage, government_appointment_at, cas_appointment_at, consulate_appointment_at, contact_phone, priority_attention_at, assigned_to, created_at, last_movement_at, clients(full_name, phone, email), process_charges(agreed_amount), process_steps(id, status)').eq('organization_id', context.organizationId).order('created_at', { ascending: false }),
+    context.supabase.from('processes').select('id, service_name, status, result_status, closed_at, priority, operational_status, current_stage, government_appointment_at, cas_appointment_at, consulate_appointment_at, contact_phone, priority_attention_at, assigned_to, created_at, last_movement_at, clients(full_name, phone, email), process_charges(agreed_amount), process_steps(id, status)').eq('organization_id', context.organizationId).order('created_at', { ascending: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
   ])
 
@@ -32,7 +32,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
 
   let processes = (processData ?? []).filter((process:any) => {
     const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
-    const final = ['concluido','cancelado','aprobada','aprobado','rechazada','rechazado'].some((word) => text(process.status).includes(word) || text(process.current_stage).includes(word))
+    const final = isFinalProcess(process)
     if (statusFilter === 'activos' && final) return false
     if (statusFilter === 'concluidos' && !final) return false
     if (statusFilter === 'sin-movimiento' && !inactivityAlert(process)) return false

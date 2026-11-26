@@ -74,6 +74,7 @@ export default async function ProcessDetailPage({
         </div>
       </header>
 
+      {query.consular_result ? <div className="notice success">Resultado consular registrado: {String(query.consular_result)}</div> : null}
       {query.updated ? <div className="notice success">Etapa actualizada correctamente.</div> : null}
       {query.status_updated ? <div className="notice success">Estado del trámite actualizado.</div> : null}
       {query.visa_followup ? <div className="notice success">Seguimiento para Visa Americana agregado a la agenda.</div> : null}
