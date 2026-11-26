@@ -27,7 +27,7 @@ test('identifica nombres de pila capturados solos en Águila sin requerir apelli
     {given:'LUIS',surname:'DEL RIO'});
   const plan = buildPlan({...data,full_name:'Ángel Saúl',curp_paterno:'Rivera',curp_materno:'Espinoza'}, P1);
   assert.equal(plan.actions.length,13);
-  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='ANGEL SAUL RIVERA ESPINOZA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'&&a.mode==='checkboxNA'));
   assert.ok(plan.actions.some(a=>a.suffix==='rblOtherNames_1'&&a.mode==='radioNo'));
   assert.ok(plan.actions.some(a=>a.suffix==='rblTelecodeQuestion_1'&&a.mode==='radioNo'));
   assert.ok(plan.actions.some(a => a.suffix === 'tbxAPP_SURNAME' && a.value === 'RIVERA ESPINOZA'));
@@ -53,7 +53,7 @@ test('página 1 solo propone controles CEAC conocidos',() => {
   assert.equal(plan.actions.length,13);
   assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_GIVEN_NAME'&&a.value==='MARIA ELENA'));
   assert.ok(plan.actions.some(a=>a.suffix==='ddlDOBMonth'&&a.value==='AUG'));
-  assert.equal(plan.actions.some(a=>a.suffix.includes('FULL_NAME_NATIVE_NA')),false);
+  assert.equal(plan.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'&&a.mode==='checkboxNA'),true);
 });
 test('página 2 prepara nacionalidad y CURP solo tras confirmación',() => {
   const plan=buildPlan(data,P2);
@@ -102,7 +102,7 @@ test('país de nacimiento: México se identifica con código propio de CEAC y c�
   assert.equal(resolveCountryOption([...options,{code:'MEX2',label:'MEXICO'}],'MX'),null);
   const plan = buildPlan({...data,birth_country:'MX'},P1);
   assert.ok(plan.actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY'&&a.value==='MX'));
-  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='MARIA ELENA LOPEZ GARCIA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'&&a.mode==='checkboxNA'));
 });
 
 test('ISO US se compara de forma inequívoca con catálogo CEAC',() => {
@@ -119,16 +119,41 @@ test('Nunca responde No de otros nombres o telecódigo por omisión',() => {
   const noResponses=buildPlan({...data,other_names_used:'No',name_telecode:'No'},P1);
   assert.equal(noResponses.actions.filter(a=>a.mode==='radioNo').length,2);
   const unknown=buildPlan({...data,other_names_used:'',name_telecode:''},P1);
-  assert.equal(unknown.actions.some(a=>a.mode==='radioNo'),false);
+  assert.equal(unknown.actions.filter(a=>a.mode==='radioNo').length,1); // telecódigo: No por defecto
   const yes=buildPlan({...data,other_names_used:'Sí',name_telecode:'Sí'},P1);
   assert.equal(yes.actions.some(a=>a.mode==='radioNo'),false);
   assert.ok(yes.pending.some(a=>a.includes('Otros nombres utilizados')));
 });
 
-test('Nombre nativo concatena nombres de pila y ambos apellidos solo en caso mexicano',() => {
+test('Alfabeto nativo queda en No aplica como regla verificable del piloto mexicano',() => {
   const plan=buildPlan({...data, full_name:'Mariana',curp_paterno:'Bustamante',curp_materno:'Baca',birth_country:'mexico'},P1);
-  assert.ok(plan.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'&&a.value==='MARIANA BUSTAMANTE BACA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'&&a.mode==='checkboxNA'));
   assert.ok(plan.actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY'&&a.mode==='selectCountry'&&a.value==='MEXICO'));
   const otherAlphabet=buildPlan({...data,birth_country:'Japan'},P1);
-  assert.equal(otherAlphabet.actions.some(a=>a.suffix==='tbxAPP_FULL_NAME_NATIVE'),false);
+  assert.equal(otherAlphabet.actions.some(a=>a.suffix==='cbxAPP_FULL_NAME_NATIVE_NA'),false);
+});
+
+test('TD: SSN estadounidense responde No aplica solo cuando fue declarado No',() => {
+  const td={...data,visa_profile:'TD_CONYUGE',us_social_security_number_td:'No'};
+  const plan=buildPlan(td,P2);
+  assert.ok(plan.actions.some(a=>a.suffix==='cbxAPP_SSN_NA'&&a.mode==='checkboxNA'));
+  assert.ok(plan.actions.some(a=>a.suffix==='cbxAPP_TAX_ID_NA'&&a.mode==='checkboxNA'));
+  const yes=buildPlan({...td,us_social_security_number_td:'Sí',
+    us_social_security_number_td_value:'123-45-6789'},P2);
+  assert.ok(yes.actions.some(a=>a.suffix==='tbxAPP_SSN'&&a.value==='123456789'));
+  const invalid=buildPlan({...td,us_social_security_number_td_value:'1234',us_social_security_number_td:'Sí'},P2);
+  assert.equal(invalid.actions.some(a=>a.suffix==='tbxAPP_SSN'),false);
+  assert.equal(buildPlan({...td,visa_profile:'TN'},P2).actions.some(a=>a.suffix==='cbxAPP_SSN_NA'),false);
+});
+
+test('No inventar nacionalidad adicional ni residencia permanente',() => {
+  const unknown=buildPlan({...data,other_nationality:'',permanent_resident_other_country:''},P2);
+  assert.equal(unknown.actions.some(a=>a.suffix==='rblAPP_OTHER_NATL_1'),false);
+  assert.equal(unknown.actions.some(a=>a.suffix==='rblAPP_PERM_RESIDENT_1'),false);
+  const declared=buildPlan({...data,other_nationality:'No',permanent_resident_other_country:'No'},P2);
+  assert.ok(declared.actions.some(a=>a.suffix==='rblAPP_OTHER_NATL_1'&&a.mode==='radioNo'));
+  assert.ok(declared.actions.some(a=>a.suffix==='rblAPP_PERM_RESIDENT_1'&&a.mode==='radioNo'));
+  const yes=buildPlan({...data,other_nationality:'Sí',permanent_resident_other_country:'Sí'},P2);
+  assert.equal(yes.actions.some(a=>a.suffix==='rblAPP_OTHER_NATL_1'),false);
+  assert.ok(yes.pending.some(x=>x.includes('Otra nacionalidad')));
 });
