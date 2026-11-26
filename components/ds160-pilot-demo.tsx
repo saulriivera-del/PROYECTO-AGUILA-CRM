@@ -44,6 +44,34 @@ export default function Ds160PilotDemoPage() {
         <p style={{margin:'9px 0 0', lineHeight:1.6}}>Águila ya tiene el flujo de aprobación y la lectura autenticada de datos personales. La extensión Chrome v0.2, disponible en el repositorio principal, prepara hasta 10 campos en Datos personales 1 y 2 campos en Datos personales 2. Falta validar el llenado extremo a extremo en CEAC con una solicitud ficticia; esta demo no modifica ninguna solicitud oficial.</p>
       </div>
       <section style={{...card,marginTop:20}}><h2 style={{fontSize:18,marginTop:0}}>Extensión piloto disponible</h2><p>Descarga el repositorio desde GitHub, extrae la carpeta <code>tools/chrome-ceac-pilot</code> y en Chrome abre <code>chrome://extensions</code> → Modo desarrollador → Cargar descomprimida. Abre la ficha aprobada del candidato en Águila y la página CEAC en otra pestaña.</p><p><a href="https://github.com/saulriivera-del/PROYECTO-AGUILA-CRM/tree/main/tools/chrome-ceac-pilot" target="_blank" rel="noopener noreferrer">Ver extensión y guía de instalación en GitHub</a></p><p style={{fontSize:12,color:palette.muted}}>Usar solo con expedientes ficticios hasta completar la validación. La aprobación de Mariana sigue siendo obligatoria.</p></section>
+      <section style={{...card, marginTop:20}}>
+        <h2 style={{fontSize:19,margin:'0 0 9px'}}>Configuración propuesta · primeras dos páginas</h2>
+        <p style={{color:palette.muted,fontSize:13,lineHeight:1.6}}>Estas reglas son el punto de partida de Visa Master. La extensión verifica los controles de CEAC antes de aplicarlas y deja pendientes las excepciones o identificadores que no pueda confirmar.</p>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(255px,1fr))',gap:14,marginTop:12}}>
+          {[
+            {title:'Personal Information 1',rows:[
+              ['Alfabeto nativo','No aplica · predeterminado'],
+              ['Telecódigo','No · predeterminado'],
+              ['Otros nombres','Respuesta del solicitante'],
+              ['Nombre, fecha, lugar y estado civil','Datos revisados del expediente'],
+            ]},
+            {title:'Personal Information 2',rows:[
+              ['Nacionalidad y nacionalidad adicional','Respuesta del solicitante'],
+              ['Residencia permanente en otro país','Respuesta del solicitante'],
+              ['Identificación nacional','CURP confirmada'],
+              ['SSN estadounidense · solo TD','Preguntar; No → Does Not Apply'],
+              ['Número fiscal estadounidense','No aplica · predeterminado'],
+            ]},
+          ].map(p=><div key={p.title} style={{border:'1px solid '+palette.border,borderRadius:10,padding:14}}>
+            <strong>{p.title}</strong>
+            {p.rows.map(([field,value])=><div key={field} style={{padding:'10px 0',borderTop:'1px solid #edf1f6',marginTop:8}}>
+              <div style={{fontSize:12,color:palette.muted}}>{field}</div>
+              <div style={{fontSize:13,fontWeight:650,marginTop:3}}>{value}</div>
+            </div>)}
+          </div>)}
+        </div>
+        <p style={{fontSize:12,color:palette.muted,margin:'13px 0 0'}}>Las excepciones documentadas prevalecen. Esta vista no firma ni envía solicitudes oficiales.</p>
+      </section>
       <section style={{marginTop:24}}>
         <h2 style={{fontSize:19}}>¿Qué vista quieres revisar?</h2>
         <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
