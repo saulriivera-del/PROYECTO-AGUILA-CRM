@@ -1,6 +1,6 @@
 # Visa Master · piloto Chrome DS-160 · Personal 1 y 2
 
-**Versión 0.5.1** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
+**Versión 0.5.2** · Preparado para pruebas supervisadas con solicitudes ficticias. **No se ha verificado todavía el llenado en una sesión viva de CEAC**. No utilizar con información real hasta confirmar la prueba piloto y revisar las respuestas frente al documento del solicitante.
 
 ## Dependencias
 - Chrome de escritorio con la extensión de esta carpeta instalada sin comprimir.
@@ -11,7 +11,7 @@
 ## Instalar y actualizar
 1. Descarga el repositorio desde GitHub (Código > Descargar ZIP), descomprímelo y ubica `tools/chrome-ceac-pilot`.
 2. En Chrome abre `chrome://extensions`, activa *Modo desarrollador*, pulsa *Cargar descomprimida* y selecciona **solo** la carpeta `tools/chrome-ceac-pilot`. No selecciones todo el CRM.
-3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.5.1**.
+3. Si tenías el inspector anterior, puedes mantenerlo para referencia, pero esta extensión piloto es **otra carpeta**. Comprueba que se muestra la versión **0.5.2**.
 4. Tras cada actualización del código, pulsa el icono **Recargar** de esta extensión en `chrome://extensions`.
 
 ## Mapear todo el DS-160, pantalla por pantalla
@@ -48,12 +48,13 @@ El registro independiente por perfil está documentado en `docs/ds160-tn-td-b1b2
 
 **Infraestructura:** requiere la migración `supabase/ds160_application_links.sql` y la ruta de API `/api/admin/ds160/application-id`. La vinculación no sustituye el chequeo de identidad ni la revisión del DS-160.
 
-## Recorrido automático supervisado (v0.5.1)
+## Recorrido automático supervisado (v0.5.2)
 
 - Abre una **solicitud ficticia** de CEAC en Personal Information 1 y deja **una sola pestaña** de expediente aprobado abierta en CRM. Para probar las nuevas preguntas TD y los valores por defecto **sin publicar en producción**, usa la vista previa autorizada: `https://proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app/admin/demo-automatizacion-ds160` y abre allí el expediente de prueba aprobado. Esta versión no se ha probado en una sesión oficial viva.
 - Pulsa **Preparar y comparar campos** y revisa el solicitante, los campos y las respuestas predeterminadas. Marca las dos confirmaciones: comprobación del expediente y permiso de recorrido.
 - Pulsa **Iniciar llenado y avance automático**. El controlador vuelve a leer el expediente autorizado, revisa los campos visibles y rellena los compatibles sin guardar información personal en la extensión. Cuando todos los campos de la sección coinciden, pulsa **Next** para guardar temporalmente y continuar.
-- Si CEAC conserva la misma página por un error, cambia los controles, surge una excepción, faltan campos o se llega a una página no mapeada, el recorrido **se detiene**. Reabre la extensión para ver el estado. El botón **Detener recorrido** permite detenerlo por decisión del operador.
+- Si CEAC conserva la misma página por un error, cambia los controles, surge una excepción, faltan campos o se llega a una página no mapeada, el recorrido **se detiene**. Puede precargar únicamente los campos que coinciden, pero nunca pulsa Next con pendientes. Reabre la extensión para ver el estado. El botón **Detener recorrido** permite detenerlo por decisión del operador.
+- En caso de bloqueo por alfabeto nativo o país de nacimiento, pulsa **Copiar diagnóstico de controles (sin datos personales)** y comparte el texto: recoge solamente IDs, etiquetas y opciones del catálogo, nunca respuestas del solicitante ni Application ID. No se debe inventar una equivalencia ni forzar un control.
 - El alcance actual es exclusivamente Personal Information 1 y Personal Information 2. **No debe intentar saltar Travel Information u otras secciones:** se detiene allí para que continuemos su mapeo. La implementación para llegar a las páginas **Review** queda pendiente hasta que cada sección restante esté verificada.
 - No resolver CAPTCHA, no automatizar firma ni envío. El solicitante debe revisar y firmar personalmente según las instrucciones del Departamento de Estado.
 - El estado de ejecución conserva únicamente IDs de pestañas, identificador del expediente y mensajes de control en `chrome.storage.session`; se consultan las respuestas aprobadas de nuevo en cada pantalla, sin guardar datos personales en almacenamiento de la extensión.

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Visa Master · Piloto DS-160 (datos personales)",
-  "version": "0.5.1",
-  "description": "Piloto DS-160: mapeo CEAC, precarga y avance supervisado de Datos personales 1/2; pausa ante dudas; nunca firma ni envía.",
+  "version": "0.5.2",
+  "description": "Piloto DS-160 con diagnóstico de controles, precarga parcial supervisada y Next solo cuando la página está verificada; nunca firma ni envía.",
   "permissions": [
     "activeTab",
     "scripting",

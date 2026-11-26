@@ -63,7 +63,18 @@ t('No avanza si hay dos botones Next ni en pantalla de firma',()=>{
 t('La extensión registra un service worker para mantener el recorrido',()=>{
   const m=require('./manifest.json');
   assert.equal(m.background.service_worker,'workflow-background.js');
-  assert.equal(m.version,'0.5.1');
+  assert.equal(m.version,'0.5.2');
   assert.ok(m.host_permissions.includes('https://proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app/*'));
   assert.ok(m.permissions.includes('activeTab'));
+});
+
+t('El piloto permite precarga parcial sin dejar avanzar con datos faltantes',()=>{
+  const popup=fs.readFileSync(path.join(__dirname,'popup.js'),'utf8');
+  const html=fs.readFileSync(path.join(__dirname,'popup.html'),'utf8');
+  assert.ok(popup.includes("latestInspection = scanned;"));
+  assert.ok(popup.includes("if(!prepared || !$('confirm').checked) return;"));
+  assert.ok(popup.includes("diagnosticMetadata(latestInspection)"));
+  assert.ok(html.includes('id="copy-diag"'));
+  assert.ok(html.includes('Precargar campos compatibles (sin avanzar)'));
+  assert.ok(plan(example,P1,fields(P1).filter(f=>f.id!=='ctl00_ddlAPP_POB_CNTRY')).canAdvance===false);
 });

@@ -2,10 +2,13 @@
 const $ = id => document.getElementById(id);
 const pilot = window.VmCeacPilot;
 let prepared = null;
+let latestInspection = null;
 
 function status(message) { $('status').textContent = message; }
 function reset() {
-  prepared = null; $('fill').disabled = true; $('confirm').checked = false;
+  prepared = null; latestInspection = null;
+  $('copy-diag').disabled = true; $('diag-status').textContent = '';
+  $('fill').disabled = true; $('confirm').checked = false;
   $('auto-start').disabled = true; $('auto-confirm').checked = false;
   $('preview').style.display = 'none'; $('actions').replaceChildren();
   $('pending').replaceChildren();
@@ -222,6 +225,7 @@ $('prepare').addEventListener('click',async () => {
     const ceac=await currentCEAC(), cm=await findCRMTab();
     const result=await approvedFrom(cm.id);
     const scanned=await scanCEAC(ceac.id);
+    latestInspection = scanned; $('copy-diag').disabled = false;
     const plan=pilot.buildPlan(result.answers,scanned.path);
     const actions=[], pending=[...plan.pending];
     for (const action of plan.actions) {
@@ -233,7 +237,7 @@ $('prepare').addEventListener('click',async () => {
     // si CEAC no ofrece exactamente la opción del expediente.
     const countryMissing = scanned.path === pilot.P1 &&
       !actions.some(a=>a.suffix==='ddlAPP_POB_CNTRY');
-    if (countryMissing) pending.unshift('BLOQUEADO: no se identificó el país de nacimiento en CEAC. No rellenes esta página hasta revisar la opción exacta. Usa «Inspeccionar estructura CEAC» para comparar las opciones, sin capturar datos personales.');
+    if (countryMissing) pending.unshift('PAUSA DE AVANCE: el país de nacimiento no coincide con el catálogo CEAC. Puedes probar los otros campos, pero NO avanzará automáticamente hasta verificar esta opción. Copia el diagnóstico estructural.');
     $('page').textContent=plan.page+' · Vista previa';
     $('count').textContent=String(actions.length);
     actions.forEach(a=>item($('actions'),a.label+' → '+(a.displayValue || a.value)));
@@ -242,20 +246,21 @@ $('prepare').addEventListener('click',async () => {
     $('output').textContent=JSON.stringify(scanned,null,2);
     prepared={ceacTab:ceac.id,crmTab:cm.id,draftId:result.draftId,
       approved:JSON.stringify(result.answers),path:scanned.path,actions,countryMissing};
-    status(countryMissing ? 'País de nacimiento sin coincidencia. Llenado bloqueado para evitar errores en CEAC.' :
-      'Lista preparada. Confirma los campos antes de continuar.');
+    status(countryMissing
+      ? 'Puedes probar la precarga parcial. El avance automático quedará en pausa por el país de nacimiento.'
+      : 'Lista preparada. Confirma los campos antes de continuar.');
   }catch(e){status(e.message || 'No se pudo preparar la transferencia.');}
   finally{$('prepare').disabled=false;}
 });
 function updateStartButtons(){
-  $('fill').disabled = !prepared || !prepared.actions.length || prepared.countryMissing || !$('confirm').checked;
-  $('auto-start').disabled = !prepared || !prepared.actions.length || prepared.countryMissing ||
+  $('fill').disabled = !prepared || !prepared.actions.length || !$('confirm').checked;
+  $('auto-start').disabled = !prepared || !prepared.actions.length ||
     !$('confirm').checked || !$('auto-confirm').checked;
 }
 $('confirm').addEventListener('change',updateStartButtons);
 $('auto-confirm').addEventListener('change',updateStartButtons);
 $('fill').addEventListener('click',async () => {
-  if(!prepared || prepared.countryMissing || !$('confirm').checked) return;
+  if(!prepared || !$('confirm').checked) return;
   $('fill').disabled=true;status('Validando autorización antes de escribir...');
   try {
     const tab=await currentCEAC();
@@ -269,7 +274,7 @@ $('fill').addEventListener('click',async () => {
     });
     const data=r?.[0]?.result;
     if(!data || data.error) throw Error(data?.error || 'No se obtuvo confirmación de la escritura.');
-    status(data.applied+' campos aplicados en '+prepared.path+'. Revisa cada dato en CEAC y avanza manualmente.');
+    status(data.applied+' campos compatibles precargados. Revisa en CEAC los campos pendientes y avanza manualmente.');
   } catch(e) {status(e.message || 'No se pudo aplicar el llenado.');}
   finally {reset();}
 });
@@ -282,7 +287,7 @@ async function refreshAutoStatus(){
   }catch{$('auto-status').textContent='No está disponible el controlador del recorrido.';}
 }
 $('auto-start').addEventListener('click',async ()=>{
-  if(!prepared||!$('confirm').checked||!$('auto-confirm').checked||prepared.countryMissing)return;
+  if(!prepared||!$('confirm').checked||!$('auto-confirm').checked)return;
   $('auto-start').disabled=true;
   $('auto-status').textContent='Iniciando y verificando los campos…';
   try{
@@ -303,3 +308,29 @@ $('auto-stop').addEventListener('click',async ()=>{
   await refreshAutoStatus();
 });
 void refreshAutoStatus();
+
+/** Solo copia metadatos de los controles; nunca valores actuales ni datos del CRM. */
+function diagnosticMetadata(scan) {
+  const relevant=(scan?.fields||[]).filter(f=>f.type==='checkbox'||f.tag==='select'||
+    /NATIVE|POB_CNTRY|ALPHABET/i.test(f.id||''));
+  return {
+    kind:'vm-ceac-personal-structure-diagnostic-v1',
+    path:scan?.path||'',
+    fields:relevant.slice(0,70).map(f=>({
+      id:f.id,tag:f.tag,type:f.type,optionLabel:f.optionLabel||'',
+      countryOptions:f.tag==='select'?(f.options||[]).filter(o=>
+        /MEXI|MEX |MEX$|UNITED MEXICAN|MX$|^MX$/i.test(o.label+' '+o.code)).slice(0,12):undefined,
+      optionCount:f.tag==='select'?(f.options||[]).length:undefined
+    })),
+    safety:'NO_VALUES_NO_ANSWERS_NO_APPLICATION_ID'
+  };
+}
+$('copy-diag').addEventListener('click',async()=>{
+  if(!latestInspection)return;
+  try{
+    await navigator.clipboard.writeText(JSON.stringify(diagnosticMetadata(latestInspection),null,2));
+    $('diag-status').textContent='Diagnóstico copiado. Pégalo en el chat para ajustar los controles exactos de CEAC.';
+  }catch(e){
+    $('diag-status').textContent='No se pudo copiar. Usa «Mapear esta pantalla» para copiar los metadatos.';
+  }
+});
