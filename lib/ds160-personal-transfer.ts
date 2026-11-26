@@ -61,6 +61,9 @@ export function personalProblems(raw: unknown): PersonalProblem[] {
     if (field.type === 'multiselect' && (getSelectedSocialPlatforms(value).join('|') !== value || !getSelectedSocialPlatforms(value).length))
       problems.push({ key: field.key, label: field.label + ' (selección inválida)' })
   }
+  if (answers.us_social_security_number_td === 'Sí' &&
+      !/^\d{9}$/.test((answers.us_social_security_number_td_value || '').replace(/[ -]/g,'')))
+    problems.push({ key: 'us_social_security_number_td_value', label: 'SSN estadounidense TD: deben ser 9 dígitos' })
   if (isValidBirthCountry(answers.birth_country || '') && answers.birth_state &&
       !birthCountryMatchesState(answers.birth_country, answers.birth_state))
     problems.push({ key: 'birth_state', label: 'País y estado de nacimiento no coinciden' })
