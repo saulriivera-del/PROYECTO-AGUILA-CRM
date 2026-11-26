@@ -425,8 +425,8 @@ export default function CandidateForm({preview=false,previewIdentity='Mariana ·
           {legacyAccess ? <label className="tn-label">Clave de acceso anterior *
             <input className="tn-input" type="password" required autoComplete="off" value={keyInput} onChange={e=>setKeyInput(e.target.value)} placeholder="Clave entregada por Visa Master"/>
           </label> : <>
-            <label className="tn-label">Primeras cinco letras de tu primer apellido *
-              <input className="tn-input" required autoCapitalize="characters" autoComplete="off" value={surnameInput} onChange={e=>setSurnameInput(e.target.value)} maxLength={60} placeholder="Ej. GARCI"/>
+            <label className="tn-label">Primer apellido completo *
+              <input className="tn-input" required autoCapitalize="characters" autoComplete="off" value={surnameInput} onChange={e=>setSurnameInput(e.target.value)} maxLength={60} placeholder="Ej. GARCÍA"/>
             </label>
             <label className="tn-label">Año de nacimiento *
               <input className="tn-input" required inputMode="numeric" pattern="[0-9]{4}" maxLength={4} value={yearInput} onChange={e=>setYearInput(e.target.value)} placeholder="Ej. 1990"/>
