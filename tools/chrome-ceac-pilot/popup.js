@@ -40,6 +40,12 @@ function compatibleAction(action, fields) {
       return {ok:false,reason:'No se pudo verificar que la opción No corresponda a '+action.label};
     return {ok:true, action};
   }
+  if (action.mode === 'checkboxNA') {
+    if (field.tag !== 'input' || field.type !== 'checkbox' ||
+        !normalize(field.optionLabel).startsWith('DOESNOTAPPLY'))
+      return {ok:false,reason:'No se identificó una casilla Does Not Apply inequívoca para '+action.label};
+    return {ok:true,action};
+  }
   if (action.mode === 'text') {
     if (!['input','textarea'].includes(field.tag))
       return {ok:false,reason:'Tipo inesperado en '+action.label};
@@ -71,7 +77,7 @@ function inspectCeac() {
   }).map(el => ({
     id:el.id || '',name:el.name || '',tag:el.tagName.toLowerCase(),
     type:(el.getAttribute('type') || '').toLowerCase(),
-    optionLabel:el.type === 'radio' ? [...(el.labels || [])].map(l => (l.textContent || '').trim()).join(' ') : undefined,
+    optionLabel:['radio','checkbox'].includes(el.type) ? [...(el.labels || [])].map(l => (l.textContent || '').trim()).join(' ') : undefined,
     options:el.tagName === 'SELECT'
       ? [...el.options].map(o => ({code:o.value,label:(o.textContent || '').trim()}))
       : undefined,
@@ -141,14 +147,15 @@ function fillCeacPage(request) {
     return {error:'La pestaña cambió; no se realizó ninguna escritura.'};
   const allowed = request.path === p1
     ? new Set(['tbxAPP_SURNAME','tbxAPP_GIVEN_NAME','tbxAPP_FULL_NAME_NATIVE',
-      'rblOtherNames_1','rblTelecodeQuestion_1','ddlAPP_GENDER','ddlAPP_MARITAL_STATUS',
+      'rblOtherNames_1','rblTelecodeQuestion_1','cbxAPP_FULL_NAME_NATIVE_NA','ddlAPP_GENDER','ddlAPP_MARITAL_STATUS',
       'ddlDOBDay','ddlDOBMonth','tbxDOBYear','tbxAPP_POB_CITY','tbxAPP_POB_ST_PROVINCE','ddlAPP_POB_CNTRY'])
-    : new Set(['ddlAPP_NATL','tbxAPP_NATIONAL_ID']);
+    : new Set(['ddlAPP_NATL','tbxAPP_NATIONAL_ID','rblAPP_OTHER_NATL_1',
+      'rblAPP_PERM_RESIDENT_1','cbxAPP_SSN_NA','tbxAPP_SSN','cbxAPP_TAX_ID_NA']);
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toUpperCase().replace(/[^A-Z0-9]/g,'');
   const candidates = [];
   for (const action of request.actions) {
-    if (!allowed.has(action.suffix) || !['text','selectValue','radioNo'].includes(action.mode))
+    if (!allowed.has(action.suffix) || !['text','selectValue','radioNo','checkboxNA'].includes(action.mode))
       return {error:'Acción no permitida: se canceló toda la operación.'};
     const found = [...document.querySelectorAll('input,select,textarea')]
       .filter(el => el.id && el.id.endsWith('_'+action.suffix) && !el.disabled && el.getClientRects().length);
@@ -162,6 +169,11 @@ function fillCeacPage(request) {
       if (el.type !== 'radio' || labels.length !== 1 || labels[0] !== 'NO')
         return {error:'No se confirmó la etiqueta No en '+action.label+'. Ningún dato aplicado.'};
       candidates.push({el,action,value:true});
+    } else if (action.mode === 'checkboxNA') {
+      const labels=[...(el.labels || [])].map(l=>norm(l.textContent)).filter(Boolean);
+      if (el.type !== 'checkbox' || labels.length !== 1 || !labels[0].startsWith('DOESNOTAPPLY'))
+        return {error:'No se confirmó la casilla Does Not Apply en '+action.label+'. Ningún dato aplicado.'};
+      candidates.push({el,action,value:true});
     } else {
       if (el.tagName !== 'SELECT') return {error:'Control inesperado en '+action.label};
       const options=[...el.options].filter(o => o.value===action.value &&
@@ -174,9 +186,9 @@ function fillCeacPage(request) {
   // Verificar valores después: algunos selects CEAC pueden desencadenar un postback.
   let applied=0;
   // Los radios se aplican al final por si CEAC desencadena cambios de campos.
-  candidates.sort((a,b)=>Number(a.action.mode==='radioNo')-Number(b.action.mode==='radioNo'));
+  candidates.sort((a,b)=>Number(['radioNo','checkboxNA'].includes(a.action.mode))-Number(['radioNo','checkboxNA'].includes(b.action.mode)));
   for (const {el,value,action} of candidates) {
-    if (action.mode === 'radioNo') {
+    if (action.mode === 'radioNo' || action.mode === 'checkboxNA') {
       if (!el.checked) el.click();
       applied++;
       continue;
