@@ -63,6 +63,7 @@ t('No avanza si hay dos botones Next ni en pantalla de firma',()=>{
 t('La extensión registra un service worker para mantener el recorrido',()=>{
   const m=require('./manifest.json');
   assert.equal(m.background.service_worker,'workflow-background.js');
-  assert.equal(m.version,'0.5.0');
+  assert.equal(m.version,'0.5.1');
+  assert.ok(m.host_permissions.includes('https://proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app/*'));
   assert.ok(m.permissions.includes('activeTab'));
 });

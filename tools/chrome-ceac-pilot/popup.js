@@ -89,7 +89,7 @@ function inspectCeac() {
 
 // Función aislada en la página autenticada de Águila. Nunca copia cookies a la extensión.
 async function readCRMApproved() {
-  if (location.protocol !== 'https:' || location.hostname !== 'crm.visamaster.com.mx')
+  if (location.protocol !== 'https:' || !['crm.visamaster.com.mx','proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app'].includes(location.hostname))
     return {error:'Solo se permite leer la sesión del CRM oficial.'};
   const match = location.pathname.match(/^\/admin\/formularios\/trade-in-motion\/([a-f0-9-]{36})\/?$/i);
   if (!match) return {error:'Abre en otra pestaña la ficha de un candidato de Águila.'};
@@ -121,7 +121,8 @@ async function scanCEAC(tabId) {
   return data;
 }
 async function findCRMTab() {
-  const tabs = await chrome.tabs.query({url:'https://crm.visamaster.com.mx/admin/formularios/trade-in-motion/*'});
+  const hosts=['crm.visamaster.com.mx','proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app'];
+  const tabs=(await Promise.all(hosts.map(host=>chrome.tabs.query({url:'https://'+host+'/admin/formularios/trade-in-motion/*'})))).flat();
   const candidates = tabs.filter(t => {
     try { return /^\/admin\/formularios\/trade-in-motion\/[a-f0-9-]{36}\/?$/i.test(new URL(t.url).pathname); }
     catch { return false; }
@@ -129,7 +130,7 @@ async function findCRMTab() {
   if (candidates.length !== 1)
     throw Error(candidates.length
       ? 'Hay varias fichas de candidatos abiertas. Deja solo una pestaña de expediente aprobado.'
-      : 'No encontré una ficha de candidato abierta en crm.visamaster.com.mx.');
+      : 'No encontré una ficha aprobada en CRM de producción o pruebas.');
   return candidates[0];
 }
 async function approvedFrom(tabId) {

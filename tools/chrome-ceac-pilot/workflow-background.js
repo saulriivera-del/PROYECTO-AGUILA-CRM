@@ -13,7 +13,7 @@ async function pause(job,reason,status='paused'){
   await jobSet({...current,status,phase:'idle',message:reason});
 }
 function readCRMApproved(){
-  if(location.protocol!=='https:'||location.hostname!=='crm.visamaster.com.mx')return {error:'CRM no autorizado'};
+  if(location.protocol!=='https:'||!['crm.visamaster.com.mx','proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app'].includes(location.hostname))return {error:'CRM no autorizado'};
   const m=location.pathname.match(/^\/admin\/formularios\/trade-in-motion\/([a-f0-9-]{36})\/?$/i);
   if(!m)return {error:'Abre una única ficha de candidato en Águila'};
   return fetch('/api/admin/ds160/personal?draft_id='+encodeURIComponent(m[1]),{

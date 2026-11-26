@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Visa Master · Piloto DS-160 (datos personales)",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Piloto DS-160: mapeo CEAC, precarga y avance supervisado de Datos personales 1/2; pausa ante dudas; nunca firma ni envía.",
   "permissions": [
     "activeTab",
@@ -9,7 +9,8 @@
     "storage"
   ],
   "host_permissions": [
-    "https://crm.visamaster.com.mx/*"
+    "https://crm.visamaster.com.mx/*",
+    "https://proyecto-aguila-crm-git-feature-ds160-persona-0e92fb-visamaster.vercel.app/*"
   ],
   "action": {
     "default_popup": "popup.html",
