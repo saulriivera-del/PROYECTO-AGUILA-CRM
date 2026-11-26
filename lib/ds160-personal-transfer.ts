@@ -15,7 +15,8 @@ import {
 const personalFields = sections
   .filter(section => ['personal','contact','social'].includes(section.id))
   .flatMap(section => section.fields)
-  .filter(field => field.key !== 'visa_profile')
+  // La clase TN/TD/B1B2 debe viajar con la sección personal. Sin ella
+  // no podemos decidir si pedir el SSN estadounidense a un dependiente.
 if (!personalFields.length) throw new Error('No está configurado el bloque personal de Águila')
 
 export const PERSONAL_TRANSFER_SCHEMA = 'vm-ds160-personal-v1'
