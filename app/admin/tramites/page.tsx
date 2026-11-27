@@ -39,7 +39,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
     const final = isFinalProcess(process)
     if (statusFilter === 'activos' && final) return false
     if (statusFilter === 'concluidos' && !final) return false
-    if (statusFilter === 'sin-movimiento' && !inactivityAlert(process)) return false
+    if (statusFilter === 'sin-movimiento' && states.get(process.id) !== 'Sin movimiento') return false
     if (statusFilter === 'atender-hoy' && (final || !operational.actionableProcessIds.has(process.id))) return false
     if (statusFilter === 'esperando-cita' && states.get(process.id) !== 'Esperando cita') return false
     if (statusFilter === 'seguimiento' && states.get(process.id) !== 'Seguimiento pendiente') return false
@@ -84,7 +84,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
         const assigned=(profiles??[]).find((p:any)=>p.id===process.assigned_to)
         const charge=Array.isArray(process.process_charges)?process.process_charges[0]:process.process_charges
         const completed=(process.process_steps??[]).filter((s:any)=>s.status==='Completado').length,total=process.process_steps?.length??0,percent=total?Math.round(completed/total*100):0
-        const inactive=inactivityAlert(process)
+        const inactive=states.get(process.id) === 'Sin movimiento' ? inactivityAlert(process) : null
         return <Link className={`process-card process-card-link ${process.assigned_to===context.userId?'process-card-personal':''} ${inactive?'process-card-stalled':''}`} href={`/admin/tramites/${process.id}`} key={process.id}>
           <div className="client-card-head"><div><strong>{client?.full_name??'Cliente'}</strong><small>{process.service_name}</small></div><div className="process-card-badges">{inactive?<span className="urgent-pill">{inactive.days} días</span>:null}<span className={`priority ${String(process.priority||'Media').toLowerCase()}`}>{process.priority||'Media'}</span></div></div>
           <div className="process-contact-line"><span>{process.contact_phone||client?.phone||'Sin teléfono'}</span><span>{client?.email||'Sin correo'}</span></div>

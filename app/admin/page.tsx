@@ -55,7 +55,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     return process.assigned_to === context.userId || !process.assigned_to
   })
 
-  const {queue, states:processStates, workItems, actionableProcessIds} = buildOperationalWork(visibleProcesses, visibleAgenda, now, context.userId)
+  const {states:processStates, workItems, actionableProcessIds} = buildOperationalWork(visibleProcesses, visibleAgenda, now, context.userId)
   const recommended = workItems[0]?.kind === 'agenda' ? workItems[0].event : null
   const recommendedProcessTask = workItems[0]?.kind !== 'agenda' ? workItems[0] : null
   const stalled = processStates.filter(item => item.state === 'Sin movimiento')
@@ -77,7 +77,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     const reference = prospect.last_followup_at || prospect.updated_at || prospect.created_at
     return reference && daysBetweenKeys(hermosilloDateKey(reference), todayKey) >= 2
   }).filter((prospect: any) => selectedView === 'team' || selectedView === 'unassigned' ? (selectedView === 'team' || !prospect.assigned_to) : selectedView.startsWith('user:') ? prospect.assigned_to === selectedView.slice(5) : prospect.assigned_to === context.userId || !prospect.assigned_to)
-  const stateCount = (state: string) => state === 'Atender hoy' ? workItems.length : processStates.filter(item => item.state === state && (state !== 'Sin movimiento' || !actionableProcessIds.has(item.process.id) || item.inactive.days >= 4)).length
+  const stateCount = (state: string) => state === 'Atender hoy' ? workItems.length : processStates.filter(item => item.state === state).length
 
   return (
     <>

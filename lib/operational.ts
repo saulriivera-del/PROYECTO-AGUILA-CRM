@@ -19,7 +19,7 @@ function normalized(value: unknown) {
 function firstRelation(value: any) { return Array.isArray(value) ? value[0] : value }
 
 export function inactivityAlert(process: any, now = new Date()) {
-  if (isFinalProcess(process) || isAwaitingVisaPickup(process)) return null
+  if (isFinalProcess(process) || isAwaitingVisaPickup(process) || isLegacyRenewalFollowup(process.service_name, process.current_stage)) return null
 
   const todayKey = hermosilloDateKey(now)
   const service = normalized(process.service_name)

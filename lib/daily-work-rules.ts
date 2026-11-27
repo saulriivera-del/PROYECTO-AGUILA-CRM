@@ -16,5 +16,5 @@ export function legacyPriorityDue(priority: string | null, movement: string | nu
   return Boolean(!waiting && priority && priority <= today && (!movement || movement <= priority))
 }
 export function needsSyntheticTask(hasDueEvent: boolean, state: string, paymentReflection: boolean) {
-  return !hasDueEvent && (paymentReflection || state === 'Atender hoy' || state === 'Sin movimiento')
+  return paymentReflection || (!hasDueEvent && (state === 'Atender hoy' || state === 'Sin movimiento'))
 }

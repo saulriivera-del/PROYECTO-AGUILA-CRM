@@ -36,7 +36,7 @@ export async function completeAgendaEvent(f:FormData){
  // cualquier otra alerta pendiente del mismo expediente se depura.
  if(!pickup && event.process_id){
    const now=new Date().toISOString()
-   const patch = key.endsWith(':assigned-priority') ? {last_movement_at:now,priority_attention_at:null,operational_status:'Automático'} : {last_movement_at:now}
+   const patch = key.endsWith(':assigned-priority') ? {last_movement_at:now,priority_attention_at:null} : {last_movement_at:now}
    const {error:processError}=await c.supabase.from('processes').update(patch).eq('id',event.process_id).eq('organization_id',c.organizationId)
    if(processError) redirect('/admin/agenda?error='+encodeURIComponent(processError.message))
    const {error:logError}=await c.supabase.from('activity_log').insert({organization_id:c.organizationId,actor_id:c.userId,entity_type:'process',entity_id:event.process_id,action:'agenda_event_completed',description:'Actividad de agenda completada.',metadata:{event_id:id,automation_key:key}})
