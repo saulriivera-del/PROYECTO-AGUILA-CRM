@@ -7,6 +7,7 @@ import SubmitButton from '@/components/submit-button'
 import ProcessAssignmentForm from '@/components/process-assignment-form'
 import { updateProcessStatus, updateProcessContactEmail, addAppointmentAdvanceService, adminCorrectProcess, adminCorrectPayment } from '../actions'
 import { isAdministrator } from '@/lib/admin-access'
+import { processOperationalState } from '@/lib/operational'
 
 type Params = Promise<{ id: string }>
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -190,7 +191,7 @@ export default async function ProcessDetailPage({
             </div>
             <p><strong>Etapa actual:</strong> {process.current_stage || 'Inicio'}</p>
             <p><strong>Prioridad:</strong> {process.priority}</p>
-            <p><strong>Situación operativa:</strong> {process.operational_status || 'Automático'}</p>
+            <p><strong>Situación operativa:</strong> {processOperationalState({...process,paid_amount:paid})}</p>
             <p><strong>{process.service_name === 'Pasaporte mexicano' ? 'Cita Relaciones Exteriores' : 'Cita CAS'}:</strong> {dateOnly(process.cas_appointment_at || process.government_appointment_at)}</p>
             <p><strong>Cita Consulado:</strong> {dateOnly(process.consulate_appointment_at)}</p>
             <p><strong>Preparación entrevista:</strong> {dateOnly(process.interview_preparation_at)}</p>

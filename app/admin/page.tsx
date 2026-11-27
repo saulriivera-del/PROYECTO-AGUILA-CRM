@@ -3,7 +3,7 @@ import { requireAuthContext } from '@/lib/auth-context'
 import { dateOnly, dateTime, money } from '@/lib/format'
 import { addDaysKey, daysBetweenKeys, hermosilloDateKey, hermosilloTodayKey } from '@/lib/hermosillo'
 import { getFinancialSummary } from '@/lib/financial-summary'
-import { agendaCategory, inactivityLevel, processOperationalState, isFinalProcess, isPendingAgendaEvent } from '@/lib/operational'
+import { agendaCategory, isFinalProcess, isActionableAgendaEvent, buildOperationalWork } from '@/lib/operational'
 import SubmitButton from '@/components/submit-button'
 import ProcessQuickControl from '@/components/process-quick-control'
 import { completeAgendaEvent } from '@/app/admin/agenda/actions'
@@ -26,7 +26,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
   const [{ data: agenda }, { data: processes }, { data: profiles }, { data: prospects }, financial] = await Promise.all([
     context.supabase.from('agenda_events').select(
-      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage, closed_at)'
+      'id, title, description, starts_at, event_type, priority, assignment_scope, assigned_to, whatsapp_message, automation_key, process_id, status, clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage, closed_at, cas_appointment_at, consulate_appointment_at, government_appointment_at)'
     ).eq('organization_id', context.organizationId).eq('status', 'Pendiente').order('starts_at'),
     context.supabase.from('processes').select(
       'id, service_name, status, result_status, closed_at, priority, operational_status, priority_attention_at, assigned_to, current_stage, created_at, last_movement_at, cas_appointment_at, consulate_appointment_at, interview_preparation_at, government_appointment_at, clients(full_name, phone), process_charges(agreed_amount, payment_commitment_date), payments(amount)'
@@ -36,7 +36,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     getFinancialSummary(context.supabase, context.organizationId),
   ])
 
-  const allAgenda = (agenda ?? []).filter(isPendingAgendaEvent)
+  const allAgenda = (agenda ?? []).filter(event => isActionableAgendaEvent(event, now))
   const allProcesses = (processes ?? []).filter((process: any) => !isFinalProcess(process)).map((process: any) => ({
     ...process,
     paid_amount: (process.payments ?? []).reduce((sum: number, payment: any) => sum + Number(payment.amount), 0),
@@ -55,24 +55,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     return process.assigned_to === context.userId || !process.assigned_to
   })
 
-  const overdue = visibleAgenda.filter((event: any) => hermosilloDateKey(event.starts_at) < todayKey)
-  const today = visibleAgenda.filter((event: any) => hermosilloDateKey(event.starts_at) === todayKey)
-  const queue = [...overdue, ...today].sort((a: any, b: any) => {
-    const ap = a.assigned_to === context.userId ? 0 : 1
-    const bp = b.assigned_to === context.userId ? 0 : 1
-    if (ap !== bp) return ap - bp
-    const au = a.priority === 'Urgente' || a.event_type === 'Tarea prioritaria' ? 0 : 1
-    const bu = b.priority === 'Urgente' || b.event_type === 'Tarea prioritaria' ? 0 : 1
-    if (au !== bu) return au - bu
-    return new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
-  })
-  const recommended = queue[0]
-  const processStates = visibleProcesses.map((process: any) => ({
-    process,
-    state: processOperationalState(process, now),
-    inactive: inactivityLevel(process, now),
-  }))
-  const stalled = processStates.filter((item: any) => item.inactive.days >= 4 && item.state === 'Sin movimiento')
+  const {queue, states:processStates, workItems, actionableProcessIds} = buildOperationalWork(visibleProcesses, visibleAgenda, now, context.userId)
+  const recommended = workItems[0]?.kind === 'agenda' ? workItems[0].event : null
+  const recommendedProcessTask = workItems[0]?.kind !== 'agenda' ? workItems[0] : null
+  const stalled = processStates.filter(item => item.state === 'Sin movimiento')
   const preparationEndKey = addDaysKey(todayKey, 5)
   const preparationProcesses = processStates.filter(({ process }: any) => {
     const stageKey = String(process.current_stage || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -91,23 +77,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
     const reference = prospect.last_followup_at || prospect.updated_at || prospect.created_at
     return reference && daysBetweenKeys(hermosilloDateKey(reference), todayKey) >= 2
   }).filter((prospect: any) => selectedView === 'team' || selectedView === 'unassigned' ? (selectedView === 'team' || !prospect.assigned_to) : selectedView.startsWith('user:') ? prospect.assigned_to === selectedView.slice(5) : prospect.assigned_to === context.userId || !prospect.assigned_to)
-  const stateCount = (state: string) => processStates.filter((item: any) => item.state === state).length
-  const paymentReflection = processStates.filter(({ process }: any) => String(process.current_stage || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes('esperando reflejo de pago'))
-  const workItems = [
-    ...paymentReflection.map((item: any) => ({ kind: 'payment-reflection' as const, id: `payment-reflection:${item.process.id}`, rank: -1, ...item })),
-    ...queue.map((event: any) => ({
-      kind: 'agenda' as const,
-      id: `agenda:${event.id}`,
-      rank: String(event.automation_key || '').endsWith(':consulate-status') ? 0 : 3,
-      event,
-    })),
-    ...stalled.map((item: any) => ({
-      kind: 'stalled' as const,
-      id: `stalled:${item.process.id}`,
-      rank: item.inactive.days >= 7 ? 1 : 2,
-      ...item,
-    })),
-  ].sort((a: any, b: any) => a.rank - b.rank)
+  const stateCount = (state: string) => state === 'Atender hoy' ? workItems.length : processStates.filter(item => item.state === state && (state !== 'Sin movimiento' || !actionableProcessIds.has(item.process.id) || item.inactive.days >= 4)).length
 
   return (
     <>
@@ -149,6 +119,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
               <h2>{recommended.title}</h2>
               <p>{dateTime(recommended.starts_at)} · {recommended.description || 'Sin indicaciones adicionales'}</p>
             </>
+          ) : recommendedProcessTask ? (
+            <><span className="work-category">TRÁMITE</span><h2>{(Array.isArray(recommendedProcessTask.process.clients) ? recommendedProcessTask.process.clients[0] : recommendedProcessTask.process.clients)?.full_name || 'Cliente'}</h2><p>{recommendedProcessTask.process.current_stage || recommendedProcessTask.state}</p><Link className="secondary-button" href={`/admin/tramites/${recommendedProcessTask.process.id}`}>Abrir trámite</Link></>
           ) : (
             <><h2>Operación al corriente</h2><p>No hay actividades vencidas ni programadas para hoy en esta vista.</p></>
           )}
@@ -168,15 +140,15 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
 
       <section className="smart-state-grid">
         {['Atender hoy','Esperando al cliente','Esperando cita','Esperando pago','Seguimiento pendiente','Sin movimiento'].map((state) => (
-          <article key={state}><span>{state}</span><strong>{stateCount(state)}</strong></article>
+          <article key={state}><span>{state}</span><strong>{stateCount(state)}</strong>{state === 'Atender hoy' ? <small>Actividades de la bandeja</small> : <small>Expedientes</small>}</article>
         ))}
       </section>
 
       <section className="daily-operation-grid smart-operation-grid">
         <article className="panel-card">
-          <div className="panel-heading"><div><span className="eyebrow">Trabajo de hoy · Hermosillo</span><h3>Bandeja ordenada</h3></div><strong>{workItems.length}</strong></div>
+          <div className="panel-heading"><div><span className="eyebrow">Trabajo de hoy · Hermosillo</span><h3>Bandeja ordenada</h3><p>{actionableProcessIds.size} expedientes vinculados · puede haber varias actividades por expediente.</p></div><strong>{workItems.length}</strong></div>
           <div className="daily-work-list">
-            {workItems.slice(0, 20).map((item: any) => {
+            {workItems.map((item: any) => {
               if (item.kind === 'payment-reflection') {
                 const process = item.process
                 const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
@@ -185,6 +157,11 @@ export default async function AdminPage({ searchParams }: { searchParams: Search
                   <div className="daily-work-copy"><strong>{client?.full_name || 'Cliente'} · {process.service_name}</strong><small>Esperando reflejo de pago consular. Revisar hasta que el sistema permita continuar.</small></div>
                   <div className="daily-work-actions"><Link className="primary-button mini-button" href={`/admin/tramites/${process.id}`}>Revisar pago</Link></div>
                 </article>
+              }
+              if (item.kind === 'priority') {
+                const process = item.process
+                const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
+                return <article className="daily-work-item" key={item.id}><div><span className="work-category">ATENCIÓN PRIORITARIA</span></div><div className="daily-work-copy"><strong>{client?.full_name || 'Cliente'} · {process.service_name}</strong><small>{process.current_stage || 'Inicio'}</small></div><div className="daily-work-actions"><Link className="primary-button mini-button" href={`/admin/tramites/${process.id}`}>Abrir trámite</Link></div></article>
               }
               if (item.kind === 'stalled') {
                 const process = item.process

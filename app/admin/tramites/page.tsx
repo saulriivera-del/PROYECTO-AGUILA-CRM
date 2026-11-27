@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { requireAuthContext } from '@/lib/auth-context'
 import { dateOnly, dateTime, money } from '@/lib/format'
-import { inactivityAlert, isFinalProcess } from '@/lib/operational'
+import { inactivityAlert, isFinalProcess, buildOperationalWork } from '@/lib/operational'
 import NewProcessModal from '@/components/new-process-modal'
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
@@ -17,11 +17,12 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
   const sort = typeof params.sort === 'string' ? params.sort : 'priority'
   const context = await requireAuthContext()
 
-  const [{ data: clients }, { data: rawFlows }, { data: processData }, { data: profiles }] = await Promise.all([
+  const [{ data: clients }, { data: rawFlows }, { data: processData }, { data: profiles }, { data: events }] = await Promise.all([
     context.supabase.from('clients').select('id, full_name, phone, email, city, state, processes(id)').eq('organization_id', context.organizationId).order('full_name'),
     context.supabase.from('service_flows').select('id, service_name').eq('is_active', true).order('service_name'),
-    context.supabase.from('processes').select('id, service_name, status, result_status, closed_at, priority, operational_status, current_stage, government_appointment_at, cas_appointment_at, consulate_appointment_at, contact_phone, priority_attention_at, assigned_to, created_at, last_movement_at, clients(full_name, phone, email), process_charges(agreed_amount), process_steps(id, status)').eq('organization_id', context.organizationId).order('created_at', { ascending: false }),
+    context.supabase.from('processes').select('id, service_name, status, result_status, closed_at, priority, operational_status, current_stage, government_appointment_at, cas_appointment_at, consulate_appointment_at, contact_phone, priority_attention_at, assigned_to, created_at, last_movement_at, clients(full_name, phone, email), process_charges(agreed_amount, payment_commitment_date), payments(amount), process_steps(id, status)').eq('organization_id', context.organizationId).order('created_at', { ascending: false }),
     context.supabase.from('profiles').select('id, full_name, role').eq('organization_id', context.organizationId).eq('is_active', true).order('full_name'),
+    context.supabase.from('agenda_events').select('id,process_id,status,starts_at,automation_key,assigned_to,priority,event_type,processes(id,status,current_stage,closed_at,cas_appointment_at,consulate_appointment_at,government_appointment_at)').eq('organization_id',context.organizationId).eq('status','Pendiente'),
   ])
 
   const flowOrder = ['Visa americana','Renovación Visa Americana','Pasaporte mexicano','Visa + Pasaporte','Adelanto de cita','Visa TN','Visa TD','Visa tipo H','eTA Canadá','I-94','Reporte de extravío']
@@ -30,13 +31,19 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
     if(ai<0&&bi<0)return a.service_name.localeCompare(b.service_name,'es'); if(ai<0)return 1;if(bi<0)return -1;return ai-bi
   })
 
-  let processes = (processData ?? []).filter((process:any) => {
+  const enriched = (processData ?? []).map((p:any)=>({...p,paid_amount:(p.payments ?? []).reduce((sum:number,payment:any)=>sum+Number(payment.amount),0)}))
+  const operational = buildOperationalWork(enriched, events ?? [], new Date(), context.userId)
+  const states = new Map(operational.states.map(item=>[item.process.id,item.state]))
+  let processes = enriched.filter((process:any) => {
     const client = Array.isArray(process.clients) ? process.clients[0] : process.clients
     const final = isFinalProcess(process)
     if (statusFilter === 'activos' && final) return false
     if (statusFilter === 'concluidos' && !final) return false
     if (statusFilter === 'sin-movimiento' && !inactivityAlert(process)) return false
-    if (statusFilter === 'esperando-cita' && !text(process.current_stage).includes('cita') && !text(process.operational_status).includes('cita')) return false
+    if (statusFilter === 'atender-hoy' && (final || !operational.actionableProcessIds.has(process.id))) return false
+    if (statusFilter === 'esperando-cita' && states.get(process.id) !== 'Esperando cita') return false
+    if (statusFilter === 'seguimiento' && states.get(process.id) !== 'Seguimiento pendiente') return false
+    if (statusFilter === 'esperando-pago' && states.get(process.id) !== 'Esperando pago') return false
     if (statusFilter === 'prioridad' && process.priority !== 'Alta') return false
     if (serviceFilter && process.service_name !== serviceFilter) return false
     if (ownerFilter === 'mine' && process.assigned_to !== context.userId) return false
@@ -64,7 +71,7 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
 
     <form className="process-filter-bar" method="get">
       <input name="q" defaultValue={query} placeholder="Nombre, teléfono, correo, etapa o expediente" />
-      <select name="status" defaultValue={statusFilter}><option value="activos">Activos</option><option value="sin-movimiento">Sin movimiento</option><option value="esperando-cita">Esperando cita</option><option value="prioridad">Prioridad alta</option><option value="concluidos">Concluidos</option><option value="todos">Todos</option></select>
+      <select name="status" defaultValue={statusFilter}><option value="activos">Activos</option><option value="atender-hoy">Atender hoy</option><option value="seguimiento">Seguimiento pendiente</option><option value="esperando-pago">Esperando pago</option><option value="sin-movimiento">Sin movimiento</option><option value="esperando-cita">Esperando cita</option><option value="prioridad">Prioridad alta</option><option value="concluidos">Concluidos</option><option value="todos">Todos</option></select>
       <select name="service" defaultValue={serviceFilter}><option value="">Todos los servicios</option>{flows.map((f:any)=><option key={f.id} value={f.service_name}>{f.service_name}</option>)}</select>
       <select name="owner" defaultValue={ownerFilter}><option value="">Todos los responsables</option><option value="mine">Asignados a mí</option><option value="unassigned">Sin asignar</option>{(profiles??[]).map((p:any)=><option key={p.id} value={p.id}>{p.full_name||'Usuario'}</option>)}</select>
       <select name="sort" defaultValue={sort}><option value="priority">Prioridad</option><option value="inactive">Más días sin movimiento</option><option value="appointment">Cita más próxima</option><option value="recent">Más recientes</option><option value="name">Nombre</option></select>
@@ -81,8 +88,8 @@ export default async function TramitesPage({ searchParams }: { searchParams: Sea
         return <Link className={`process-card process-card-link ${process.assigned_to===context.userId?'process-card-personal':''} ${inactive?'process-card-stalled':''}`} href={`/admin/tramites/${process.id}`} key={process.id}>
           <div className="client-card-head"><div><strong>{client?.full_name??'Cliente'}</strong><small>{process.service_name}</small></div><div className="process-card-badges">{inactive?<span className="urgent-pill">{inactive.days} días</span>:null}<span className={`priority ${String(process.priority||'Media').toLowerCase()}`}>{process.priority||'Media'}</span></div></div>
           <div className="process-contact-line"><span>{process.contact_phone||client?.phone||'Sin teléfono'}</span><span>{client?.email||'Sin correo'}</span></div>
-          <div className="process-assignment-line"><span>{assigned?.full_name?`Asignado a ${assigned.full_name}`:'Disponible para el equipo'}</span>{process.priority_attention_at?<strong>Atender: {dateTime(process.priority_attention_at)}</strong>:null}</div>
-          <div className="process-meta"><span>Estado: <strong>{process.status}</strong></span><span>Etapa: <strong>{process.current_stage||'Inicio'}</strong></span><span>Total: <strong>{money(charge?.agreed_amount)}</strong></span></div>
+          <div className="process-assignment-line"><span>{assigned?.full_name?`Asignado a ${assigned.full_name}`:'Disponible para el equipo'}</span>{operational.actionableProcessIds.has(process.id) && !isFinalProcess(process) ? <strong>Atender hoy</strong> : null}</div>
+          <div className="process-meta"><span>Estado: <strong>{process.status}</strong></span>{!isFinalProcess(process) ? <span>Operación: <strong>{states.get(process.id) || 'En orden'}</strong></span> : null}<span>Etapa: <strong>{process.current_stage||'Inicio'}</strong></span><span>Total: <strong>{money(charge?.agreed_amount)}</strong></span></div>
           <div className="progress"><span style={{width:`${percent}%`}}/></div><small>{completed} de {total} etapas · Cita: {dateOnly(process.consulate_appointment_at||process.government_appointment_at)}</small>{inactive?<small className="stalled-reason">Revisar: {inactive.reason}</small>:null}<span className="open-process-label">Abrir trámite →</span>
         </Link>})}{!processes.length?<div className="empty-state">No hay trámites que coincidan con los filtros.</div>:null}</div>
     </section>

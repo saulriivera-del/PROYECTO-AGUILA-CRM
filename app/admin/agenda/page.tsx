@@ -5,7 +5,7 @@ import AgendaModal from '@/components/agenda-modal'
 import SubmitButton from '@/components/submit-button'
 import { completeAgendaEvent } from './actions'
 import { resolveConsularStatus } from '@/app/admin/tramites/actions'
-import { isPendingAgendaEvent } from '@/lib/operational'
+import { isActionableAgendaEvent } from '@/lib/operational'
 
 type SearchParams = Promise<Record<string,string|string[]|undefined>>
 const pad=(n:number)=>String(n).padStart(2,'0')
@@ -16,10 +16,10 @@ export default async function AgendaPage({searchParams}:{searchParams:SearchPara
  const [sy,sm]=selected.split('-').map(Number), month=typeof params.month==='string'?params.month:`${sy}-${pad(sm)}`
  const [year,monthNumber]=month.split('-').map(Number)
  const [{data:events},{data:profiles}]=await Promise.all([
-  context.supabase.from('agenda_events').select('*, profiles!agenda_events_assigned_to_fkey(full_name), clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage, closed_at)').eq('organization_id',context.organizationId).order('starts_at'),
+  context.supabase.from('agenda_events').select('*, profiles!agenda_events_assigned_to_fkey(full_name), clients(full_name, phone), processes(id, service_name, contact_phone, status, current_stage, closed_at, cas_appointment_at, consulate_appointment_at, government_appointment_at)').eq('organization_id',context.organizationId).order('starts_at'),
   context.supabase.from('profiles').select('id, full_name, role').eq('organization_id',context.organizationId).eq('is_active',true).order('full_name')
  ])
- const pending=(events??[]).filter(isPendingAgendaEvent), done=(events??[]).filter((e:any)=>e.status==='Realizado')
+ const pending=(events??[]).filter(e=>isActionableAgendaEvent(e)), done=(events??[]).filter((e:any)=>e.status==='Realizado')
  const byDate=new Map<string,any[]>(); pending.forEach((e:any)=>{const k=hermosilloDateKey(e.starts_at);byDate.set(k,[...(byDate.get(k)??[]),e])})
  const selectedEvents=byDate.get(selected)??[]
  const overdue=pending.filter((e:any)=>hermosilloDateKey(e.starts_at)<todayKey), today=byDate.get(todayKey)??[]

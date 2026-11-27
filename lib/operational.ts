@@ -10,6 +10,8 @@ export type OperationalState =
 
 import { isFinalProcess, isAwaitingVisaPickup } from '@/lib/process-lifecycle'
 export { isFinalProcess, isAwaitingVisaPickup, isPendingAgendaEvent } from '@/lib/process-lifecycle'
+import { isPendingAgendaEvent } from '@/lib/process-lifecycle'
+import { hasFutureAppointment, isLegacyRenewalFollowup, isObsoleteReminder, legacyPriorityDue, needsSyntheticTask } from '@/lib/daily-work-rules'
 
 function normalized(value: unknown) {
   return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -57,25 +59,36 @@ export function inactivityAlert(process: any, now = new Date()) {
   return { days, level, reason }
 }
 
+const day = (value: any) => value ? hermosilloDateKey(value) : null
+export function agendaProcess(event: any) { return firstRelation(event.processes) }
+export function agendaProcessId(event: any) { return event.process_id || agendaProcess(event)?.id || null }
+export function isActionableAgendaEvent(event: any, now = new Date()) {
+  if (!isPendingAgendaEvent(event)) return false
+  const process = agendaProcess(event)
+  if (!process) return true
+  return !isObsoleteReminder(String(event.automation_key || '').split(':').pop() || '', hermosilloDateKey(now), day(process.cas_appointment_at), day(process.consulate_appointment_at), day(process.government_appointment_at))
+}
+
 export function processOperationalState(process: any, now = new Date()): OperationalState {
   if (isFinalProcess(process)) return 'En orden'
-  if (isAwaitingVisaPickup(process)) return 'Seguimiento pendiente'
+  if (isAwaitingVisaPickup(process) || isLegacyRenewalFollowup(process.service_name, process.current_stage)) return 'Seguimiento pendiente'
   const explicit = String(process.operational_status || '').trim()
-  if (explicit && explicit !== 'Automático') return explicit as OperationalState
-
   const todayKey = hermosilloDateKey(now)
-  const priorityKey = process.priority_attention_at ? hermosilloDateKey(process.priority_attention_at) : null
-  if (priorityKey && priorityKey <= todayKey) return 'Atender hoy'
-
+  const stage = normalized(process.current_stage)
+  if (explicit === 'Atender hoy') return 'Atender hoy'
+  if (stage.includes('esperando reflejo de pago')) return 'Esperando pago'
+  if (explicit && explicit !== 'Automático' && explicit !== 'En orden') return explicit as OperationalState
   const charge = firstRelation(process.process_charges)
   const commitment = charge?.payment_commitment_date
   const agreed = Number(charge?.agreed_amount ?? 0)
   const paid = Number(process.paid_amount ?? 0)
   if (commitment && commitment < todayKey && paid < agreed) return 'Esperando pago'
 
-  const stage = normalized(process.current_stage)
-  if (stage.includes('espera de cita')) return 'Esperando cita'
+  if (hasFutureAppointment([day(process.cas_appointment_at), day(process.consulate_appointment_at), day(process.government_appointment_at)], todayKey) || stage.includes('espera de cita') || stage.includes('esperando cita')) return 'Esperando cita'
+  if (legacyPriorityDue(day(process.priority_attention_at), day(process.last_movement_at), todayKey, false)) return 'Atender hoy'
+  if (stage.includes('pago')) return 'Esperando pago'
   if (stage.includes('seguimiento') || stage.includes('verificar')) return 'Seguimiento pendiente'
+  if (explicit === 'En orden') return 'En orden'
   if (inactivityAlert(process, now)) return 'Sin movimiento'
   return 'En orden'
 }
@@ -94,4 +107,31 @@ export function agendaCategory(event: any) {
 
 export function todayKey() {
   return hermosilloTodayKey()
+}
+
+export function buildOperationalWork(processes: any[], events: any[], now = new Date(), userId = '') {
+  const today = hermosilloDateKey(now)
+  const queue = events.filter(e => isActionableAgendaEvent(e, now) && day(e.starts_at)! <= today).sort((a,b) => {
+    const ap = a.assigned_to === userId ? 0 : 1, bp = b.assigned_to === userId ? 0 : 1
+    const au = a.priority === 'Urgente' || a.event_type === 'Tarea prioritaria' ? 0 : 1
+    const bu = b.priority === 'Urgente' || b.event_type === 'Tarea prioritaria' ? 0 : 1
+    return ap-bp || au-bu || new Date(a.starts_at).getTime()-new Date(b.starts_at).getTime()
+  })
+  const dueIds = new Set(queue.map(agendaProcessId).filter(Boolean))
+  const states = processes.filter(p => !isFinalProcess(p)).map(process => {
+    const state = processOperationalState(process, now)
+    const inactive = inactivityLevel(process, now)
+    return { process, state, inactive }
+  })
+  const workItems: any[] = queue.map(event => ({ kind:'agenda', id:'agenda:'+event.id, rank:String(event.automation_key || '').endsWith(':consulate-status') ? 0 : 3, event }))
+  for (const item of states) {
+    const {process,state,inactive} = item
+    const reflection = normalized(process.current_stage).includes('esperando reflejo de pago')
+    if (!needsSyntheticTask(dueIds.has(process.id), state, reflection)) continue
+    const kind = reflection ? 'payment-reflection' : state === 'Sin movimiento' ? 'stalled' : 'priority'
+    workItems.push({ ...item, kind, id:kind+':'+process.id, rank:reflection ? -1 : kind === 'priority' ? 1 : inactive.days >= 7 ? 1 : 2 })
+  }
+  workItems.sort((a,b) => a.rank-b.rank)
+  const actionableProcessIds = new Set(workItems.map(item => item.kind === 'agenda' ? agendaProcessId(item.event) : item.process.id).filter(Boolean))
+  return {queue, states, workItems, actionableProcessIds}
 }
